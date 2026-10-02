@@ -17,7 +17,7 @@ export const cityBarriers = [
   { id: 'guidance', edge: 3, label: 'Route information', action: 'Add accessible route cues', explanation: 'Repeated audio and tactile cues support this bot’s vision and route-memory needs.' },
   { id: 'sidewalk', edge: 4, label: 'Narrow sidewalk', action: 'Widen sidewalk', explanation: 'The passage is narrower than this bot. Move the boundary to provide more clearance.' },
   { id: 'bridge', edge: 6, label: 'Raised bridge', action: 'Lower bridge', explanation: 'The raised bridge interrupts the route across the river.' },
-  { id: 'stairs', edge: 8, label: 'Stairs', action: 'Add ramp', explanation: 'Wheels cannot follow these steps. A smooth ramp connects the two levels.' },
+  { id: 'stairs', edge: 8, label: 'Stairs', action: 'Convert to ramp', explanation: 'Wheels cannot follow these steps. A smooth ramp connects the two levels.' },
   { id: 'elevator', edge: 10, label: 'Elevator unavailable', action: 'Enable elevator', explanation: 'The gallery is on another level. Enable the elevator to provide step-free access.' },
 ] as const;
 
