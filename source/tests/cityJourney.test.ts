@@ -9,6 +9,22 @@ import { robotMetadata } from '../src/robot/robotState';
 
 const bot = () => structuredClone(new BotHistory(['Curie', 'Einstein'], () => 0).current);
 
+test('steps stop the wheels until the city is converted to a ramp', () => {
+  const robot = bot(), profile = structuredClone(robot.profile);
+  const journey = new CityJourney(robot);
+  for (const barrier of cityBarriers) if (barrier.id !== 'stairs' && barrier.id !== 'elevator') journey.intervene(barrier.id);
+  journey.update(1000);
+  assert.equal(journey.blocked?.id, 'stairs');
+  const position = journey.position;
+  journey.update(30); assert.deepEqual(journey.position, position);
+  assert.equal(journey.edit('stairs', true), true);
+  journey.update(1000);
+  assert.equal(journey.blocked?.id, 'elevator');
+  assert.ok(journey.position.y > position.y);
+  assert.deepEqual(robot.profile, profile);
+  assert.ok(journey.events.some(event => event.type === 'intervention' && event.barrier === 'stairs'));
+});
+
 test('large time steps stop before a barrier and waiting never moves the robot through it', () => {
   const journey = new CityJourney(bot());
   journey.update(1000);

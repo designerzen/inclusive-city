@@ -96,9 +96,12 @@ button.attract-enter:hover { transform: translateY(-3px); background: #e2ffa7; b
 .attract-grid { position: absolute; inset: 0; z-index: -1; opacity: .15; background-image: radial-gradient(#d2c9e4 1px, transparent 1px); background-size: 36px 36px; mask-image: linear-gradient(90deg, transparent 30%, #000); }
 .attract-footer { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; border-top: 1px solid #ffffff15; }
 .attract-footer-note { color: #949aa9; font-size: 11px; }
-.attract-partner { display: flex; align-items: center; gap: 20px; }
+.attract-partner { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; max-width: 100%; }
 .attract-rix { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; border-radius: 4px; }
 .attract-rix img { display: block; width: 132px; height: auto; }
+.attract-qr { display: inline-flex; flex-shrink: 0; width: 120px; height: 120px; }
+.attract-qr img { display: block; width: 120px; height: 120px; }
+.attract-qr:focus-visible { outline: 3px solid #ffe6a5; outline-offset: 5px; }
 .attract-rix:hover { opacity: .8; }
 .attract-rix:focus-visible { outline: 3px solid #ffe6a5; outline-offset: 5px; }
 .attract-controls { display: flex; gap: 10px; }

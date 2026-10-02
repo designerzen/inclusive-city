@@ -17,11 +17,12 @@ import { createScreenTransition } from './app/screenTransition';
 import type { EditorFeedback } from './robot/editorFeedback';
 import { mountAttractScreen } from './ui/attractScreen';
 import { mountExhibitionScreen } from './ui/exhibitionScreen';
-import { JourneyMusicComposer } from './art/JourneyMusicComposer';
+import { JourneyCreativity } from './art/JourneyCreativity';
 import { SoundEffect } from './audio/SoundEffect';
 import { painterStyles } from './art/artistStyles';
 import './styles.css';
 import './lightTheme.css';
+import './cityHud.css';
 import './accessibility.css';
 import { applyTheme, savedTheme } from './app/theme';
 import type { Theme } from './app/theme';
@@ -277,7 +278,7 @@ const designer = mountAbilityDesigner(document.querySelector('#ability-designer'
 }, (artist, previous) => {
   if (previous.musician !== artist.musician) {
     sounds.unlock(); sounds.stop();
-    sounds.perform(new JourneyMusicComposer(artist.musician, history.current.id, profile.abilities.speed).compose({ at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: false }));
+    sounds.perform(new JourneyCreativity(history.current).previewMusic());
   } else if (previous.painter !== artist.painter) {
     sounds.play(new SoundEffect({ root: 60 + painterStyles.findIndex(style => style.id === artist.painter), intervals: [0, 4, 7], pattern: 'up', waveform: 'sine', gain: .08 }), `artist:painter:${artist.painter}`);
   }

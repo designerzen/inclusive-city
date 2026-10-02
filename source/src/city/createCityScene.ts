@@ -159,6 +159,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
   }
   const steps = Array.from({ length: 8 }, (_, i) => {
     const step = box(`stair-${i}`, 10, 0.14 + (i + 1) * 0.05, -3.5 + i, 3.2, (i + 1) * 0.1, 1, stairMat);
+    const edge = box(`stair-edge-${i}`, 0, 0, 0, 3.2, .035, .06, amber);
+    edge.parent = step; edge.position.set(0, (i + 1) * .05 + .018, -.46);
     outline(step, '#ddc6a1'); return step;
   });
   const ramp = box('accessible-ramp', 10, 0.47, 0, 3.2, 0.14, Math.hypot(8, 0.8));
@@ -279,7 +281,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
   }
   label('RIVER', 3.5, 13, 4.5);
   label('BRIDGE', 3.5, -7, 5.5);
-  const stairsLabel = label('STAIRS', 14.2, -.5, 4.5);
+  const stairsLabel = label('STEPS → RAMP', 14.2, -.5, 6);
   label('LIFT', 15, 4, 4, 3.55);
   label('CATWALK', 22, -2.5, 5.5, 2.85);
   label('CURB', -14.2, -17, 4);
@@ -419,7 +421,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
     boundaries.forEach((wall, i) => { wall.position.z = -4 + (i ? 1 : -1) * (pavementWidth / 2 + 0.08); });
     bridge.rotation.z = state.bridge ? 0 : 0.28; bridge.position.y = state.bridge ? 0.06 : 1.1;
     steps.forEach(step => step.setEnabled(!state.stairs)); ramp.setEnabled(state.stairs);
-    const stairsText = state.stairs ? 'RAMP' : 'STAIRS';
+    const stairsText = state.stairs ? 'RAMP ✓' : 'STEPS → RAMP';
     if (stairsLabel.text !== stairsText) { stairsLabel.text = stairsText; drawLabel(stairsLabel); }
     shaft.edgesColor = Color4.FromHexString(theme === 'light'
       ? state.elevator ? '#147850ff' : '#536a7aff'

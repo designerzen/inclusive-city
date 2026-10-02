@@ -30,6 +30,9 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <a class="attract-rix" href="https://www.rixinclusiveresearch.org/" target="_blank" rel="noopener noreferrer" aria-label="Visit Rix Inclusive Research (opens in a new tab)">
           <img src="${import.meta.env.BASE_URL}assets/logos/rix.svg" alt="Rix Inclusive Research" width="1410" height="420" />
         </a>
+        <a class="attract-qr" href="https://www.rixinclusiveresearch.org/" target="_blank" rel="noopener noreferrer" aria-label="Visit Rix Inclusive Research (opens in a new tab)">
+          <img src="${import.meta.env.BASE_URL}assets/logos/rix-qr.svg" alt="QR code for the Rix Inclusive Research website" width="120" height="120" />
+        </a>
       </div>
       <div class="attract-controls">
         <button id="attract-music" type="button" aria-pressed="false"><span class="attract-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="attract-music-label">Play soundtrack</span></button>

@@ -82,4 +82,7 @@ export class JourneyCreativity {
   draw(context: CanvasRenderingContext2D, width: number, height: number) {
     PaintingRenderer.render(context, width, height, this.painting);
   }
+
+  /** Designer auditions share the finished journey's identity, key and melodic seed. */
+  previewMusic(): SoundSequenceEntry[] { return this.composer.preview(); }
 }

@@ -12,7 +12,7 @@ const actions: Record<BarrierId, [string, string]> = {
   transport: ['Add transport', 'Remove transport'], curb: ['Lower curb', 'Raise curb'],
   crossing: ['More time', 'Less time'], guidance: ['Add route cues', 'Remove route cues'],
   sidewalk: ['Widen pavement', 'Narrow pavement'], bridge: ['Lower bridge', 'Raise bridge'],
-  stairs: ['Add ramp', 'Remove ramp'], elevator: ['Enable elevator', 'Disable elevator'],
+  stairs: ['Convert to ramp', 'Restore steps'], elevator: ['Enable elevator', 'Disable elevator'],
 };
 const icons = { transport: 'follow', curb: 'angled', crossing: 'plus', guidance: 'eye', sidewalk: 'overhead', bridge: 'angled', stairs: 'angled', elevator: 'up' } as const;
 

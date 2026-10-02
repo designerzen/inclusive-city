@@ -49,7 +49,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <h2 id="artist-heading">Creative personality</h2><p class="artist-intro">Choose how this robot sees and hears its journey.</p>
       <label for="artist-painter">Painter</label><select id="artist-painter" aria-describedby="artist-painter-description">${painterStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-painter-description"></p>
       <canvas id="artist-preview" width="480" height="240" role="img" aria-label="A study of this robot’s selected painting style"></canvas>
-      <label for="artist-musician">Musician</label><select id="artist-musician" aria-describedby="artist-musician-description">${musicianStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-musician-description"></p>
+      <label for="artist-musician">Musician</label><select id="artist-musician" aria-describedby="artist-musician-description artist-musician-hint">${musicianStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-musician-description"></p><p id="artist-musician-hint">Choose a style to hear a four-bar preview. Your robot will develop its own melody as it explores.</p>
       <p class="artist-note">Each is a generative interpretation. Your choices stay with this robot.</p>
     </section>
     <p id="designer-announcement" class="sr-only" role="status" aria-live="polite"></p>

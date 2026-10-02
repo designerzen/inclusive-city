@@ -16,6 +16,7 @@ import { SoundEffect } from '../audio/SoundEffect';
 import { mapIcon } from './mapIcons';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 import { mountCityFeaturePanel } from './cityFeaturePanel';
+import { mountCityHud } from './cityHud';
 import { describeFeature, featureNames, cityEditName } from '../city/cityDocument';
 import type { CityValue, CityEditId } from '../city/cityDocument';
 import { captureFinishedJourney } from '../art/finishedJourney';
@@ -95,6 +96,7 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
     </section>
     <p id="painting-download-status" class="sr-only" role="status" aria-live="polite"></p>
   `;
+  const hud = mountCityHud(container);
   const canvas = container.querySelector<HTMLCanvasElement>('#city-canvas')!;
   const status = container.querySelector('#journey-status')!;
   const pause = container.querySelector<HTMLButtonElement>('#city-pause')!;
@@ -152,13 +154,11 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
   function selectFeature(id: BarrierId) {
     if (!city) return;
     selected = id; manualSelection = true;
+    hud.openEditor();
     if (!city.journey.ready && !city.journey.paused && !city.journey.blocked && !city.journey.complete) {
       city.journey.paused = true; autoPaused = true; accumulator = 0; sounds.stop();
     }
     sounds.interaction('tap'); updatePanel();
-    if (window.matchMedia('(max-width: 800px)').matches && !container.querySelector('#city-editor')!.contains(document.activeElement)) {
-      container.querySelector('#city-editor')!.scrollIntoView({ block: 'start', behavior: 'auto' });
-    }
   }
   function announceEdit(id: CityEditId, prefix = '') {
     if (!city) return;
@@ -269,6 +269,9 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
     container.querySelector<HTMLButtonElement>('#city-restart')!.disabled = journey.ready;
     if (journey.blocked && journey.blocked.id !== lastBlock && (!manualSelection || !selected)
       && !container.querySelector('#city-editor')!.contains(document.activeElement)) selected = journey.blocked.id;
+    if (journey.blocked?.id === 'stairs' && lastBlock !== 'stairs') {
+      selected = 'stairs'; hud.openEditor();
+    }
     lastBlock = journey.blocked?.id ?? null;
     const waiting = container.querySelector<HTMLButtonElement>('#city-waiting')!;
     waiting.hidden = !journey.blocked || journey.blocked.id === selected;
