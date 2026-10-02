@@ -16,7 +16,7 @@
 #accessibility-status:empty { display: none; }
 
 /* Raised specificity overrides component typography without changing hit targets. */
-:root[data-text-spacing='spacious'] :is(p, h1, h2, h3, label, button, select, summary, li, dt, dd, output, .settings-label, .pair-values, .switch-state) {
+:root[data-text-spacing='spacious'] #app :is(p, h1, h2, h3, label, button, select, summary, li, dt, dd, output, .settings-label, .pair-values, .switch-state) {
   line-height: 1.8;
   letter-spacing: .05em;
   word-spacing: .12em;
@@ -44,9 +44,10 @@
 :root:not([data-text-size='100']) .attract-copy { padding-top: 64px; }
 :root:not([data-text-size='100']) .attract-brand { padding-right: 0; max-width: calc(100% - 60px); flex-wrap: wrap; }
 :root:not([data-text-size='100']) #city-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(180px, 1fr) minmax(220px, 38dvh); overflow: auto; }
-:root:not([data-text-size='100']) #city-screen .city-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+:root:not([data-text-size='100']) #city-screen .city-toolbar { position: static; grid-template-columns: minmax(0, 1fr); padding-top: 56px; }
 :root:not([data-text-size='100']) .city-tools { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
-:root:not([data-text-size='100']) #city-screen #back-to-designer { grid-column: 2; grid-row: 1; }
+:root:not([data-text-size='100']) #city-screen #back-to-designer { grid-column: 1; grid-row: 3; }
+:root:not([data-text-size='100']) #city-screen #city-bot-name { white-space: normal; overflow: visible; text-overflow: clip; }
 :root:not([data-text-size='100']) .city-plan { overflow-y: auto; }
 :root:not([data-text-size='100']) .exhibition-music { grid-template-columns: minmax(0, 1fr); }
 :root:not([data-text-size='100']) .exhibition-topline { flex-wrap: wrap; }
