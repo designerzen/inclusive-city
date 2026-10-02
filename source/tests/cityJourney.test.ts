@@ -3,11 +3,52 @@ import { test } from 'node:test';
 import { BotHistory } from '../src/robot/botHistory';
 import { createRobotProfile } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
-import { CityJourney } from '../src/simulation/cityJourney';
+import { CityJourney, TURN_RADIANS_PER_SECOND } from '../src/simulation/cityJourney';
 import { cityBarriers, cityRoute } from '../src/city/cityLayout';
 import { robotMetadata } from '../src/robot/robotState';
 
 const bot = () => structuredClone(new BotHistory(['Curie', 'Einstein'], () => 0).current);
+
+test('corners pivot gradually before driving, freeze on pause and reset on restart', () => {
+  const journey = new CityJourney(bot());
+  journey.intervene('curb'); journey.intervene('crossing');
+  const initialHeading = journey.heading;
+  journey.update(11 / journey.speed);
+  assert.equal(journey.edge, 2);
+  assert.deepEqual(journey.position, cityRoute[2]);
+  assert.equal(journey.heading, initialHeading);
+  const distance = journey.metrics.distance, steps = journey.stepCounter;
+  journey.update(.5);
+  assert.ok(Math.abs(journey.heading - initialHeading + TURN_RADIANS_PER_SECOND * .5) < 1e-8);
+  assert.deepEqual(journey.position, cityRoute[2]);
+  assert.equal(journey.metrics.distance, distance);
+  assert.equal(journey.stepCounter, steps);
+  const heading = journey.heading;
+  journey.paused = true; journey.update(10);
+  assert.equal(journey.heading, heading);
+  assert.deepEqual(journey.position, cityRoute[2]);
+  journey.paused = false; journey.update(1);
+  assert.ok(Math.abs(journey.heading + Math.PI) < 1e-8);
+  assert.deepEqual(journey.position, cityRoute[2]);
+  journey.update(.1);
+  assert.ok(journey.position.z > cityRoute[2]!.z);
+  journey.restart();
+  assert.equal(journey.heading, initialHeading);
+});
+
+test('pickup reversals rotate over time and heading is independent of tick size', () => {
+  const large = new CityJourney(bot()), small = new CityJourney(bot());
+  for (const journey of [large, small]) journey.explore('music-seed');
+  large.update(3 / large.speed + 1.5 + 1 / large.speed);
+  const position = large.position, heading = large.heading;
+  large.update(1);
+  assert.deepEqual(large.position, position);
+  assert.ok(Math.abs(Math.abs(large.heading - heading) - TURN_RADIANS_PER_SECOND) < 1e-8);
+  const total = 4 / large.speed + 2.5;
+  for (let i = 0; i < 100; i++) small.update(total / 100);
+  assert.ok(Math.abs(large.heading - small.heading) < 1e-8);
+  assert.ok(Math.abs(large.metrics.distance - small.metrics.distance) < 1e-8);
+});
 
 test('steps stop the wheels until the city is converted to a ramp', () => {
   const robot = bot(), profile = structuredClone(robot.profile);

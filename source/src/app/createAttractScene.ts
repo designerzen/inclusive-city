@@ -1,3 +1,4 @@
+import { reducedMotionPreference } from './accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
@@ -26,7 +27,7 @@ export function createAttractScene(canvas: HTMLCanvasElement, isPaused: () => bo
   const rig = scene.getTransformNodeByName('character-rig')!;
   const head = scene.getTransformNodeByName('head-rig')!;
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const motion = reducedMotionPreference();
   let time = 0;
   const resize = () => {
     engine.resize();

@@ -46,6 +46,7 @@ export class BotHistory {
   }
 
   get current(): ArtBot { return this.bots[this.cursor]!; }
+  get all(): readonly ArtBot[] { return this.bots; }
   get position(): number { return this.cursor + 1; }
   get count(): number { return this.bots.length; }
   get canGoBack(): boolean { return this.cursor > 0; }

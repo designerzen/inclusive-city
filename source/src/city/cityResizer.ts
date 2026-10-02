@@ -25,15 +25,15 @@ export function createCityResizer(scene: Scene, engine: Engine, journey: CityJou
   }
   return {
     get active() { return drag !== null; },
+    get target() { return drag?.id ?? null; },
     value(id: CityEditId) { return preview?.id === id ? preview.value : Number(journey.city.get(id)); },
-    begin(x: number, y: number) {
+    inspect(x: number, y: number) {
       const pick = scene.pick(x, y, mesh => !!mesh.metadata?.building || !!mesh.metadata?.door || !!mesh.metadata?.pavement || mesh.metadata?.barrier === 'sidewalk');
-      if (!pick?.pickedMesh || !pick.pickedPoint) return false;
+      if (!pick?.pickedMesh || !pick.pickedPoint) return null;
       const metadata = pick.pickedMesh.metadata;
       let id: CityEditId, axis = new Vector3(0, 0, 1), multiplier = 1;
       if (metadata.pavement) {
         id = metadata.pavement;
-        if (!journey.canEdit(id)) return false;
         axis = metadata.resizeAxis === 'x' ? new Vector3(1, 0, 0) : axis;
         const centre = pick.pickedMesh.getAbsolutePosition();
         multiplier = (metadata.resizeAxis === 'x' ? pick.pickedPoint.x >= centre.x : pick.pickedPoint.z >= centre.z) ? 2 : -2;
@@ -50,12 +50,16 @@ export function createCityResizer(scene: Scene, engine: Engine, journey: CityJou
         id = buildingKey(b.name, wall);
         if (wall === 'left' || wall === 'right') axis = new Vector3(1, 0, 0);
       } else {
-        if (!journey.canEdit('sidewalk')) return false;
         id = 'sidewalk'; multiplier = pick.pickedPoint.z >= -4 ? 2 : -2;
       }
       const a = project(pick.pickedPoint), b = project(pick.pickedPoint.add(axis));
       const dx = b.x - a.x, dy = b.y - a.y;
-      if (dx * dx + dy * dy < 4) return false;
+      return { id, mesh: pick.pickedMesh, dx, dy, multiplier, available: journey.canEdit(id) && dx * dx + dy * dy >= 4 };
+    },
+    begin(x: number, y: number) {
+      const target = this.inspect(x, y);
+      if (!target?.available) return false;
+      const { id, dx, dy, multiplier } = target;
       drag = { id, x, y, dx, dy, before: Number(journey.city.get(id)), multiplier };
       selected(id);
       return true;

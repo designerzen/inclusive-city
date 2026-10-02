@@ -47,4 +47,14 @@ export class JourneyDance {
       armSwing: Math.sin(beat / 2) * .3 * energy,
       antenna: Math.sin(beat + .5) * .12 * energy + Math.min(.12, accent), energy };
   }
+
+  studioPose(seconds: number, playing = true, reducedMotion = false): DancePose {
+    const pose = this.pose(seconds, playing, reducedMotion);
+    if (!pose.energy) return pose;
+    const bars = seconds * this.bpm / 60 / this.beatsPerBar;
+    const cycle = bars % 8;
+    const turn = Math.max(0, Math.min(1, (cycle - 6) / 2));
+    pose.yaw += Math.PI * 2 * turn * turn * (3 - 2 * turn);
+    return pose;
+  }
 }

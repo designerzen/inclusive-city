@@ -27,6 +27,8 @@ test('control sizing rules never request targets smaller than 44 pixels', () => 
     for (const [, selectors, declarations] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       const targetsControl = selectors.split(',').some(selector => {
         const target = selector.trim().split(/\s+|[>+~]/).at(-1) ?? '';
+        // Decorative pseudo-elements are icons, not the rendered hit target.
+        if (/::(?:before|after)\b/.test(target)) return false;
         return /^(button|select|summary|option)\b/.test(target)
           || (target.startsWith('#') && ids.has(target.slice(1).split(/[:.\[]/)[0]!));
       });

@@ -13,11 +13,31 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
   scene.activeCamera = camera;
   let view: CityView = 'overhead';
   let zoom = 1;
+  let arrival: { elapsed: number; position: Vector3; target: Vector3 } | null = null;
+  let performanceTime = 0;
   const target = Vector3.Zero();
   const canPan = () => view === 'overhead' || view === 'angled';
 
-  function update() {
+  function update(seconds = 0, reducedMotion = false) {
     const aspect = Math.max(0.1, engine.getRenderWidth() / Math.max(1, engine.getRenderHeight()));
+    if (arrival) {
+      arrival.elapsed = reducedMotion ? 8 : Math.min(8, arrival.elapsed + Math.max(0, seconds));
+      const pose = robotPose();
+      const eyes = pose.position.add(new Vector3(0, pose.eyeHeight, 0));
+      const wide = Math.min(1, performanceTime / 4);
+      eyes.y -= pose.eyeHeight * .4 * wide;
+      const smooth = (t: number) => t * t * (3 - 2 * t);
+      const approach = smooth(Math.min(1, arrival.elapsed / 2));
+      const descent = smooth(Math.max(0, Math.min(1, (arrival.elapsed - 4) / 4)));
+      const angle = pose.heading + Math.PI * 2 * smooth(Math.min(1, arrival.elapsed / 6));
+      const radius = 7 * (1 - descent) + (1.8 + 2.2 * wide) * descent;
+      const orbit = eyes.add(new Vector3(-Math.sin(angle) * radius, 6 * (1 - descent) + .4 * wide, -Math.cos(angle) * radius));
+      camera.mode = Camera.PERSPECTIVE_CAMERA;
+      camera.fov = Math.max(.8, 2 * Math.atan(.7 / aspect));
+      camera.position.copyFrom(Vector3.Lerp(arrival.position, orbit, approach));
+      camera.setTarget(Vector3.Lerp(arrival.target, eyes, approach));
+      return;
+    }
     const halfHeight = Math.max(24, 29 / aspect) * zoom;
     camera.orthoTop = halfHeight;
     camera.orthoBottom = -halfHeight;
@@ -42,10 +62,10 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
       camera.setTarget(eyes.add(forward.scale(10)));
     }
   }
-  function setView(value: CityView) { view = value; zoom = 1; update(); }
-  function setZoom(factor: number) { zoom = Math.max(0.3, Math.min(1.5, zoom * factor)); update(); }
+  function setView(value: CityView) { arrival = null; performanceTime = 0; view = value; zoom = 1; update(); }
+  function setZoom(factor: number) { if (arrival) return; zoom = Math.max(0.3, Math.min(1.5, zoom * factor)); update(); }
   function pan(x: number, z: number) {
-    if (!canPan()) return;
+    if (arrival || !canPan()) return;
     target.x = Math.max(-25, Math.min(25, target.x + x));
     target.z = Math.max(-20, Math.min(20, target.z + z));
     update();
@@ -53,5 +73,9 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
   function fit() { target.setAll(0); setView('overhead'); }
   function focus(x: number, z: number, scale = 0.3) { target.set(x, 0, z); zoom = scale; update(); }
   update();
-  return { camera, update, setView, setZoom, pan, fit, focus, canPan, get view() { return view; } };
+  return { camera, update, setView, setZoom, pan, fit, focus, canPan,
+    beginArrival() { arrival = { elapsed: 0, position: camera.position.clone(), target: camera.getTarget().clone() }; },
+    setPerformanceTime(seconds: number) { performanceTime = Math.max(0, seconds); },
+    get arrivalComplete() { return !!arrival && arrival.elapsed >= 8; },
+    get view() { return view; } };
 }

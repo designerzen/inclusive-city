@@ -8,6 +8,18 @@ import { SoundEffect } from '../src/audio/SoundEffect';
 
 const bot = () => new BotHistory(['Curie', 'Einstein'], () => 0).current;
 
+test('studio arrival provides a track without discoveries and preserves composed music', () => {
+  const creation = new JourneyCreativity(bot());
+  assert.equal(creation.score.length, 0);
+  creation.finishMusic();
+  assert.ok(creation.score.length > 0);
+  assert.equal(creation.score[0]!.at, 0);
+  assert.equal(creation.music, true);
+  const saved = structuredClone(creation.score);
+  creation.finishMusic();
+  assert.deepEqual(creation.score, saved);
+});
+
 test('powerups require actual detour travel, collect once, and never bypass a barrier', () => {
   const j = new CityJourney(bot());
   assert.equal(j.explore('music-seed'), true);
@@ -36,14 +48,14 @@ test('detours preserve distance and pickup times across simulation tick sizes', 
   const a = new CityJourney(bot()), b = new CityJourney(bot());
   for (const j of [a, b]) for (const pickup of cityPowerups) j.explore(pickup.id);
   for (const j of [a, b]) for (const barrier of cityBarriers) j.intervene(barrier.id);
-  a.update(120);
-  for (let i = 0; i < 3600; i++) b.update(1 / 30);
+  a.update(240);
+  for (let i = 0; i < 7200; i++) b.update(1 / 30);
   assert.equal(a.complete, true); assert.equal(b.complete, true);
   assert.deepEqual(a.position, cityRoute.at(-1));
   assert.ok(Math.abs(a.metrics.distance - b.metrics.distance) < 1e-7);
   assert.deepEqual(a.machine.run.pickups.map(p => p.id), b.machine.run.pickups.map(p => p.id));
   a.machine.run.pickups.forEach((p, i) => assert.ok(Math.abs(p.time - b.machine.run.pickups[i]!.time) < 1e-7));
-  assert.equal(a.machine.run.pickups.filter(p => cityPowerups.some(powerup => powerup.id === p.id)).length, 4);
+  assert.equal(a.machine.run.pickups.filter(p => cityPowerups.some(powerup => powerup.id === p.id)).length, cityPowerups.length);
   const creation = new JourneyCreativity(a.bot);
   for (const event of a.events) creation.consume(event);
   assert.ok(creation.music && creation.art && creation.harmony && creation.colour);

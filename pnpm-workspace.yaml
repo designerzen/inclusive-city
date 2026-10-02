@@ -2,7 +2,9 @@ packages:
   - source
 
 allowBuilds:
+  core-js: false
   esbuild: true
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - vite@8.3.2

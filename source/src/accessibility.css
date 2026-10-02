@@ -3,3 +3,12 @@
   min-width: 44px !important;
   min-height: 44px !important;
 }
+
+/* Include native selects and disclosures in the keyboard focus treatment. */
+:is(a, button, input, select, summary):focus-visible {
+  outline: 3px solid #ffe6a5;
+  outline-offset: 3px;
+}
+[data-theme='light'] :is(a, button, input, select, summary):focus-visible {
+  outline-color: #276b54;
+}

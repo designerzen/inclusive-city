@@ -10,6 +10,26 @@ import { createRobotProfile, defaultFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
 
 const phrase = { at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: false };
+
+test('studio verses wait for Magenta, add chord-matched backing and preserve each genre groove', async () => {
+  let ready = false, requests = 0;
+  const provider = {
+    get() { requests++; return ready ? [{ pitch: 67, quantizedStartStep: 0, quantizedEndStep: 4 }] : undefined; },
+    async whenIdle() { ready = true; },
+  };
+  const composer = new JourneyMusicComposer('techno', 42661, 50, provider);
+  const verses = await composer.studioVerses(10, 4, 30, 5);
+  assert.equal(requests, 16);
+  assert.equal(new Set(verses.map(entry => entry.at)).size, 8);
+  assert.equal(verses[0]!.at, 10);
+  assert.equal(verses.filter(entry => entry.label?.includes('magenta-countermelody')).length, 8);
+  assert.equal(verses.filter(entry => entry.label?.includes('donk-bass')).length, 8);
+  assert.equal(verses.filter(entry => entry.label?.includes(':harmony:')).length, 8);
+  for (const entry of verses) assert.deepEqual(SoundEffect.fromScore(entry.score).toScore(), entry.score);
+  const fallback = await new JourneyMusicComposer('waltz', 42661, 50, { get: () => undefined }).studioVerses(0, 4, 0, 0);
+  assert.equal(new Set(fallback.map(entry => entry.at)).size, 8);
+  assert.ok(fallback.some(entry => entry.label?.includes(':harmony:')));
+});
 function part(style: MusicianStyle, name: string) {
   const composer = new JourneyMusicComposer(style, 42661);
   const score = composer.compose(phrase).find(entry => entry.label === `journey:${name}:0`)!.score;

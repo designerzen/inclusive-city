@@ -1,477 +1,326 @@
+import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
+import { generateCity, streetActions, streetNames, streetBetween } from '../city/proceduralCity';
 import type { Theme } from '../app/theme';
-import type { CityView } from '../city/cityCamera';
-import { cityPowerups } from '../city/cityLayout';
-import { buildings } from '../city/cityLayout';
-import { buildingKey, wallSides, pavementEdges } from '../city/buildingDimensions';
-import { resizeLimits } from '../city/cityResizer';
-import type { BarrierId, PowerupId } from '../city/cityLayout';
 import type { ArtBot } from '../robot/botHistory';
 import type { CitySounds } from '../audio/CitySounds';
 import type { ScreenSpeech } from '../audio/ScreenSpeech';
-import type { RobotMood } from '../audio/soundPresets';
 import { JourneyCreativity } from '../art/JourneyCreativity';
-import { SoundEffect } from '../audio/SoundEffect';
-import { mapIcon } from './mapIcons';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
-import { mountCityFeaturePanel } from './cityFeaturePanel';
-import { mountCityHud } from './cityHud';
-import { describeFeature, featureNames, cityEditName } from '../city/cityDocument';
-import type { CityValue, CityEditId } from '../city/cityDocument';
+import { SoundEffect } from '../audio/SoundEffect';
+import type { MusicPlayback } from '../audio/CitySounds';
+import { musicDuration } from '../art/finishedJourney';
 import { captureFinishedJourney } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
-import { painterStyles, musicianStyles } from '../art/artistStyles';
 
-export function mountCityScreen(container: HTMLElement, onBack: () => void, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
+export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
-    <h1 class="sr-only">Inclusive city</h1>
-    <dialog id="city-instructions" class="city-instructions" aria-labelledby="city-instructions-title" aria-describedby="city-instructions-intro">
-      <span class="editor-eyebrow">WELCOME TO YOUR CITY</span>
-      <h2 id="city-instructions-title" tabindex="-1">Make room for your robot.</h2>
-      <p id="city-instructions-intro">Help your robot reach the gallery by changing the city, while keeping its abilities the same.</p>
-      <ol class="city-instruction-steps">
-        <li><div><h3>Plan your city</h3><p>Tap a place on the map or choose a city feature. Lower a curb, widen a pavement, add a ramp, or try another improvement. You can undo and redo your edits.</p></div></li>
-        <li><div><h3>Start, watch, improve</h3><p>Press <strong>Start journey</strong>. Your robot moves by itself. If it meets a barrier, change that part of the city so it can continue. Pause whenever you need time.</p></div></li>
-        <li><div><h3>Explore and create</h3><p>Queue coloured detours to collect music and art sparks. Every step adds to your painting. Reach the gallery to see and hear the finished work.</p></div></li>
-      </ol>
-      <p class="city-instructions-map">Drag to pan; pinch or scroll to zoom. Camera views and map buttons give you keyboard-friendly alternatives.</p>
-      <button id="city-instructions-close" type="button">Let’s explore <span aria-hidden="true">↗</span></button>
-    </dialog>
-    <div class="city-toolbar"><button id="back-to-designer" type="button">← Designer</button><span id="city-bot-name"></span>
-      <button id="city-pause" type="button">Start journey</button><button id="city-restart" type="button">Try again</button></div>
-    <div class="city-layout">
-    <div class="city-stage">
-      <div class="city-viewport">
-      <div class="map-camera-hud">
-        <div class="map-camera-picker">
-          <span id="city-camera-icon" class="camera-fallback-icon" aria-hidden="true">${mapIcon('overhead')}</span>
-          <select id="city-camera-view" aria-label="Map camera view" title="Camera view: Overhead">
-            <button type="button" data-select-trigger><selectedcontent></selectedcontent></button>
-            <option value="overhead">${mapIcon('overhead')}<span class="camera-option-label">Overhead</span></option>
-            <option value="angled">${mapIcon('angled')}<span class="camera-option-label">45° angle</span></option>
-            <option value="follow">${mapIcon('follow')}<span class="camera-option-label">Follow robot</span></option>
-            <option value="robot-eye">${mapIcon('eye')}<span class="camera-option-label">Robot-eye</span></option>
-          </select>
-        </div>
-        <details class="map-key-picker"><summary aria-label="Map key" title="Map key">${mapIcon('legend')}</summary><div class="city-map-key" aria-label="Map key"><span><i class="key-building" aria-hidden="true"></i>Buildings</span><span><i class="key-route" aria-hidden="true"></i>Robot route</span><span><i class="key-feature" aria-hidden="true"></i>Editable places</span><span><i class="key-spark" aria-hidden="true">♫</i>Creative sparks</span></div></details>
+    <h1 class="sr-only">Get your ArtBot to the duet studio</h1>
+    <header class="city-toolbar">
+      <div class="city-identity"><strong id="city-bot-name"></strong><span id="city-seed"></span></div>
+      <div class="city-tools" role="group" aria-label="City tools">
+        <button id="city-tool-route" type="button" aria-pressed="true">Draw route</button>
+        <button id="city-tool-edit" type="button" aria-pressed="false">Change city</button>
+        <button id="city-pause" type="button" disabled>Start robot</button>
       </div>
-      <canvas id="city-canvas" role="img" aria-label="City map with named solid buildings, marked roads and zebra crossing, pavements, a river, a bridge with railings, stairs and an elevator. A contrasting route leads from the workshop to the gallery. Rings mark editable places; notes and gems mark creative sparks."></canvas>
-      <aside id="journey-art-preview" class="painting-hud" aria-label="Live procedural painting">
-        <div class="painting-hud-heading"><h2><span aria-hidden="true">●</span> Live painting</h2><span id="painting-strokes">0 strokes</span></div>
-        <div class="artwork-download">
-          <canvas id="journey-art" width="800" height="400" role="img" aria-label="A procedural painting grows with every robot step. Barriers add charcoal fractures; discoveries and access improvements add luminous blooms." aria-describedby="painting-action"></canvas>
-          <button id="download-live-painting" class="painting-download" type="button" aria-label="Download current painting as PNG">↓ Download painting</button>
-        </div>
-        <p id="painting-action">Every step leaves paint</p>
-      </aside>
-      <div class="map-controls" role="group" aria-label="Map controls">
-        <div class="map-zoom"><button type="button" data-map="zoom-in" aria-label="Zoom in" title="Zoom in">${mapIcon('plus')}</button><span class="map-control-divider"></span><button type="button" data-map="zoom-out" aria-label="Zoom out" title="Zoom out">${mapIcon('minus')}</button></div>
-        <div class="map-pan" role="group" aria-label="Pan and fit map">
-        <button type="button" data-map="left" aria-label="Pan left" title="Pan left">${mapIcon('left')}</button><button type="button" data-map="up" aria-label="Pan up" title="Pan up">${mapIcon('up')}</button>
-        <button type="button" data-map="fit" aria-label="Fit city in overhead view" title="Fit city · overhead view">${mapIcon('fit')}</button>
-        <button type="button" data-map="down" aria-label="Pan down" title="Pan down">${mapIcon('down')}</button><button type="button" data-map="right" aria-label="Pan right" title="Pan right">${mapIcon('right')}</button>
-        </div>
+      <button id="back-to-designer" type="button">Edit robot</button>
+    </header>
+    <div class="city-map">
+      <canvas id="city-canvas" role="img" aria-label="A monochrome generated city with pitched roofs. Junctions join streets; raised bridges cross the river. Draw a continuous route from Workshop to the Duet studio. The robot follows only your drawn line."></canvas>
+      <div class="city-view-tools" role="group" aria-label="Map view">
+        <button id="city-view-toggle" type="button">3D view</button>
+        <button id="city-map-fit" type="button">Fit map</button>
       </div>
-      </div>
+      <section id="studio-track" class="studio-track" aria-label="Your duet track" hidden>
+        <p class="city-eyebrow">ARTBOT + YOU / THE DUET</p><h2 id="studio-track-title"></h2>
+        <p class="studio-invitation">Join your ArtBot! Sway, clap or dance along in your own way.</p>
+        <p id="studio-track-status" role="status" aria-live="polite"></p>
+        <progress id="studio-track-progress" max="1" value="0" aria-label="Duet playback progress"></progress>
+        <div class="studio-track-controls"><button id="studio-track-play" type="button">Replay from start</button><button id="studio-track-stop" type="button" disabled>Stop track</button><span id="studio-track-time">0:00 / 0:00</span></div>
+      </section>
+      <p id="city-hover" class="city-hover" hidden></p>
     </div>
-    <aside id="city-editor" class="city-editor" aria-label="City feature editor"></aside>
-    </div>
-    <div class="city-hud"><p id="journey-status" role="status" aria-live="polite">Ready to explore</p>
-      <span id="robot-mood" role="status" aria-live="polite">Curious · exploring</span>
-      <button id="city-waiting" type="button" hidden>Show waiting feature</button>
-    </div>
-    <section class="creative-studio" aria-label="Journey creativity">
-      <div class="powerup-panel"><h2>Explore & create</h2><p class="creative-hint">Follow the coloured detours. Music and drawing sparks are queued near the workshop; discover upgrades farther into the city.</p>
-        <div class="powerup-list">${cityPowerups.map(pickup => `<button id="explore-${pickup.id}" type="button" data-powerup="${pickup.id}" style="--powerup-colour: ${pickup.colour}" title="${pickup.description}"><span aria-hidden="true">${pickup.kind === 'music' || pickup.kind === 'harmony' ? '♫' : '◇'}</span> ${pickup.label}<small data-pickup-status>Explore</small></button>`).join('')}</div>
-        <p id="creative-status" role="status" aria-live="polite">Find a spark to unlock a creative mode.</p>
-      </div>
-    </section>
-    <section id="catwalk-presentation" class="catwalk-presentation" hidden aria-labelledby="catwalk-heading">
-      <div><p class="catwalk-eyebrow">Final presentation</p><h2 id="catwalk-heading"></h2><p id="catwalk-description"></p><button id="catwalk-replay" type="button">Replay presentation ♫</button><button id="city-exhibition" type="button">View exhibition ↗</button></div>
-      <div class="artwork-download">
-        <canvas id="catwalk-art" width="960" height="480" role="img" aria-label="The robot’s finished journey artwork, presented on the catwalk."></canvas>
-        <button id="download-final-painting" class="painting-download" type="button" aria-label="Download finished painting as PNG">↓ Download painting</button>
-      </div>
-    </section>
-    <p id="painting-download-status" class="sr-only" role="status" aria-live="polite"></p>
-  `;
-  const hud = mountCityHud(container);
-  const canvas = container.querySelector<HTMLCanvasElement>('#city-canvas')!;
-  const status = container.querySelector('#journey-status')!;
-  const pause = container.querySelector<HTMLButtonElement>('#city-pause')!;
-  const instructions = container.querySelector<HTMLDialogElement>('#city-instructions')!;
-  let instructionsShown = false;
-  container.querySelector('#city-instructions-close')!.addEventListener('click', () => instructions.close());
-  instructions.addEventListener('close', () => { if (active && !container.hidden) pause.focus({ preventScroll: true }); });
-  let engine: Engine | null = null;
-  let city: ReturnType<typeof createCityScene> | null = null;
-  let theme: Theme = 'dark';
-  let active = false;
-  let selected: BarrierId | null = null;
-  let lastBlock: BarrierId | null = null;
-  let manualSelection = false;
-  let autoPaused = false;
-  let accumulator = 0;
-  let eventCursor = 0;
-  let mood: RobotMood = 'curious';
-  let creativity: JourneyCreativity | null = null;
-  let paintingRenderer: AsyncPaintingRenderer | null = null;
-  let lastPaintFrame = performance.now();
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let presented = false;
-  let exhibitionTimer = 0;
-  function clearExhibitionTimer() { window.clearTimeout(exhibitionTimer); exhibitionTimer = 0; }
-  function showExhibition() {
-    if (!active || !city?.journey.complete) return;
-    clearExhibitionTimer();
-    onPresent(captureFinishedJourney(city.journey.machine.run));
+    <aside class="city-plan" aria-label="Route and city changes">
+      <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
+      <h2 id="city-heading" tabindex="-1">Plan your route</h2>
+      <p id="journey-status" role="status" aria-live="polite">Draw from Workshop to the Duet studio.</p>
+      <div class="city-route-stats" id="city-route-stats"></div>
+      <section id="city-route-controls" aria-label="Draw your route">
+        <p class="city-plan-hint">Choose connected stops below, or drag between junctions on the map. Reach the Duet studio to enable Start robot. Discoveries add music and brushwork.</p>
+        <h3 id="city-next-heading">Next stop</h3>
+        <div id="city-next-stops" class="city-next-stops"></div>
+        <div class="city-secondary-actions"><button id="city-route-undo" type="button" disabled>Undo line</button><button id="city-route-clear" type="button" disabled>Clear line</button></div>
+      </section>
+      <section id="city-change-controls" aria-label="Change a street" hidden>
+        <label for="city-street">Place to change</label><select id="city-street" aria-label="Place to change"></select>
+        <h3 id="city-feature-name"></h3><p id="city-feature-reason"></p>
+        <button id="city-repair" type="button" disabled>Choose a place</button>
+        <button id="city-undo" type="button" disabled>Undo city change</button>
+      </section>
+      <p id="city-feedback" role="status" aria-live="polite"></p>
+      <div id="city-finished" hidden><p id="city-result"></p><button id="city-exhibition" type="button">See your artwork</button></div>
+      <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
+        <div class="city-map-buttons" role="group" aria-label="Zoom and pan controls">
+          <button type="button" data-map="zoom-in">Zoom in</button><button type="button" data-map="zoom-out">Zoom out</button>
+          <button type="button" data-map="up">Move up</button><button type="button" data-map="down">Move down</button>
+          <button type="button" data-map="left">Move left</button><button type="button" data-map="right">Move right</button>
+        </div>
+      </details>
+      <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p></details>
+      <div class="city-new-actions"><button id="city-restart" type="button" disabled>Redraw route</button><button id="city-new" type="button">New city</button></div>
+      <p class="city-rule">You change the city. Your ArtBot makes the journey. Together, you make a duet at the studio.</p>
+    </aside>`;
+  const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
+  const canvas = get<HTMLCanvasElement>('city-canvas'), painting = get<HTMLCanvasElement>('journey-art');
+  const plan = container.querySelector<HTMLElement>('.city-plan')!;
+  const pause = get<HTMLButtonElement>('city-pause'), streetSelect = get<HTMLSelectElement>('city-street');
+  let engine: Engine | null = null, city: ReturnType<typeof createCityScene> | null = null;
+  let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
+  let mode: 'route' | 'edit' = 'route', selected: string | null = null, lastBlock: string | null = null;
+  let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
+  let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
+  let finished: FinishedJourney | null = null, playback: MusicPlayback | undefined;
+  let studioStarted = false, studioPreparing = false, trackElapsed = 0;
+  const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+  function stopTrack(reset = true) {
+    trackElapsed = reset ? 0 : playback?.elapsed() ?? trackElapsed;
+    playback?.stop(); playback = undefined; city?.setSinging(false); city?.stopDancing();
+    get<HTMLButtonElement>('studio-track-stop').disabled = true;
   }
-  const creativeStatus = container.querySelector('#creative-status')!;
-  const artCanvas = container.querySelector<HTMLCanvasElement>('#journey-art')!;
-  const finalCanvas = container.querySelector<HTMLCanvasElement>('#catwalk-art')!;
-  const presentation = container.querySelector<HTMLElement>('#catwalk-presentation')!;
-  const downloadButtons = container.querySelectorAll<HTMLButtonElement>('.painting-download');
-  const downloadStatus = container.querySelector('#painting-download-status')!;
-  async function downloadPainting() {
-    if (!creativity || !city || !paintingRenderer) return;
-    downloadButtons.forEach(button => { button.disabled = true; });
-    try {
-      const name = city.journey.bot.name.normalize('NFKC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim().replace(/\s+/g, '-').slice(0, 70) || 'artbot';
-      const filename = `${name}-journey-${city.journey.machine.run.id}-painting.png`;
-      const blob = await paintingRenderer.exportPNG();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url; link.download = filename; link.hidden = true;
-      document.body.append(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-      downloadStatus.textContent = `PNG ready: ${filename}. Check your downloads.`;
-    } catch (error) {
-      downloadStatus.textContent = error instanceof Error ? error.message : 'The painting could not be downloaded.';
-    } finally { downloadButtons.forEach(button => { button.disabled = false; }); }
+  function playTrack() {
+    if (!finished || !active) return;
+    stopTrack(); sounds.stop(); sounds.unlock();
+    playback = sounds.perform(finished.score);
+    if (playback) { const handle = playback; city?.danceToMusic(finished, () => handle.elapsed()); }
+    get<HTMLButtonElement>('studio-track-stop').disabled = !playback;
+    setText('studio-track-status', playback ? 'Your duet is playing. Move to the beat and try a turn together!' : sounds.isMuted ? 'Unmute sound, then play your duet.' : 'Press play to hear your duet.');
   }
-  downloadButtons.forEach(button => button.addEventListener('click', () => { void downloadPainting(); }));
-  function selectFeature(id: BarrierId) {
+  const reducedMotion = reducedMotionPreference();
+  const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
+  function feedback(text: string) { setText('city-feedback', text); }
+  function beginCreation() {
     if (!city) return;
-    selected = id; manualSelection = true;
-    hud.openEditor();
-    if (!city.journey.ready && !city.journey.paused && !city.journey.blocked && !city.journey.complete) {
-      city.journey.paused = true; autoPaused = true; accumulator = 0; sounds.stop();
+    stopTrack(); finished = null; studioStarted = false; studioPreparing = false; get('studio-track').hidden = true;
+    delete container.dataset.studioPerformance;
+    setText('city-view-toggle', '3D view');
+    renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot); renderer = new AsyncPaintingRenderer(creation.painting);
+    city.journey.machine.run.creative = { seed: creation.seed, bpm: creation.bpm, music: creation.music, art: true, harmony: false, colour: false, artist: structuredClone(creation.artist), score: creation.score, marks: creation.marks };
+    eventCursor = city.journey.machine.record.events.length; lastPaint = performance.now();
+  }
+  function setMode(value: typeof mode) {
+    if (!city) return;
+    if (value === 'route' && !city.journey.ready) return;
+    mode = value; plan.scrollTop = 0; city.highlight(null); get('city-hover').hidden = true; panelKey = ''; refresh();
+  }
+  function selectStreet(id: string) {
+    if (!city) return;
+    selected = id;
+    if (!city.journey.ready && !city.journey.complete && !city.journey.blocked) { city.journey.setPaused(true); sounds.stop(); }
+    mode = 'edit'; plan.scrollTop = 0; streetSelect.value = id; city.highlight(id); panelKey = ''; refresh();
+  }
+  function refresh() {
+    if (!city) return;
+    const j = city.journey;
+    container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'planning' : j.paused ? 'paused' : 'travelling';
+    get<HTMLButtonElement>('city-tool-route').disabled = !j.ready;
+    get('city-tool-route').setAttribute('aria-pressed', String(mode === 'route'));
+    get('city-tool-edit').setAttribute('aria-pressed', String(mode === 'edit'));
+    for (const id of ['city-view-toggle', 'city-map-fit', 'city-tool-edit']) get<HTMLButtonElement>(id).disabled = j.complete;
+    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete;
+    pause.disabled = j.ready ? !j.canStart : j.complete;
+    pause.textContent = j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Resume robot' : 'Pause robot';
+    get<HTMLButtonElement>('city-restart').disabled = j.ready;
+    get('city-route-controls').hidden = mode !== 'route' || !j.ready;
+    get('city-change-controls').hidden = mode !== 'edit' || j.complete;
+    get('city-finished').hidden = !j.complete;
+    get<HTMLButtonElement>('city-exhibition').disabled = !finished;
+    if (j.blocked && j.blocked.id !== lastBlock) { selected = j.blocked.id; mode = 'edit'; plan.scrollTop = 0; streetSelect.value = selected; panelKey = ''; }
+    lastBlock = j.blocked?.id ?? null;
+    const stops = j.route.map(id => j.world.nodes.find(n => n.id === id)!);
+    const discoveries = new Set(stops.filter(n => n.discovery).map(n => n.id)).size;
+    const issues = new Set(j.route.slice(1).map((id, i) => streetBetween(j.world, j.route[i]!, id)!).filter(s => j.problem(s)).map(s => s.id)).size;
+    setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
+    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? j.canStart ? `Line ready. ${issues} street${issues === 1 ? '' : 's'} on it need changes for ${j.bot.name}.` : `Continue from ${stops.at(-1)!.label} to the Duet studio.` : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change a street, then resume when you’re ready.' : `Following your line · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
+    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the studio' : j.ready ? mode === 'route' ? 'Plan your route' : 'Improve a street' : j.blocked ? 'Remove this barrier' : j.paused ? 'Journey paused' : 'Your robot is travelling');
+    setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : j.ready ? 'PLAN BEFORE YOU START' : 'YOUR ROBOT FOLLOWS YOUR LINE');
+    if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
+    const nextKey = j.route.join('|') + j.ready;
+    if (routeKey !== nextKey) {
+      routeKey = nextKey;
+      const focusWasNext = get('city-next-stops').contains(document.activeElement);
+      get('city-next-stops').replaceChildren(...j.nextStops.map(node => {
+        const button = document.createElement('button'); button.type = 'button'; button.dataset.nextStop = node.id;
+        const street = streetBetween(j.world, j.route.at(-1)!, node.id)!;
+        button.textContent = `${node.label}${node.discovery ? ' · discovery' : ''}${street.kind !== 'clear' ? ` · ${streetNames[street.kind].toLowerCase()}` : ''}`;
+        button.addEventListener('click', () => { if (j.appendStop(node.id)) { sounds.interaction('tap'); city!.sync(); feedback(''); refresh(); } }); return button;
+      }));
+      if (focusWasNext) (get('city-next-stops').querySelector<HTMLButtonElement>('button') ?? pause).focus();
+      setText('city-next-heading', j.canStart ? 'Your line reaches the duet studio' : `Next stop from ${stops.at(-1)!.label}`);
     }
-    sounds.interaction('tap'); updatePanel();
-  }
-  function announceEdit(id: CityEditId, prefix = '') {
-    if (!city) return;
-    city.syncCity();
-    editor.announce(`${prefix}${cityEditName(id)} · ${id.startsWith('building:') || id.startsWith('door:') || id.startsWith('pavement:') ? Number(city.journey.city.get(id)).toFixed(2) + ' m' : describeFeature(city.journey.city, id as BarrierId)}.`);
-    sounds.interaction('tap'); updatePanel();
-  }
-  const editor = mountCityFeaturePanel(container.querySelector<HTMLElement>('#city-editor')!, {
-    select: selectFeature,
-    edit(id: BarrierId, value: CityValue) { if (city?.journey.edit(id, value)) announceEdit(id); },
-    undo() { const id = city?.journey.city.undoEdit?.id; if (id && city?.journey.undo()) announceEdit(id, 'Undone. '); },
-    redo() { const id = city?.journey.city.redoEdit?.id; if (id && city?.journey.redo()) announceEdit(id, 'Redone. '); },
-    done() {
-      if (!city) return;
-      if (city.journey.complete) container.querySelector<HTMLButtonElement>('#city-restart')!.click();
-      else if (city.journey.ready || city.journey.paused) pause.click();
-      pause.focus();
-    },
-  }, speech);
-  const reshapePanel = document.createElement('details');
-  reshapePanel.className = 'city-reshape';
-  reshapePanel.innerHTML = `<summary>Resize places</summary>
-    <p>Drag a wall, pavement edge or door frame on the map. Use the 45° view to see front faces.</p>
-    <label for="resize-place">Place</label><select id="resize-place"><option value="sidewalk">Narrow pavement</option>${pavementEdges.map(edge => `<option value="pavement:${edge}">Route pavement ${edge + 1}</option>`).join('')}${buildings.map(b => `${wallSides.map(wall => `<option value="${buildingKey(b.name, wall)}">${b.name} · ${wall} wall</option>`).join('')}<option value="door:${b.name}">${b.name} · door frame</option>`).join('')}</select>
-    <label for="resize-dimension">Size / wall position</label><input id="resize-dimension" type="range" step="0.1" /><output id="resize-value" for="resize-dimension"></output>`;
-  container.querySelector('#city-editor')!.append(reshapePanel);
-  const reshapeSelect = reshapePanel.querySelector<HTMLSelectElement>('select')!;
-  const reshapeRange = reshapePanel.querySelector<HTMLInputElement>('input')!;
-  function refreshResizeControls() {
-    if (!city || city.resizer.active) return;
-    const id = reshapeSelect.value as CityEditId;
-    const { min, max } = resizeLimits(city.journey, id);
-    reshapeRange.min = String(min); reshapeRange.max = String(max);
-    reshapeRange.step = id.startsWith('door:') ? '0.05' : '0.1';
-    reshapeRange.value = String(city.journey.city.get(id));
-    reshapeRange.disabled = !city.journey.canEdit(id);
-    reshapeRange.setAttribute('aria-label', cityEditName(id));
-    reshapePanel.querySelector('output')!.textContent = `${Number(reshapeRange.value).toFixed(2)} m`;
-  }
-  function selectResize(id: CityEditId) {
-    reshapeSelect.value = id;
-    manualSelection = true;
-    if (!city?.journey.ready && !city?.journey.paused && !city?.journey.complete) {
-      city!.journey.paused = true; autoPaused = true; accumulator = 0; sounds.stop();
+    get<HTMLButtonElement>('city-route-undo').disabled = j.route.length < 2 || !j.ready;
+    get<HTMLButtonElement>('city-route-clear').disabled = j.route.length < 2 || !j.ready;
+    const key = `${selected}:${[...j.repaired]}:${j.ready}:${j.paused}:${j.complete}:${j.currentStreet?.id}:${j.distanceOnEdge > 0}`;
+    if (panelKey !== key) {
+      panelKey = key;
+      const street = j.world.streets.find(s => s.id === selected);
+      const repaired = !!selected && j.repaired.has(selected);
+      const transport = selected === 'transport';
+      setText('city-feature-name', transport ? 'Workshop transport' : street ? streetNames[street.kind] : 'Choose a street on the map');
+      setText('city-feature-reason', repaired ? 'Changed. Your robot can use this street.' : transport ? 'Add transport for robots whose drive is disabled.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Tap a street, or choose a place above. There is one clear action for each problem.');
+      const repair = get<HTMLButtonElement>('city-repair');
+      repair.textContent = repaired ? 'City changed ✓' : transport ? 'Add transport' : street ? streetActions[street.kind] : 'Choose a place';
+      repair.disabled = !selected || repaired || !!street && street.kind === 'clear' || !j.canEdit(selected);
+      get<HTMLButtonElement>('city-undo').disabled = !j.undoAvailable;
     }
-    // Keep focus and scroll on the canvas during direct manipulation.
-    editor.announce(`${cityEditName(id)} selected. Drag to resize.`);
-    refreshResizeControls();
-  }
-  reshapeSelect.addEventListener('change', () => { if (city) selectResize(reshapeSelect.value as CityEditId); });
-  let rangeValue: number | null = null;
-  reshapeRange.addEventListener('input', () => {
-    rangeValue = Number(reshapeRange.value);
-    reshapePanel.querySelector('output')!.textContent = `${rangeValue.toFixed(2)} m`;
-  });
-  reshapeRange.addEventListener('change', () => {
-    if (!city || rangeValue === null) return;
-    const id = reshapeSelect.value as CityEditId;
-    if (city.journey.edit(id, rangeValue)) announceEdit(id);
-    rangeValue = null; refreshResizeControls();
-  });
-  function beginCreation(bot: ArtBot) {
-    clearExhibitionTimer();
-    paintingRenderer?.dispose();
-    creativity = new JourneyCreativity(bot); paintingRenderer = new AsyncPaintingRenderer(creativity.painting); lastPaintFrame = performance.now(); presented = false;
-    presentation.hidden = true;
-    if (!city) return;
-    city.journey.machine.run.creative = { seed: creativity.seed, bpm: creativity.bpm, artist: structuredClone(creativity.artist),
-      music: false, art: true, harmony: false, colour: false, score: creativity.score, marks: creativity.marks };
-    city.journey.explore('music-seed'); city.journey.explore('art-seed');
-  }
-  function explore(id: PowerupId) {
-    if (!city?.journey.explore(id)) return;
-    sounds.button(`explore-${id}`); updatePanel();
-  }
-  const moodLabel = container.querySelector('#robot-mood')!;
-  const moodLabels: Record<RobotMood, string> = {
-    curious: 'Curious · exploring', sad: 'Sad · needs access', happy: 'Happy · access improved', celebrating: 'Celebrating · taking the stage',
-  };
-  function setMood(value: RobotMood) { mood = value; moodLabel.textContent = moodLabels[value]; sounds.mood(value); }
-  function updateMapControls() {
-    if (!city) return;
-    const picker = container.querySelector<HTMLSelectElement>('#city-camera-view')!;
-    picker.value = city.view;
-    picker.title = `Camera view: ${picker.selectedOptions[0]!.textContent?.trim()}`;
-    container.querySelector('#city-camera-icon')!.innerHTML = mapIcon({ overhead: 'overhead', angled: 'angled', follow: 'follow', 'robot-eye': 'eye' }[city.view] as 'overhead' | 'angled' | 'follow' | 'eye');
-    container.querySelectorAll<HTMLButtonElement>('[data-map="left"], [data-map="right"], [data-map="up"], [data-map="down"]').forEach(button => {
-      button.disabled = !city!.canPan();
-    });
-  }
-  function updatePanel() {
-    if (!city) return;
-    const journey = city.journey;
-    // State changes and achievements also live in the machine's complete event stream.
-    for (const event of journey.machine.record.events.slice(eventCursor).filter(event => event.runId === journey.machine.run.id)) {
-      if (!journey.ready) creativity?.consume(event);
-      if (event.type === 'blocked') setMood('sad');
-      else if (event.type === 'intervention' || event.type === 'pickup') setMood('happy');
-      else if (event.type === 'arrived') { sounds.stop(); setMood('celebrating'); }
+    for (const event of j.machine.record.events.slice(eventCursor)) creation?.consume(event);
+    eventCursor = j.machine.record.events.length;
+    if (creation) {
+      const time = j.machine.record.clock - j.machine.run.startedAt - j.metrics.pausedSeconds;
+      if (!j.complete) for (const phrase of creation.advance(time, j.ready || j.paused || !!j.blocked)) sounds.play(SoundEffect.fromScore(phrase.score), phrase.label!);
+      Object.assign(j.machine.run.creative!, { music: creation.music, harmony: creation.harmony, colour: creation.colour });
+      const now = performance.now(); renderer?.frame(painting, (now - lastPaint) / 1000, reducedMotion.matches || j.complete); lastPaint = now;
+      setText('painting-strokes', `${creation.marks.length} marks`); setText('painting-action', creation.painting.lastAction);
     }
-    eventCursor = journey.machine.record.events.length;
-    moodLabel.textContent = journey.ready ? 'Curious · ready to explore' : journey.paused ? `Resting · ${moodLabels[mood].split(' · ')[0].toLowerCase()}` : moodLabels[mood];
-    const exploring = cityPowerups.find(item => item.id === journey.exploring);
-    const text = journey.ready ? 'Plan your city, then start the journey' : journey.complete ? 'Presenting on the catwalk' : journey.paused ? 'Paused · take your time' : journey.blocked ? `Waiting · ${featureNames[journey.blocked.id]}` : exploring ? `Exploring · ${exploring.label}` : 'Following route';
-    if (status.textContent !== text) status.textContent = text;
-    pause.textContent = journey.ready ? 'Start journey' : journey.paused ? 'Resume journey' : 'Pause';
-    pause.disabled = journey.complete;
-    container.querySelector<HTMLButtonElement>('#city-restart')!.disabled = journey.ready;
-    if (journey.blocked && journey.blocked.id !== lastBlock && (!manualSelection || !selected)
-      && !container.querySelector('#city-editor')!.contains(document.activeElement)) selected = journey.blocked.id;
-    if (journey.blocked?.id === 'stairs' && lastBlock !== 'stairs') {
-      selected = 'stairs'; hud.openEditor();
+    if (j.complete && creation && !finished && !studioPreparing) {
+      studioPreparing = true;
+      const currentCreation = creation, currentCity = city;
+      sounds.stop();
+      setText('journey-status', 'At the studio. Adding new verses and harmonies for our duet.');
+      void currentCreation.extendStudioMusic().then(() => {
+        if (creation !== currentCreation || city !== currentCity) return;
+        Object.assign(j.machine.run.creative!, { music: true, harmony: true });
+        finished = captureFinishedJourney(j.machine.run);
+        refresh();
+      });
     }
-    lastBlock = journey.blocked?.id ?? null;
-    const waiting = container.querySelector<HTMLButtonElement>('#city-waiting')!;
-    waiting.hidden = !journey.blocked || journey.blocked.id === selected;
-    if (journey.blocked) waiting.textContent = `Show ${featureNames[journey.blocked.id].toLowerCase()}`;
-    editor.render(journey, selected, autoPaused);
-    if (document.activeElement !== reshapeRange) refreshResizeControls();
-    city.highlightFeature(selected);
-    container.querySelectorAll<HTMLButtonElement>('[data-powerup]').forEach(button => {
-      const id = button.dataset.powerup as PowerupId;
-      const collected = journey.machine.run.pickups.some(item => item.id === id);
-      const queued = journey.plannedPowerups.has(id);
-      const available = journey.canExplore(id);
-      button.disabled = collected || queued || !available;
-      const text = collected ? 'Collected' : queued ? 'Detour queued' : available ? 'Explore' : 'Passed · restart to explore';
-      const label = button.querySelector('[data-pickup-status]')!;
-      if (label.textContent !== text) label.textContent = text;
-    });
-    if (creativity) {
-      const time = journey.machine.record.clock - journey.machine.run.startedAt - journey.metrics.pausedSeconds;
-      if (!journey.complete) for (const phrase of creativity.advance(time, journey.paused || journey.ready)) sounds.play(SoundEffect.fromScore(phrase.score), phrase.label!);
-      const artist = creativity.artist;
-      const text = [creativity.music ? `${musicianStyles.find(style => style.id === artist.musician)!.label} · ${creativity.bpm} BPM${creativity.harmony ? ' · harmony unlocked' : ''}` : 'Music locked', `${painterStyles.find(style => style.id === artist.painter)!.label}${creativity.colour ? ' · expanded palette' : ''}`].join(' / ');
-      if (creativeStatus.textContent !== text) creativeStatus.textContent = text;
-      const record = journey.machine.run.creative!;
-      Object.assign(record, { music: creativity.music, art: creativity.art, harmony: creativity.harmony, colour: creativity.colour });
-      const now = performance.now();
-      paintingRenderer?.frame(artCanvas, (now - lastPaintFrame) / 1000, reducedMotion.matches || journey.complete);
-      lastPaintFrame = now;
-      const strokeLabel = container.querySelector('#painting-strokes')!;
-      const strokeText = `${creativity.marks.length} strokes`;
-      if (strokeLabel.textContent !== strokeText) strokeLabel.textContent = strokeText;
-      const action = container.querySelector('#painting-action')!;
-      if (action.textContent !== creativity.painting.lastAction) action.textContent = creativity.painting.lastAction;
-      if (journey.complete && !presented) {
-        presented = true; presentation.hidden = false;
-        const finished = captureFinishedJourney(journey.machine.run);
-        container.querySelector('#catwalk-heading')!.textContent = finished.artworkTitle.text;
-        container.querySelector('#catwalk-description')!.textContent = `${journey.bot.name} presents a journey of ${journey.metrics.stepsTaken} steps and ${journey.machine.run.pickups.length} discoveries. ${creativity.score.length} musical phrases and ${creativity.marks.length} drawn marks tell this robot’s story.`;
-        const renderer = paintingRenderer;
-        const currentCity = city;
-        void renderer?.snapshot(finalCanvas).then(() => {
-          if (paintingRenderer === renderer && city === currentCity && active) {
-            currentCity.present(finalCanvas); updateMapControls();
-            exhibitionTimer = window.setTimeout(showExhibition, reducedMotion.matches ? 600 : 2200);
-          }
-        });
-        container.querySelector<HTMLButtonElement>('#catwalk-replay')!.disabled = !creativity.score.length;
-        finalCanvas.setAttribute('aria-label', `${journey.bot.name}’s finished procedural painting: ${creativity.marks.length} textured strokes, charcoal fractures for barriers, and luminous blooms for discoveries and access improvements.`);
-        sounds.perform(creativity.score);
+    if (finished && city.arrivalComplete && !studioStarted) {
+      studioStarted = true; get('studio-track').hidden = false;
+      container.append(get('studio-track'));
+      container.dataset.studioPerformance = 'true';
+      setText('studio-track-title', `${finished.name} · ${finished.artworkTitle.text}`);
+      playTrack();
+    }
+    if (finished && studioStarted) {
+      const duration = musicDuration(finished.score), elapsed = playback?.elapsed() ?? trackElapsed;
+      get<HTMLProgressElement>('studio-track-progress').value = duration ? elapsed / duration : 0;
+      setText('studio-track-time', `${timestamp(elapsed)} / ${timestamp(duration)}`);
+      const origin = finished.score[0]?.at ?? 0;
+      const singing = !!playback && finished.score.some(entry => entry.label?.includes('melody') && entry.score.notes.some(note => elapsed >= entry.at - origin + note.start && elapsed < entry.at - origin + note.start + note.duration));
+      city.setSinging(singing);
+      if (playback && (elapsed >= duration || sounds.isMuted)) {
+        stopTrack(false); setText('studio-track-status', sounds.isMuted ? 'Sound is muted. Unmute, then replay your duet.' : 'Your duet has finished. Replay it from the start.');
       }
     }
+    const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
+    if (mood !== lastMood) { lastMood = mood; if (!j.ready && !j.complete) sounds.mood(mood); }
   }
-  const observer = new ResizeObserver(() => {
-    if (active && engine && city) { engine.resize(); city.resize(); }
-  });
-  observer.observe(canvas);
-  container.querySelector('#back-to-designer')!.addEventListener('click', () => { editor.stopGuide(); clearExhibitionTimer(); active = false; accumulator = 0; city?.journey.leave(); paintingRenderer?.dispose(); sounds.stop(); onBack(); });
-  container.querySelector('#city-exhibition')!.addEventListener('click', showExhibition);
-  pause.addEventListener('click', () => {
-    if (!city) return;
-    if (city.journey.ready) city.journey.start();
-    else city.journey.paused = !city.journey.paused;
-    autoPaused = false; accumulator = 0;
-    if (city.journey.paused) sounds.stop(); updatePanel();
-  });
-  container.querySelector('#city-restart')!.addEventListener('click', () => {
-    sounds.stop(); city?.journey.restart(); if (city) { beginCreation(city.journey.bot); city.fit(); updateMapControls(); } eventCursor = 0; setMood('curious'); selected = null; manualSelection = false; autoPaused = false; lastBlock = null; accumulator = 0; city?.update(0); updatePanel();
-  });
-  container.querySelector('.powerup-list')!.addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-powerup]') : null;
-    if (button) explore(button.dataset.powerup as PowerupId);
-  });
-  container.querySelector('#catwalk-replay')!.addEventListener('click', () => {
-    sounds.stop(); sounds.unlock();
-    if (creativity && city) {
-      sounds.perform(creativity.score); city.present(finalCanvas); updateMapControls();
-      canvas.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  function newCity() {
+    if (!bot || !engine) return;
+    pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    const world = generateCity(seed, robots.length ? robots : [bot]);
+    engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
+    selected = null; mode = 'route'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
+    streetSelect.replaceChildren();
+    const initial = document.createElement('option'); initial.value = ''; initial.textContent = 'Choose a street…'; streetSelect.append(initial);
+    const transport = document.createElement('option'); transport.value = 'transport'; transport.textContent = 'Workshop · transport'; streetSelect.append(transport);
+    for (const street of world.streets.filter(s => s.kind !== 'clear')) {
+      const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
+      const option = document.createElement('option'); option.value = street.id; option.textContent = `${a.label} → ${b.label} · ${streetNames[street.kind]}`; streetSelect.append(option);
+    }
+    setText('city-bot-name', bot.name); setText('city-seed', `2 / Plan your city journey`);
+    plan.scrollTop = 0; beginCreation(); refresh();
+  }
+  get('studio-track-play').addEventListener('click', playTrack);
+  get('studio-track-stop').addEventListener('click', () => { stopTrack(); setText('studio-track-status', 'Track stopped. Replay from the beginning when you’re ready.'); });
+  get('city-tool-route').addEventListener('click', () => setMode('route'));
+  get('city-tool-edit').addEventListener('click', () => setMode('edit'));
+  streetSelect.addEventListener('change', () => selectStreet(streetSelect.value));
+  pause.addEventListener('click', () => { if (!city) return; if (city.journey.ready) { if (city.journey.start()) mode = 'edit'; } else { city.journey.setPaused(!city.journey.paused); if (city.journey.paused) sounds.stop(); } refresh(); });
+  get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
+  get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
+  get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Keep planning your line.' : 'City changed. Your robot can continue.'); refresh(); } });
+  get('city-undo').addEventListener('click', () => { if (city?.journey.undoRepair()) { city.sync(); feedback('City change undone.'); refresh(); } });
+  get('city-restart').addEventListener('click', () => { if (!city) return; sounds.stop(); city.journey.restart(); city.journey.clearRoute(); beginCreation(); plan.scrollTop = 0; selected = null; mode = 'route'; routeKey = ''; panelKey = ''; lastBlock = null; city.sync(); feedback('City changes kept. Draw a different line.'); refresh(); });
+  get('city-new').addEventListener('click', newCity);
+  get('city-view-toggle').addEventListener('click', () => { city?.toggleView(); setText('city-view-toggle', city?.view === 'angled' ? 'Map view' : '3D view'); });
+  get('city-map-fit').addEventListener('click', () => { city?.fit(); setText('city-view-toggle', '3D view'); });
+  container.querySelector('.city-map-buttons')!.addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-map]') : null;
+    if (!button || button.disabled || !city) return;
+    const action = button.dataset.map;
+    if (action === 'zoom-in' || action === 'zoom-out') city.setZoom(action === 'zoom-in' ? .8 : 1.25);
+    else {
+      const camera = city.scene.activeCamera!;
+      const step = (camera.orthoRight! - camera.orthoLeft!) * .15;
+      city.pan(action === 'left' ? -step : action === 'right' ? step : 0, action === 'up' ? step : action === 'down' ? -step : 0);
     }
   });
-  container.querySelector('#city-waiting')!.addEventListener('click', () => { if (city?.journey.blocked) selectFeature(city.journey.blocked.id); });
-  container.querySelector<HTMLSelectElement>('#city-camera-view')!.addEventListener('change', event => {
-    if (!city) return;
-    const view = (event.currentTarget as HTMLSelectElement).value as CityView;
-    city.setView(view);
-    sounds.button(`city-view-${view}`);
-    updateMapControls();
-  });
-  container.querySelector('.map-controls')!.addEventListener('click', event => {
-    const action = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-map]')?.dataset.map : undefined;
-    if (!city) return;
-    switch (action) {
-      case 'zoom-in': city.setZoom(0.8); break;
-      case 'zoom-out': city.setZoom(1.25); break;
-      case 'fit': city.fit(); break;
-      case 'left': city.pan(-4, 0); break;
-      case 'right': city.pan(4, 0); break;
-      case 'up': city.pan(0, 4); break;
-      case 'down': city.pan(0, -4); break;
-    }
-    updateMapControls();
-  });
+  get('city-exhibition').addEventListener('click', () => { if (finished) onPresent(structuredClone(finished)); });
   const pointers = new Map<number, { x: number; y: number }>();
-  let previousPinch = 0;
-  let gestureMoved = false;
-  let gestureOrigin = { x: 0, y: 0 };
+  let drawing = false, moved = false, origin = { x: 0, y: 0 }, savedRoute: readonly string[] = [], pinch = 0;
+  function local(x: number, y: number) { const bounds = canvas.getBoundingClientRect(); return { x: x - bounds.left, y: y - bounds.top }; }
+  function drawAt(x: number, y: number) {
+    if (!city?.journey.ready) return;
+    const p = local(x, y), id = city.nodeAt(p.x, p.y), route = city.journey.route;
+    if (!id || id === route.at(-1)) return;
+    if (id === route.at(-2)) city.journey.undoStop();
+    else if (!city.journey.appendStop(id)) { feedback('Use a connected junction. The line must stay on the streets.'); return; }
+    city.sync(); feedback(''); refresh();
+  }
   canvas.addEventListener('pointerdown', event => {
-    if (event.button !== 0) return;
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    canvas.setPointerCapture(event.pointerId);
-    previousPinch = 0;
-    if (pointers.size === 1) { gestureOrigin = { x: event.clientX, y: event.clientY }; gestureMoved = false; }
-    else { gestureMoved = true; city?.resizer.finish(false); }
-    if (pointers.size === 1 && city) {
-      const bounds = canvas.getBoundingClientRect();
-      city.resizer.begin(event.clientX - bounds.left, event.clientY - bounds.top);
-      if (city.resizer.active) canvas.style.cursor = 'grabbing';
-    }
+    if (event.button !== 0 || !city || city.journey.complete) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.setPointerCapture(event.pointerId);
+    if (pointers.size > 1) { if (drawing) city.journey.setRoute(savedRoute); drawing = false; city.sync(); pinch = 0; moved = true; refresh(); return; }
+    origin = { x: event.clientX, y: event.clientY }; moved = false; savedRoute = [...city.journey.route];
+    const p = local(event.clientX, event.clientY), id = city.nodeAt(p.x, p.y);
+    drawing = mode === 'route' && city.journey.ready && !!id;
+    if (drawing) drawAt(event.clientX, event.clientY);
   });
   canvas.addEventListener('pointermove', event => {
-    const previous = pointers.get(event.pointerId);
-    if (!previous || !city || !engine) return;
-    if (Math.hypot(event.clientX - gestureOrigin.x, event.clientY - gestureOrigin.y) > 8) gestureMoved = true;
+    if (!city || !engine || city.journey.complete) return;
+    const previous = pointers.get(event.pointerId), p = local(event.clientX, event.clientY);
+    if (!previous) {
+      const id = mode === 'edit' ? city.streetAt(p.x, p.y) : city.nodeAt(p.x, p.y);
+      const street = city.journey.world.streets.find(s => s.id === id), node = city.journey.world.nodes.find(n => n.id === id);
+      get('city-hover').hidden = !id;
+      if (id) setText('city-hover', street ? `${streetNames[street.kind]} · tap to change` : `${node!.label} · draw through this junction`);
+      if (mode === 'edit') city.highlight(id ?? null); canvas.style.cursor = id ? 'pointer' : 'grab'; return;
+    }
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (city.resizer.active) {
-      if (gestureMoved) { const bounds = canvas.getBoundingClientRect(); city.resizer.move(event.clientX - bounds.left, event.clientY - bounds.top); }
-      return;
-    }
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
-      const distance = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      if (previousPinch > 0 && distance > 0) city.setZoom(previousPinch / distance);
-      previousPinch = distance;
-    } else if (gestureMoved && city.canPan()) {
-      const camera = city.scene.activeCamera!;
-      const worldWidth = camera.orthoRight! - camera.orthoLeft!;
-      city.pan(-(event.clientX - previous.x) / canvas.clientWidth * worldWidth, (event.clientY - previous.y) / canvas.clientWidth * worldWidth * 1.15);
-    }
+    if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 8) moved = true;
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a!.x - b!.x, a!.y - b!.y); if (pinch > 0 && d > 0) city.setZoom(pinch / d); pinch = d; return; }
+    if (drawing) { const steps = Math.ceil(Math.hypot(event.clientX - previous.x, event.clientY - previous.y) / 8); for (let i = 1; i <= steps; i++) drawAt(previous.x + (event.clientX - previous.x) * i / steps, previous.y + (event.clientY - previous.y) * i / steps); }
+    else if (moved) { const camera = city.scene.activeCamera!; const width = camera.orthoRight! - camera.orthoLeft!; city.pan(-(event.clientX - previous.x) / canvas.clientWidth * width, (event.clientY - previous.y) / canvas.clientWidth * width); }
   });
-  const release = (event: PointerEvent) => {
-    if (city?.resizer.active) {
-      const id = city.resizer.finish(event.type === 'pointerup');
-      if (id) announceEdit(id);
-      canvas.style.cursor = ''; refreshResizeControls();
-    } else if (event.type === 'pointerup' && pointers.size === 1 && !gestureMoved) {
-      const bounds = canvas.getBoundingClientRect();
-      city?.selectAt(event.clientX - bounds.left, event.clientY - bounds.top);
-    }
-    pointers.delete(event.pointerId); previousPinch = 0;
+  function release(event: PointerEvent) {
+    if (!pointers.has(event.pointerId)) return;
+    if (event.type !== 'pointerup' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); refresh(); }
+    else if (mode === 'edit' && !moved && city) { const p = local(event.clientX, event.clientY); const id = city.streetAt(p.x, p.y); if (id) selectStreet(id); }
+    drawing = false; pointers.delete(event.pointerId); pinch = 0;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-  };
-  canvas.addEventListener('pointerup', release);
-  canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('lostpointercapture', event => { pointers.delete(event.pointerId); previousPinch = 0; city?.resizer.finish(false); canvas.style.cursor = ''; });
-  canvas.addEventListener('wheel', event => { event.preventDefault(); if (!city?.resizer.active) city?.setZoom(event.deltaY > 0 ? 1.1 : 0.9); }, { passive: false });
-
+  }
+  canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release); canvas.addEventListener('lostpointercapture', release);
+  canvas.addEventListener('pointerleave', () => { if (!drawing) { city?.highlight(selected); get('city-hover').hidden = true; } });
+  canvas.addEventListener('wheel', event => { event.preventDefault(); city?.setZoom(event.deltaY > 0 ? 1.1 : .9); }, { passive: false });
+  function escape(event: KeyboardEvent) { if (event.key === 'Escape' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); drawing = false; pointers.clear(); feedback('Line drawing cancelled.'); refresh(); } }
+  window.addEventListener('keydown', escape);
+  function visibilityChanged() {
+    if (document.hidden && playback) { stopTrack(false); setText('studio-track-status', 'Track stopped while you were away. Replay when you return.'); }
+  }
+  document.addEventListener('visibilitychange', visibilityChanged);
+  const observer = new ResizeObserver(() => { if (active) { engine?.resize(); city?.resize(); } }); observer.observe(canvas);
   return {
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
-    suspend() { editor.stopGuide(); clearExhibitionTimer(); active = false; instructions.close(); sounds.stop(); },
-    resume() { active = true; accumulator = 0; engine?.resize(); city?.resize(); updatePanel(); },
-    showInstructions() {
-      if (instructionsShown || !active || container.hidden) return;
-      instructions.showModal();
-      container.querySelector<HTMLElement>('#city-instructions-title')!.focus({ preventScroll: true });
-      instructions.scrollTop = 0;
-      instructionsShown = true;
+    showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
+    suspend() { stopTrack(); active = false; sounds.stop(); speech?.stop(); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
+    resume() { active = true; engine?.resize(); city?.resize(); refresh(); },
+    enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
+      bot = value; robots = remembered; active = true; sounds.unlock();
+      if (!engine) { engine = new Engine(canvas, true); engine.runRenderLoop(() => { if (!active || !city || document.hidden) return; city.update(Math.min(.1, engine!.getDeltaTime() / 1000)); refresh(); city.scene.render(); }); }
+      newCity();
     },
-    enter(bot: ArtBot) {
-      active = true;
-      selected = null;
-      manualSelection = false; autoPaused = false; editor.announce('');
-      lastBlock = null;
-      accumulator = 0;
-      eventCursor = 0;
-      sounds.stop(); sounds.unlock(); setMood('curious');
-      pointers.clear();
-      container.querySelector('#city-bot-name')!.textContent = bot.name;
-      try {
-        if (!engine) {
-          engine = new Engine(canvas, true);
-          engine.runRenderLoop(() => {
-            if (!active || !city || document.hidden) return;
-            accumulator += Math.min(engine!.getDeltaTime() / 1000, 0.1);
-            while (accumulator >= 1 / 30) { city.update(1 / 30); accumulator -= 1 / 30; }
-            updatePanel();
-            city.scene.render();
-          });
-        }
-        city?.scene.dispose();
-        engine.resize();
-        city = createCityScene(engine, bot, selectFeature, explore, selectResize);
-        city.setTheme(theme);
-        beginCreation(bot);
-        updateMapControls();
-        updatePanel();
-      } catch (error) {
-        active = false;
-        status.textContent = 'The city could not load. Return to the designer and try again.';
-        console.error('City initialization failed:', error);
-      }
-    },
-    dispose() { editor.dispose(); clearExhibitionTimer(); active = false; instructions.close(); observer.disconnect(); paintingRenderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
+    dispose() { stopTrack(); active = false; observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
   };
 }

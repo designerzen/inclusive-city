@@ -1,6 +1,9 @@
 import { SoundEffect } from '../audio/SoundEffect';
 import type { SoundScore, SoundSequenceEntry } from '../audio/SoundEffect';
 import type { MusicianStyle } from './artistStyles';
+import { magentaAccompaniment } from '../audio/MagentaAccompaniment';
+import type { AccompanimentProvider } from '../audio/magentaProtocol';
+import { magentaBackingNotes } from '../audio/magentaScore';
 
 interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean }
 type Voice = Partial<SoundScore['voice']>;
@@ -55,9 +58,19 @@ const hooks: Partial<Record<MusicianStyle, Figure>> = {
 export class JourneyMusicComposer {
   readonly bpm: number;
   readonly beats: number;
-  constructor(readonly style: MusicianStyle, private readonly seed: number, speed = 50) {
+  constructor(readonly style: MusicianStyle, private readonly seed: number, speed = 50,
+    private readonly accompaniment: AccompanimentProvider = magentaAccompaniment) {
     this.bpm = style === 'melodic' ? 92 + Math.round(speed * .2) + (seed >>> 0) % 9 : recipes[style].bpm;
     this.beats = style === 'waltz' ? 3 : 4;
+  }
+
+  /** Warm four chord responses without changing any recorded or audible notes. */
+  prepareAccompaniment() { this.preview(); }
+
+  async enhancedPreview(): Promise<SoundSequenceEntry[]> {
+    this.prepareAccompaniment();
+    await this.accompaniment.whenIdle?.();
+    return this.preview();
   }
 
   /** Four bars expose a groove and its chord changes. */
@@ -69,7 +82,22 @@ export class JourneyMusicComposer {
     })).flat();
   }
 
-  compose(data: Phrase): SoundSequenceEntry[] {
+  async studioVerses(at: number, phrase: number, steps: number, edge: number): Promise<SoundSequenceEntry[]> {
+    const measure = this.beats * 60 / this.bpm;
+    const compose = () => Array.from({ length: 8 }, (_, i) => this.compose({
+      at: at + i * measure, phrase: phrase + i, steps, edge, blocked: false, harmony: true,
+    }, true)).flat();
+    compose(); // Queue model responses before freezing the studio arrangement.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([this.accompaniment.whenIdle?.() ?? Promise.resolve(),
+        new Promise<void>(resolve => { timer = setTimeout(resolve, 8000); })]);
+    } catch { /* A playable harmonic arrangement survives unavailable inference. */ }
+    finally { clearTimeout(timer); }
+    return compose();
+  }
+
+  compose(data: Phrase, studio = false): SoundSequenceEntry[] {
     const style = this.style, beat = 60 / this.bpm, slot = data.phrase % 4;
     // Functional progressions survive changing steps; incidents change their emotional mode.
     let root = [60, 67, 57, 65][slot]!, minor = slot === 2, seventh = 10;
@@ -109,6 +137,7 @@ export class JourneyMusicComposer {
       // An occasional phrase-ending ornament reflects the travelled route.
       if (slot === 3 && i === figure.length - 1) resolved = data.harmony ? (data.steps + data.edge) % 3 : 0;
       if (style === 'minimalist') resolved += Math.floor(data.phrase / 4) % 3;
+      if (studio) resolved += Math.floor(data.phrase / 4) % 2 ? (i % 2 ? 2 : 0) : 0;
       return { midi: root + (style === 'ambient' ? 0 : style === 'chimes' ? 24 : 12) + pitch(resolved), start: start * beat, duration: duration * beat * (data.blocked ? 1.25 : 1) };
     });
     const result: SoundSequenceEntry[] = [{ at: data.at, score: melody, label: `journey:melody:${data.phrase}` }];
@@ -166,6 +195,22 @@ export class JourneyMusicComposer {
       if (['ambient', 'cinematic', 'synthwave'].includes(style)) length = 3.5;
       add('harmony', { waveform: style === 'synthwave' ? 'sawtooth' : 'sine', layers: style === 'synthwave' ? 2 : 1, spread: 10, gain: .12, attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
         offsets.flatMap(at => notes(intervals.map(interval => [interval, at, length]), root - 12)));
+    }
+    if (data.harmony && (studio || ['melodic', 'ambient', 'jazz', 'lofi', 'cinematic'].includes(style))) {
+      const chordName = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][((root % 12) + 12) % 12]!;
+      const extended = style === 'jazz' || style === 'lofi';
+      const response = this.accompaniment.get({
+        chord: chordName + (minor ? extended ? 'm7' : 'm' : extended ? seventh === 11 ? 'maj7' : '7' : ''),
+        notes: melody.notes.map(note => {
+          const start = Math.min(15, Math.round(note.start / beat * 4));
+          return { pitch: Math.max(48, Math.min(83, note.midi)), quantizedStartStep: start,
+            quantizedEndStep: Math.min(16, Math.max(start + 1, Math.round((note.start + note.duration) / beat * 4))) };
+        }),
+      });
+      if (response) {
+        const backing = magentaBackingNotes(response, root, [0, third, 7, ...(extended ? [seventh] : [])], this.bpm);
+        if (backing.length) add('magenta-countermelody', { waveform: 'triangle', gain: .09, pan: -.3, cutoff: 1500, attack: .025, release: .2 }, backing);
+      }
     }
     return result;
   }

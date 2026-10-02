@@ -8,6 +8,8 @@ import type { CityValue, CityEditId } from '../city/cityDocument';
 import { buildingProperty, doorBuilding, pavementEdge } from '../city/buildingDimensions';
 
 export const TRAVEL_UNITS_PER_STEP = 1;
+// A quarter turn takes 1.5 seconds before the wheels drive forwards again.
+export const TURN_RADIANS_PER_SECOND = Math.PI / 3;
 
 export class CityJourney {
   edge = 0;
@@ -37,11 +39,25 @@ export class CityJourney {
     return true;
   }
 
-  get heading() {
+  private currentHeading = Math.atan2(cityRoute[0]!.x - cityRoute[1]!.x, cityRoute[0]!.z - cityRoute[1]!.z);
+  get heading() { return this.currentHeading; }
+
+  private get targetHeading() {
     const points = this.excursion?.points ?? cityRoute;
     const index = this.excursion?.leg ?? this.edge;
     const a = points[index], b = points[index + 1];
     return a && b && (a.x !== b.x || a.z !== b.z) ? Math.atan2(a.x - b.x, a.z - b.z) : null;
+  }
+
+  private turn(seconds: number) {
+    const target = this.targetHeading;
+    if (target === null) return 0; // Keep facing forwards in the elevator.
+    const delta = Math.atan2(Math.sin(target - this.currentHeading), Math.cos(target - this.currentHeading));
+    if (Math.abs(delta) < 1e-8) return 0;
+    const duration = Math.min(seconds, Math.abs(delta) / TURN_RADIANS_PER_SECOND);
+    this.currentHeading += Math.sign(delta) * duration * TURN_RADIANS_PER_SECOND;
+    this.machine.advance(duration, 'movingSeconds');
+    return duration;
   }
 
   constructor(bot: ArtBot, planning = false) {
@@ -131,6 +147,8 @@ export class CityJourney {
         }
       }
       if (this.excursion) {
+        remaining = Math.max(0, remaining - this.turn(remaining));
+        if (remaining === 0) break;
         const excursion = this.excursion;
         const a = excursion.points[excursion.leg]!, b = excursion.points[excursion.leg + 1]!;
         const length = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
@@ -148,6 +166,8 @@ export class CityJourney {
         this.syncTelemetry();
         continue;
       }
+      remaining = Math.max(0, remaining - this.turn(remaining));
+      if (remaining === 0) break;
       const a = cityRoute[this.edge]!, b = cityRoute[this.edge + 1]!;
       const length = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
       // The elevator moves vertically on the same route at a steady cab speed.
@@ -263,6 +283,7 @@ export class CityJourney {
     this.machine.transition('designer');
     this.edge = 0;
     this.distanceOnEdge = 0;
+    this.currentHeading = Math.atan2(cityRoute[0]!.x - cityRoute[1]!.x, cityRoute[0]!.z - cityRoute[1]!.z);
     this.isPaused = false;
     this.blocked = null;
     this.lastEncounter = null;

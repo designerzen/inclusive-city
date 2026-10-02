@@ -1,3 +1,4 @@
+import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
@@ -15,7 +16,7 @@ export function mountRobotGuide(container: HTMLElement, speech?: ScreenSpeech) {
   const canvas = container.querySelector('canvas')!;
   const copy = container.querySelector<HTMLElement>('.robot-guide-copy')!;
   const replay = container.querySelector<HTMLButtonElement>('button')!;
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const reducedMotion = reducedMotionPreference();
   let engine: Engine | null = null, scene: Scene | null = null;
   let model: ReturnType<typeof createRobot> | null = null;
   let camera: UniversalCamera | null = null, bot: ArtBot | null = null;

@@ -1,13 +1,16 @@
+import { reducedMotionPreference } from './accessibilityPreferences';
 export function createScreenTransition(workshop: HTMLElement, narration?: { stop(): void; entered(screen: HTMLElement): void }) {
   const curtain = document.createElement('div');
   curtain.className = 'screen-transition';
   curtain.setAttribute('aria-hidden', 'true');
   curtain.innerHTML = '<div class="transition-orbit"></div><div class="transition-route"></div>';
   document.body.append(curtain);
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const motion = reducedMotionPreference();
   let busy = false;
   let disposed = false;
   const animations = new Set<Animation>();
+  const onMotion = () => { if (motion.matches) animations.forEach(animation => animation.cancel()); };
+  motion.addEventListener('change', onMotion);
   async function animate(element: HTMLElement, frames: Keyframe[], duration: number) {
     const animation = element.animate(frames, { duration, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' });
     animations.add(animation);
@@ -62,6 +65,6 @@ export function createScreenTransition(workshop: HTMLElement, narration?: { stop
         if (!disposed && !to.hidden) focus.focus({ preventScroll: true });
       }
     },
-    dispose() { disposed = true; animations.forEach(animation => animation.cancel()); curtain.remove(); },
+    dispose() { disposed = true; motion.removeEventListener('change', onMotion); animations.forEach(animation => animation.cancel()); curtain.remove(); },
   };
 }

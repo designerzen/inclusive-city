@@ -1,3 +1,4 @@
+import { reducedMotionPreference } from './accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
@@ -27,7 +28,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
   const wheels = [-1, 1].flatMap(side => [-1, 1].map(end => scene.getMeshByName(`wheel-${side}-${end}`)!));
   const choreography = new JourneyDance(journey.score, journey.bpm, journey.artist.musician === 'waltz' ? 3 : 4);
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const motion = reducedMotionPreference();
   let clock: (() => number) | null = null, active = false, dirty = true;
   const resize = () => {
     engine.resize();

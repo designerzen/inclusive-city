@@ -5,6 +5,7 @@ import type { ArtMark } from '../art/JourneyCreativity';
 import type { ArtworkTitle } from '../art/ArtworkTitleGenerator';
 import type { CreativePreferences } from './creativePreferences';
 import type { ArtistPreferences } from '../art/artistStyles';
+import type { ProceduralCity } from '../city/proceduralCity';
 
 export type RobotState = 'designer' | 'ready' | 'following' | 'blocked' | 'paused' | 'collecting' | 'arrived';
 export interface RobotMetadata {
@@ -30,6 +31,7 @@ export interface RobotRun {
   id: number; metadata: RobotMetadata; status: 'active' | 'completed' | 'interrupted';
   environment: { routeId: string; accessibleFeatures: string[] };
   citySnapshot?: Record<string, boolean | number>;
+  cityPlan?: { world: ProceduralCity; route: string[]; improvements: string[] };
   metrics: RobotMetrics; startedAt: number; endedAt: number | null;
   pickups: { id: string; kind: string; value: number; time: number }[];
   creative?: { seed: number; bpm: number; music: boolean; art: boolean; harmony: boolean; colour: boolean; score: SoundSequenceEntry[]; marks: ArtMark[]; title?: ArtworkTitle; artist?: ArtistPreferences };

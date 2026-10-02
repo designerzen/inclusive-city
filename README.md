@@ -6,11 +6,14 @@ The central lesson is demonstrated through play: **the same robot can do more wh
 
 Use the burger menu’s **Options → Appearance → Colour mode** to choose Dark or Light. The setting changes the interface, workshop and city materials immediately, including streets, route lines, buildings, labels and access markers. Switching preserves the current journey; the choice is remembered on this browser when storage is available.
 
+In **Settings → Accessibility**, choose text size (100–200%), a default, system, Arial, Verdana, Georgia or monospace typeface, roomier text spacing, and reduced motion. Changes apply immediately across the interface and are remembered in this browser when storage is available. Motion follows the device preference by default; **Reset accessibility settings** restores these defaults without changing colour or sound settings.
+
 ## Documentation
 
 - [Experience and game design](docs/experience-design.md): story, character creation, city editing, barriers, collectibles, and the live creative HUD.
 - [Technical specification](docs/technical-specification.md): Babylon.js, orthographic cameras, autonomous navigation, event data, audio/art generation, persistence, and exports.
 - [Research and evaluation](docs/research-and-evaluation.md): sources, educational framing, accessibility requirements, co-design, and validation.
+- [Interface design review](docs/ui-design-review.md): researched design rules, changes to the main flow, and desktop/mobile checks.
 - [Robot state and metrics](docs/robot-state-and-metrics.md): per-bot state machines, lifetime/run metrics, achievements, failures, pickups, and timestamped events for stage 3.
 
 These documents describe the wider proposed game, researched on 2 October 2026. The repository includes a working Babylon.js robot designer, a playable city route, collectible art fragments, and interaction/mood audio in `source/`. Full journey composition, art exports, and freeform city editing remain planned.

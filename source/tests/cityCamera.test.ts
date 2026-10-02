@@ -6,6 +6,32 @@ import { Camera } from '@babylonjs/core/Cameras/camera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createCityCamera } from '../src/city/cityCamera';
 
+test('studio arrival orbits, descends to the face and respects reduced motion', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const pose = { position: new Vector3(22, .035, 8), heading: -Math.PI / 2, eyeHeight: 1.8 };
+  const controls = createCityCamera(engine, scene, () => pose);
+  try {
+    controls.beginArrival(); controls.update(2);
+    const high = controls.camera.position.clone();
+    controls.update(2);
+    assert.ok(!controls.camera.position.equalsWithEpsilon(high));
+    assert.equal(controls.arrivalComplete, false);
+    controls.update(4);
+    controls.camera.getViewMatrix(true);
+    const eyes = pose.position.add(new Vector3(0, pose.eyeHeight, 0));
+    assert.equal(controls.arrivalComplete, true);
+    assert.ok(controls.camera.getTarget().subtract(controls.camera.position).normalize().equalsWithEpsilon(eyes.subtract(controls.camera.position).normalize(), 1e-5));
+    assert.ok(Math.abs(controls.camera.position.y - eyes.y) < 1e-6);
+    assert.ok(controls.camera.position.x > eyes.x);
+    assert.ok(Math.abs(controls.camera.position.subtract(eyes).length() - 1.8) < 1e-6);
+    controls.fit(); assert.equal(controls.arrivalComplete, false);
+    controls.beginArrival(); controls.update(0, true);
+    controls.camera.getViewMatrix(true);
+    assert.equal(controls.arrivalComplete, true);
+    assert.ok(controls.camera.getTarget().subtract(controls.camera.position).normalize().equalsWithEpsilon(eyes.subtract(controls.camera.position).normalize(), 1e-5));
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('camera presets track robot turns and elevation, then fit restores the map', () => {
   const engine = new NullEngine();
   const scene = new Scene(engine);

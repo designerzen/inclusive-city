@@ -1,5 +1,7 @@
 # Playable city prototype
 
+This documents the original fixed-route prototype. The active game is described in [Procedural city game](procedural-city.md).
+
 The designer and city share the procedural four-wheeled robot factory in `source/src/robot/createRobot.ts`. Entering the city copies the selected bot's identity, appearance, and profile. A second Babylon scene uses a fixed, steep overhead orthographic camera; its tilt exposes building edges and changes in level. Buildings use wireframe materials, edge rendering, and floor outlines against a dark background. Streets, crossings, sidewalks, river banks, a raised bridge, stairs, an elevator shaft and cab, and the gallery are procedural meshes.
 
 `city/cityLayout.ts` supplies one route and its access features. A white emissive tube draws exactly the coordinates used by the robot's interpolation. `simulation/cityJourney.ts` advances the agent along these segments, including the ramp and vertical elevator segment. The UI runs a 30 Hz simulation, caps elapsed time per rendered frame, and suspends work while the document is hidden. Access is checked before entering a segment, including when one update spans several segments, so a slow frame cannot bypass a barrier.

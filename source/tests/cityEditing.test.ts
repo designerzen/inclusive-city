@@ -60,10 +60,8 @@ test('undo and redo preserve pause, history and occupied surfaces', () => {
   journey.undo(); // Undo elevator before the robot gets there.
   assert.equal(journey.city.get('elevator'), false);
   journey.redo();
-  const distanceToRamp = cityRoute.slice(1, 9).reduce((sum, b, i) => {
-    const a = cityRoute[i]!; return sum + Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-  }, 0);
-  journey.update((distanceToRamp + 2) / journey.speed);
+  // Reach the occupied ramp including the time spent turning at corners.
+  for (let i = 0; i < 1000 && (journey.edge < 8 || journey.distanceOnEdge === 0); i++) journey.update(.1);
   assert.equal(journey.edge, 8);
   assert.ok(journey.distanceOnEdge > 0);
   journey.paused = true;

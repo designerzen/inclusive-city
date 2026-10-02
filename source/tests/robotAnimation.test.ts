@@ -29,6 +29,21 @@ test('explaining animates the mouth without driving the robot and respects reduc
   } finally { scene.dispose(); engine.dispose(); }
 });
 
+test('pivot rolls opposite wheels in opposite directions and pauses with the journey', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene);
+    const left = scene.getMeshByName('wheel--1-1')!, right = scene.getMeshByName('wheel-1-1')!;
+    bot.animateTravel(0, .1, false, false, .1);
+    assert.ok(left.rotation.x > 0);
+    assert.equal(left.rotation.x, -right.rotation.x);
+    assert.equal(left.rotation.x, scene.getMeshByName('hub--1-1')!.rotation.x);
+    const angle = left.rotation.x;
+    bot.animateTravel(0, .1, false, true, .1);
+    assert.equal(left.rotation.x, angle);
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('travel animates the complete head and rolls wheels about their axles, then settles when idle', () => {
   const engine = new NullEngine();
   const scene = new Scene(engine);

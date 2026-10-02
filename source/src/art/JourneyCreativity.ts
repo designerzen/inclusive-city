@@ -9,7 +9,7 @@ import type { PaintStroke } from './ProceduralPainting';
 
 export type ArtMark = PaintStroke;
 
-/** Pure, deterministic creative modes driven by the robot's ordered journey events. */
+/** Event-driven creative modes. Resolved AI accompaniment is captured in the score. */
 export class JourneyCreativity {
   readonly seed: number;
   readonly bpm: number;
@@ -41,6 +41,7 @@ export class JourneyCreativity {
     this.composer = new JourneyMusicComposer(this.artist.musician, seed, bot.profile.abilities.speed);
     this.bpm = this.composer.bpm;
     this.music = bot.creative?.medium === 'music';
+    this.composer.prepareAccompaniment();
     this.painting = new ProceduralPainting(seed, bot.appearance.width, bot.creative?.artStyle ?? this.artist.painter);
   }
 
@@ -53,7 +54,10 @@ export class JourneyCreativity {
     if (event.type === 'intervention') this.blocked = false;
     if (event.type === 'pickup') {
       const kind = event.data.kind;
-      if (kind === 'music' || kind === 'harmony') this.music = true;
+      if (kind === 'music' || kind === 'harmony') {
+        this.music = true;
+        this.composer.prepareAccompaniment();
+      }
       if (kind === 'art' || kind === 'colour') this.art = true;
       if (kind === 'harmony') this.harmony = true;
       if (kind === 'colour') this.colour = true;
@@ -85,4 +89,24 @@ export class JourneyCreativity {
 
   /** Designer auditions share the finished journey's identity, key and melodic seed. */
   previewMusic(): SoundSequenceEntry[] { return this.composer.preview(); }
+  previewEnhancedMusic(): Promise<SoundSequenceEntry[]> { return this.composer.enhancedPreview(); }
+
+  /** Every studio arrival has a saved track, even without a musical discovery. */
+  finishMusic() {
+    if (!this.score.length) this.score.push(...structuredClone(this.composer.preview()));
+    this.music = true;
+    return this.score;
+  }
+
+  async extendStudioMusic() {
+    this.finishMusic();
+    const measure = this.composer.beats * 60 / this.bpm;
+    const first = this.score[0]!.at;
+    const last = Math.max(...this.score.map(entry => entry.at));
+    const bars = Math.round((last - first) / measure) + 1;
+    const verses = await this.composer.studioVerses(first + bars * measure, bars, this.steps, this.edge);
+    this.score.push(...structuredClone(verses));
+    this.harmony = true;
+    return this.score;
+  }
 }

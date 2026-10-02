@@ -10,7 +10,7 @@ test('planning preserves guessing while requested hints and encountered barriers
   assert.doesNotMatch(robotGuidance(journey, 'curb', false), /too high/);
   assert.match(robotGuidance(journey, 'curb', true), /too high.*Lower curb/);
   journey.start(); journey.update(1000);
-  assert.match(robotGuidance(journey, 'curb', false), /I need your help!.*Lower curb/);
+  assert.match(robotGuidance(journey, 'curb', false), /^This curb is too high for my wheels!.*Lower curb/);
   journey.edit('curb', true);
   assert.match(robotGuidance(journey, 'curb', true), /I can use/);
 });

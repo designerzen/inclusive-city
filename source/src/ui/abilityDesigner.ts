@@ -16,31 +16,33 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   let previewRenderer: AsyncPaintingRenderer | null = null;
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `
-    <div class="designer-heading"><span id="function-count">3 / 5 enabled</span>
-      <button type="button" id="reset-abilities">Reset</button></div>
+    <div class="designer-heading"><h2>Robot settings</h2>
+      <button type="button" id="reset-abilities">Reset abilities</button></div>
     <section class="function-designer" aria-labelledby="functions-heading">
-      <h2 id="functions-heading" class="sr-only">Robot functions</h2>
+      <h3 id="functions-heading">Active functions <span id="function-count">3 / 5 enabled</span></h3>
+      <p class="control-hint">Three functions stay on. Switching one changes another; the hint below each function tells you which.</p>
       <div class="function-list">${robotFunctions.map(item => `
         <div class="function-item">
-          <div class="function-row"><div><h4 id="function-label-${item.id}">${item.label}</h4>
+          <div class="function-row"><div><h3 id="function-label-${item.id}">${item.label}</h3>
             <p class="sr-only" id="function-description-${item.id}">${item.description}</p></div>
             <button type="button" role="switch" id="function-${item.id}" data-function="${item.id}" aria-checked="false"
               aria-labelledby="function-label-${item.id}" aria-describedby="function-description-${item.id} function-swap-${item.id}">
               <span class="switch-track" aria-hidden="true"><span></span></span><span class="switch-state" aria-hidden="true">Disabled</span>
             </button></div>
-          <p class="sr-only" id="function-swap-${item.id}"></p>
+          <p class="function-swap control-hint" id="function-swap-${item.id}"></p>
         </div>`).join('')}</div>
       <p id="function-announcement" class="function-announcement" role="status" aria-live="polite"></p>
     </section>
     <div class="ability-list" role="group" aria-label="Ability tradeoffs">
+      <h3>Balance your abilities</h3><p class="control-hint">Each pair shares 100 points. Move a slider towards the ability you want more of.</p>
       ${abilityPairs.map(pair => `
         <section class="ability-pair" aria-labelledby="label-${pair.id}">
           <h3 id="label-${pair.id}" class="sr-only">${pair.primary} versus ${pair.secondary}</h3>
-          <p id="description-${pair.id}" class="sr-only">${pair.description}</p>
           <div class="pair-values"><span>${pair.secondary} <output id="secondary-${pair.id}" for="ability-${pair.id}">50</output></span>
             <span>${pair.primary} <output id="primary-${pair.id}" for="ability-${pair.id}">50</output></span></div>
           <input type="range" id="ability-${pair.id}" data-ability="${pair.id}" min="0" max="100" step="1" value="50"
             aria-labelledby="label-${pair.id}" aria-describedby="description-${pair.id} feedback-${pair.id}" />
+          <p id="description-${pair.id}" class="control-hint">${pair.description}</p>
           <p class="sr-only" id="feedback-${pair.id}"></p>
         </section>
       `).join('')}
@@ -79,8 +81,8 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       button.querySelector('.switch-state')!.textContent = on ? 'Enabled' : 'Disabled';
       const swap = toggleFunction(enabledFunctions, item.id);
       const swapText = on
-        ? `Switch off → ${functionLabel(swap.enabled)} turns on.`
-        : `Switch on → ${functionLabel(swap.disabled)} turns off.`;
+        ? `Turn off: ${functionLabel(swap.enabled)} will turn on.`
+        : `Turn on: ${functionLabel(swap.disabled)} will turn off.`;
       container.querySelector(`#function-swap-${item.id}`)!.textContent = swapText;
       button.title = swapText;
     }

@@ -35,6 +35,10 @@ export const cityPowerups = [
   { id: 'art-seed', node: 0, kind: 'art', label: 'Drawing spark', description: 'Enriches the painting with expressive brushwork', colour: '#f59482', path: [{ x: -24, y: 0.14, z: -15 }, { x: -24, y: 0.14, z: -16 }] },
   { id: 'harmony-seed', node: 5, kind: 'harmony', label: 'Harmony bloom', description: 'Adds chords and bass to the music', colour: '#81c5ee', path: [{ x: -2, y: 0.14, z: -4 }, { x: -2, y: 0.14, z: -6 }] },
   { id: 'colour-seed', node: 9, kind: 'colour', label: 'Colour prism', description: 'Adds colour and geometric marks to the drawing', colour: '#f3c76b', path: [{ x: 10, y: 0.94, z: 6 }, { x: 11, y: 0.94, z: 6 }] },
+  { id: 'library-story', node: 3, kind: 'art', label: 'Library sketchbook', description: 'Collect a brushwork bloom outside the library', colour: '#f59482', path: [{ x: -12, y: 0.14, z: -9 }, { x: -12, y: 0.14, z: -8 }] },
+  { id: 'cafe-rhythm', node: 4, kind: 'music', label: 'Café rhythm', description: 'Bring the café’s rhythm into your journey music', colour: '#b6a1ec', path: [{ x: -13, y: 0.14, z: -4 }, { x: -13, y: 0.14, z: 1 }, { x: -17, y: 0.14, z: 1 }] },
+  { id: 'cinema-colour', node: 5, kind: 'colour', label: 'Cinema colour', description: 'Unlock a richer palette at the cinema courtyard', colour: '#f3c76b', path: [{ x: -2, y: 0.14, z: -4 }, { x: -2, y: 0.14, z: 7 }] },
+  { id: 'museum-harmony', node: 7, kind: 'harmony', label: 'Museum echoes', description: 'Collect chords and bass beside the museum', colour: '#81c5ee', path: [{ x: 14, y: 0.14, z: -4 }, { x: 16, y: 0.14, z: -4 }, { x: 16, y: 0.14, z: -7 }] },
 ] as const;
 export type PowerupId = typeof cityPowerups[number]['id'];
 

@@ -181,13 +181,17 @@ export function createRobot(scene: Scene) {
   let travelPhase = 0;
   let speaking = false, speechPhase = 0;
   const characterAnimation = new CharacterAnimation();
-  function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false) {
+  function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false, turnAngle = 0) {
     if (!Number.isFinite(distance) || !Number.isFinite(seconds) || distance < 0 || seconds <= 0) return;
     if (paused) return;
     const moving = distance > 1e-8;
     travelPhase = (travelPhase + distance * Math.PI * 2 / 1.5) % (Math.PI * 2);
     const wheelTurn = distance / (0.35 * Math.max(0.01, Math.abs(robot.scaling.x)));
-    for (const part of wheelParts) part.rotation.x = (part.rotation.x - wheelTurn) % (Math.PI * 2);
+    for (const [index, part] of wheelParts.entries()) {
+      // Opposite sides roll in opposite directions during a pivot.
+      const pivotTurn = turnAngle * wheelParts[index - index % 2]!.position.x / .35;
+      part.rotation.x = (part.rotation.x - wheelTurn - pivotTurn) % (Math.PI * 2);
+    }
     const blend = 1 - Math.exp(-seconds * 14);
     const bob = moving && !reducedMotion ? Math.sin(travelPhase) * 0.075 : 0;
     const tilt = moving && !reducedMotion ? Math.cos(travelPhase) * 0.025 : 0;

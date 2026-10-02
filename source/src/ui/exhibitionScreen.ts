@@ -10,7 +10,7 @@ import type { MusicPlayback } from '../audio/CitySounds';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds, onCity: () => void, onDesigner: () => void) {
+export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds) {
   container.innerHTML = `
     <div class="exhibition-topline"><span>ARTBOT / JOURNEY COLLECTION</span><span id="exhibition-edition"></span></div>
     <header class="exhibition-header"><p class="exhibition-eyebrow">A journey, made visible.</p><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution"></p></header>
@@ -19,11 +19,11 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       <figcaption><div><span class="exhibition-work-label">01 / THE PAINTING</span><h2>Every step left a trace</h2><p id="exhibition-art-description"></p></div><span id="exhibition-strokes"></span></figcaption>
     </figure>
     <section class="exhibition-music" aria-labelledby="exhibition-music-title">
-      <div class="exhibition-track"><span class="exhibition-work-label">02 / THE MUSIC</span><h2 id="exhibition-music-title">The sound of the journey</h2><p id="exhibition-music-description"></p></div>
-      <div class="exhibition-player"><div id="exhibition-wave" class="exhibition-wave" aria-hidden="true"></div><progress id="exhibition-progress" max="1" value="0" aria-label="Music playback progress"></progress><div class="exhibition-player-controls"><button id="exhibition-play" type="button">▶ Play journey music</button><button id="exhibition-stop" type="button" disabled>■ Stop</button><span id="exhibition-time">0:00 / 0:00</span></div><p id="exhibition-playback-status" role="status" aria-live="polite"></p></div>
+      <div class="exhibition-track"><span class="exhibition-work-label">02 / THE MUSIC</span><h2 id="exhibition-music-title">Your studio duet</h2><p id="exhibition-music-description"></p></div>
+      <div class="exhibition-player"><div id="exhibition-wave" class="exhibition-wave" aria-hidden="true"></div><progress id="exhibition-progress" max="1" value="0" aria-label="Music playback progress"></progress><div class="exhibition-player-controls"><button id="exhibition-play" type="button">▶ Replay studio song</button><button id="exhibition-stop" type="button" disabled>■ Stop</button><button id="exhibition-download-mp3" type="button">Download song as MP3</button><span id="exhibition-time">0:00 / 0:00</span></div><p id="exhibition-playback-status" role="status" aria-live="polite"></p></div>
     </section>
     <div id="exhibition-stats" class="exhibition-stats" aria-label="Journey highlights"></div>
-    <footer class="exhibition-footer"><p>Every journey makes something different.</p><div><button id="exhibition-city" type="button">← Return to city</button><button id="exhibition-designer" type="button">Create another journey ↗</button></div></footer>
+    <footer class="exhibition-footer"><p>Every journey makes something different.</p><button id="exhibition-city" type="button">Back to city</button></footer>
     <p id="exhibition-download-status" class="sr-only" role="status" aria-live="polite"></p>
   `;
   const title = container.querySelector<HTMLElement>('#exhibition-title')!;
@@ -41,6 +41,32 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   let playback: MusicPlayback | undefined;
   let performer: ReturnType<typeof createExhibitionPerformer> | null = null;
   let active = false, playing = false;
+  let songExport: AbortController | null = null, songBlob: Blob | null = null;
+  const mp3Download = container.querySelector<HTMLButtonElement>('#exhibition-download-mp3')!;
+  const canExportSong = () => !!journey?.score.length && typeof OfflineAudioContext !== 'undefined' && typeof Worker !== 'undefined';
+  function cancelSongExport() { songExport?.abort(); songExport = null; mp3Download.textContent = 'Download song as MP3'; }
+  mp3Download.addEventListener('click', async () => {
+    if (!active || !canExportSong() || songExport) return;
+    const current = journey!, controller = new AbortController();
+    songExport = controller; mp3Download.disabled = true; mp3Download.textContent = 'Preparing MP3…';
+    status.textContent = 'Preparing your complete studio song for download.';
+    try {
+      const { exportSongMp3 } = await import('../audio/exportSong');
+      const blob = songBlob ?? await exportSongMp3(current.score, controller.signal);
+      if (!active || journey !== current || controller.signal.aborted) return;
+      songBlob = blob;
+      const name = current.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim().replace(/\s+/g, '-').slice(0, 70) || 'artbot';
+      const url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = `${name}-studio-duet-${current.runId}.mp3`;
+      document.body.append(link); link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+      status.textContent = 'Your studio song is ready. Check your downloads for the MP3.';
+    } catch {
+      if (!controller.signal.aborted) status.textContent = 'The MP3 could not be created. Please try again.';
+    } finally {
+      if (songExport === controller) { songExport = null; mp3Download.disabled = !canExportSong(); mp3Download.textContent = 'Download song as MP3'; }
+    }
+  });
   function updateTime(elapsed: number) {
     progress.value = duration ? Math.min(1, elapsed / duration) : 0;
     time.textContent = `${timestamp(elapsed)} / ${timestamp(duration)}`;
@@ -50,7 +76,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     performer?.stop(); playback?.stop(); playback = undefined;
     sounds.stop(); container.classList.remove('is-playing');
     play.disabled = !journey?.score.length || !sounds.supported; stop.disabled = true;
-    play.textContent = '▶ Play journey music';
+    play.textContent = '▶ Replay studio song';
     if (reset) updateTime(0);
   }
   function playMusic() {
@@ -62,17 +88,15 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     playing = true;
     performer?.play(() => playback?.elapsed() ?? 0);
     play.disabled = true; stop.disabled = false; container.classList.add('is-playing');
-    status.textContent = 'Playing this journey’s music. Its artist dances along.';
+    status.textContent = 'Replaying your studio song, including its extra verses and harmonies. Dance along!';
     timer = window.setInterval(() => {
       const elapsed = playback?.elapsed() ?? 0;
       updateTime(elapsed);
-      if (elapsed >= duration) { stopMusic(false); play.textContent = '↻ Replay journey music'; status.textContent = 'The journey’s music has finished.'; }
+      if (elapsed >= duration) { stopMusic(false); play.textContent = '↻ Replay studio song'; status.textContent = 'The journey’s music has finished.'; }
     }, 100);
   }
   play.addEventListener('click', playMusic);
   stop.addEventListener('click', () => { stopMusic(); status.textContent = 'Music stopped. Play to listen again.'; });
-  container.querySelector('#exhibition-city')!.addEventListener('click', onCity);
-  container.querySelector('#exhibition-designer')!.addEventListener('click', onDesigner);
   const onVisibility = () => { if (document.hidden && playing) { stopMusic(); status.textContent = 'Music stopped while the page was away. Play to listen again.'; } };
   document.addEventListener('visibilitychange', onVisibility);
   const download = container.querySelector<HTMLButtonElement>('#exhibition-download')!;
@@ -96,8 +120,10 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   return {
     title,
     async prepare(value: FinishedJourney) {
+      cancelSongExport(); songBlob = null;
       stopMusic(); renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score); updateTime(0);
+      mp3Download.disabled = !canExportSong();
       play.disabled = !journey.score.length || !sounds.supported;
       title.textContent = journey.artworkTitle.text;
       title.title = `A title remix of “${journey.artworkTitle.inspirations[0]}” and “${journey.artworkTitle.inspirations[1]}”.`;
@@ -106,7 +132,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       container.querySelector('#exhibition-strokes')!.textContent = `${journey.marks.length} gestures on paper`;
       container.querySelector('#exhibition-art-description')!.textContent = `${painterStyles.find(style => style.id === journey!.artist.painter)!.label} · Pigment, discoveries, setbacks, and small triumphs.`;
       container.querySelector('#exhibition-music-description')!.textContent = journey.score.length ? `${musicianStyles.find(style => style.id === journey!.artist.musician)!.label} · ${journey.bpm} BPM · ${journey.score.length} musical phrases` : 'No musical spark was collected. This journey found its voice in paint.';
-      status.textContent = !sounds.supported ? 'Audio playback is unavailable in this browser.' : journey.score.length ? 'Press play to hear this robot’s journey.' : 'Explore a melody spark on your next journey to compose music.';
+      status.textContent = !sounds.supported ? 'Audio playback is unavailable in this browser.' : journey.score.length ? 'Replay the same song you made together in the studio, or download it as an MP3.' : 'Explore a melody spark on your next journey to compose music.';
       const stats = container.querySelector('#exhibition-stats')!;
       stats.replaceChildren(...[[journey.steps, 'steps taken'], [journey.discoveries, 'discoveries'], [journey.improvements, 'access improvements']].map(([count, label]) => {
         const item = document.createElement('div'), number = document.createElement('strong'), caption = document.createElement('span');
@@ -130,8 +156,8 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
         } catch (error) { performerContainer.hidden = true; console.error('Exhibition robot unavailable:', error); }
       }
     },
-    enter() { active = true; performer?.enter(); },
-    leave() { active = false; stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
-    dispose() { active = false; stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
+    enter() { active = true; mp3Download.disabled = !canExportSong(); performer?.enter(); },
+    leave() { active = false; cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
+    dispose() { active = false; cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
   };
 }

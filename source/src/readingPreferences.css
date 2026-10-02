@@ -1,0 +1,58 @@
+/* Text units follow the browser's default size as well as the user's preference.
+   Control hit targets keep their independent 44px floor in accessibility.css. */
+:root { font-size: calc(100% * var(--text-scale, 1)); }
+.options-dialog { width: min(520px, calc(100vw - 32px)); max-width: calc(100vw - 32px); overflow-wrap: anywhere; }
+.options-heading { align-items: flex-start; position: sticky; top: -24px; padding: 8px 0; background: inherit; z-index: 2; }
+.options-dialog section { min-width: 0; }
+.options-dialog .attract-controls button { max-width: 100%; }
+.options-dialog :is(select, button) { font-family: inherit; }
+.options-dialog select { max-width: 100%; width: 100%; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: .875rem; color: var(--ui-ink); background: var(--ui-surface); }
+.options-dialog label { line-height: 1.5; }
+#accessibility-controls { display: grid; gap: 16px; }
+#accessibility-controls h3 { margin: 0; }
+.accessibility-field { display: grid; gap: 8px; min-width: 0; }
+.options-dialog .accessibility-hint { margin: 0; font-size: .8125rem; line-height: 1.6; color: var(--ui-muted); }
+.accessibility-preview { margin: 0; padding: 16px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: 1rem; line-height: 1.6; }
+#accessibility-status:empty { display: none; }
+
+/* Raised specificity overrides component typography without changing hit targets. */
+:root[data-text-spacing='spacious'] :is(p, h1, h2, h3, label, button, select, summary, li, dt, dd, output, .settings-label, .pair-values, .switch-state) {
+  line-height: 1.8;
+  letter-spacing: .05em;
+  word-spacing: .12em;
+}
+:root[data-reduced-motion='true'] *,
+:root[data-reduced-motion='true'] *::before,
+:root[data-reduced-motion='true'] *::after {
+  animation: none;
+  transition: none;
+  scroll-behavior: auto;
+}
+
+/* Large text needs flexible rows and additional room around the city map. */
+:root:not([data-text-size='100']) .workshop { overflow-wrap: anywhere; }
+:root:not([data-text-size='100']) .workshop :is(button, select) { max-width: 100%; }
+:root:not([data-text-size='100']) .function-row { flex-wrap: wrap; }
+:root:not([data-text-size='100']) .function-row > div { flex: 1 1 100%; min-width: 0; }
+:root:not([data-text-size='100']) .switch-state { width: auto; }
+:root:not([data-text-size='100']) .switch-track { flex: 0 0 38px; }
+:root:not([data-text-size='100']) .designer-heading h2 { max-width: 100%; }
+:root:not([data-text-size='100']) .designer-layout { grid-template-columns: minmax(0, 1fr); }
+:root:not([data-text-size='100']) .preview-column { position: static; }
+:root:not([data-text-size='100']) .attract-layout { grid-template-columns: minmax(0, 1fr); }
+:root:not([data-text-size='100']) .attract-copy h1 { font-size: clamp(3rem, 18vw, 5.5rem); }
+:root:not([data-text-size='100']) .attract-copy { padding-top: 64px; }
+:root:not([data-text-size='100']) .attract-brand { padding-right: 0; max-width: calc(100% - 60px); flex-wrap: wrap; }
+:root:not([data-text-size='100']) #city-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(180px, 1fr) minmax(220px, 38dvh); overflow: auto; }
+:root:not([data-text-size='100']) #city-screen .city-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+:root:not([data-text-size='100']) .city-tools { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
+:root:not([data-text-size='100']) #city-screen #back-to-designer { grid-column: 2; grid-row: 1; }
+:root:not([data-text-size='100']) .city-plan { overflow-y: auto; }
+:root:not([data-text-size='100']) .exhibition-music { grid-template-columns: minmax(0, 1fr); }
+:root:not([data-text-size='100']) .exhibition-topline { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .options-dialog { padding: 20px 16px; }
+  .options-heading { top: -20px; gap: 8px; }
+  :root:not([data-text-size='100']) .options-heading h2 { font-size: 1rem; }
+  .options-dialog .attract-controls button { flex: 1 1 100%; }
+}

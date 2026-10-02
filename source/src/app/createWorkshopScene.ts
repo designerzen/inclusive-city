@@ -1,3 +1,4 @@
+import { reducedMotionPreference } from './accessibilityPreferences';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Camera } from '@babylonjs/core/Cameras/camera';
@@ -39,14 +40,14 @@ export function createWorkshopScene(engine: Engine) {
   }
   let rotating = true;
   let feedbackSeconds = 0;
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const reducedMotion = reducedMotionPreference();
   scene.onBeforeRenderObservable.add(() => {
     if (!document.hidden) {
       const seconds = Math.min(engine.getDeltaTime(), 50) / 1000;
       const attention = pointerAttention.update(seconds);
       bot.setAttention(attention);
       const notice = bot.robot.metadata?.enabledFunctions?.includes('vision') === false ? 0 : attention.amount;
-      if (rotating && notice < .02) bot.robot.rotation.y += seconds * .35;
+      if (rotating && notice < .02 && !reducedMotion.matches) bot.robot.rotation.y += seconds * .35;
       else if (rotating && !reducedMotion.matches) {
         const turn = Math.atan2(Math.sin(-bot.robot.rotation.y), Math.cos(-bot.robot.rotation.y));
         bot.robot.rotation.y += turn * (1 - Math.exp(-seconds * 5));

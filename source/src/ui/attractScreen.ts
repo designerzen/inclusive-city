@@ -1,3 +1,4 @@
+import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { createAttractScene } from '../app/createAttractScene';
 import { createAttractScore, attractLoopSeconds } from '../audio/attractMusic';
@@ -12,8 +13,9 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
     <div class="attract-layout">
       <div class="attract-copy">
         <h1 id="attract-title">ART<span class="attract-title-star" aria-hidden="true">✳</span><br><span class="attract-title-bot">BOT.</span></h1>
-        <p class="attract-tagline">Learn what life is like for a robot living in a city not designed for it</p>
-        <button id="attract-enter" class="attract-enter" type="button">Create your robot <span aria-hidden="true">↗</span></button>
+        <p class="attract-tagline">Create an art-making robot. Change the city so it can join in.</p>
+        <button id="attract-enter" class="attract-enter primary-action" type="button">Create your robot <span aria-hidden="true">→</span></button>
+        <p class="attract-invitation">Create a robot · Plan a route · Make art and music</p>
       </div>
       <div class="attract-stage">
         <div class="attract-orbit attract-orbit-one" aria-hidden="true"></div>
@@ -39,7 +41,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <button id="attract-motion" type="button" aria-pressed="false">Pause animation</button>
       </div>
     </footer>`;
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const motion = reducedMotionPreference();
   const pause = container.querySelector<HTMLButtonElement>('#attract-motion')!;
   const music = container.querySelector<HTMLButtonElement>('#attract-music')!;
   const musicLabel = music.querySelector('.attract-music-label')!;
@@ -53,7 +55,8 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
   function updateMotion() {
     container.classList.toggle('is-paused', paused);
     pause.setAttribute('aria-pressed', String(paused));
-    pause.textContent = paused ? 'Resume animation' : 'Pause animation';
+    pause.disabled = motion.matches;
+    pause.textContent = motion.matches ? 'Reduced motion enabled' : paused ? 'Resume animation' : 'Pause animation';
   }
   updateMotion();
   const onMotion = () => { paused = motion.matches; updateMotion(); };

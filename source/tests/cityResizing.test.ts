@@ -60,6 +60,11 @@ test('a wall drag previews without history, commits once and cancelled drags res
     const j = journey();
     let syncs = 0;
     const resizer = createCityResizer(scene, engine, j, () => { syncs++; }, () => {});
+    const hover = resizer.inspect(point.x, point.y);
+    assert.equal(hover?.id, buildingKey('Library', 'front'));
+    assert.equal(hover?.available, true);
+    assert.equal(resizer.active, false);
+    assert.equal(j.city.undoEdit, undefined);
     assert.equal(resizer.begin(point.x, point.y), true);
     for (let n = 1; n <= 15; n++) resizer.move(point.x, point.y + n);
     const key = buildingKey('Library', 'front');

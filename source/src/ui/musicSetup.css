@@ -1,0 +1,11 @@
+.music-setup { min-height: 100dvh; display: grid; place-items: center; padding: clamp(24px, 6vw, 72px); background: #171717; color: #f3f0e9; }
+.music-setup-card { width: 100%; max-width: 580px; }
+.music-setup-brand { color: #9ce2c3; font-size: .8rem; letter-spacing: .14em; }
+.music-setup h1 { margin: 28px 0 20px; font-size: clamp(2rem, 6vw, 3.4rem); line-height: 1.08; }
+.music-setup p { line-height: 1.6; }
+#music-model-status { min-height: 3.2em; color: #c9d2cd; }
+#music-model-download { min-height: 52px; padding: 12px 24px; background: #9ce2c3; color: #171717; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+#music-model-download:disabled { opacity: .65; cursor: wait; }
+#music-model-progress { width: 100%; height: 16px; accent-color: #9ce2c3; }
+[data-theme='light'] .music-setup { background: #f3f0e9; color: #171717; }
+[data-theme='light'] .music-setup-brand, [data-theme='light'] #music-model-status { color: #276b54; }

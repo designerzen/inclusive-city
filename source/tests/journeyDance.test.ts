@@ -6,6 +6,18 @@ import { CitySounds } from '../src/audio/CitySounds';
 
 const score = () => [{ at: 10, score: new SoundEffect({ root: 72, intervals: [0, 4, 7], durationBeats: 8, release: .2 }).toScore() }];
 
+test('studio dance completes beat-timed full turns and freezes for reduced motion', () => {
+  const long = score(); long[0]!.score.notes.forEach(note => { note.duration = 40; });
+  const dance = new JourneyDance(long, 120);
+  const turn = (time: number) => dance.studioPose(time).yaw - dance.pose(time).yaw;
+  assert.equal(turn(12), 0);
+  assert.ok(Math.abs(turn(14) - Math.PI) < 1e-8);
+  assert.ok(Math.abs(turn(15.999) - Math.PI * 2) < 1e-5);
+  assert.equal(turn(16), 0);
+  assert.deepEqual(dance.studioPose(14, true, true), dance.pose(0, false));
+  assert.deepEqual(dance.studioPose(14, false), dance.pose(0, false));
+});
+
 test('dance follows the beat and note energy with no frame accumulation', () => {
   const a = new JourneyDance(score(), 120), b = new JourneyDance(JSON.parse(JSON.stringify(score())), 120);
   const pose = a.pose(.25);
