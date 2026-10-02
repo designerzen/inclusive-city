@@ -7,6 +7,8 @@ import { createRobotRecord, robotMetadata } from './robotState';
 import type { RobotRecord } from './robotState';
 import type { CreativePreferences } from './creativePreferences';
 import { presetDesign } from './presets';
+import { loadDesigns, saveDesigns } from './designStorage';
+import type { DesignStorage } from './designStorage';
 
 export interface ArtBot {
   id: number;
@@ -23,11 +25,20 @@ export class BotHistory {
   private bots: ArtBot[];
   private cursor = 0;
 
-  constructor(private scientistNames: readonly string[], private random = Math.random) {
+  constructor(private scientistNames: readonly string[], private random = Math.random, private storage?: DesignStorage) {
     if (scientistNames.length < 2) throw new Error('At least two scientist surnames are required.');
+    const saved = loadDesigns(storage);
+    if (saved) {
+      this.bots = saved.bots.map(design => ({ ...design, record: createRobotRecord(design) }));
+      this.cursor = saved.cursor;
+      return;
+    }
     const design = { id: 1, name: this.chooseName(), appearance: defaultAppearance(), profile: createRobotProfile(defaultAbilities(), defaultFunctions()) };
     this.bots = [{ ...design, record: createRobotRecord(design) }];
+    this.save();
   }
+
+  private save() { saveDesigns(this.storage, this.bots, this.cursor); }
 
   private chooseName(previous?: string): string {
     const candidates = this.scientistNames.filter(name => name !== previous);
@@ -47,6 +58,7 @@ export class BotHistory {
       index = this.bots.length - 1;
     }
     this.cursor = index;
+    this.save();
     return this.current;
   }
 
@@ -62,11 +74,13 @@ export class BotHistory {
       this.bots.push({ ...design, record: createRobotRecord(design) });
     }
     this.cursor++;
+    this.save();
     return this.current;
   }
 
   previous(): ArtBot {
     if (this.canGoBack) this.cursor--;
+    this.save();
     return this.current;
   }
 
@@ -75,12 +89,16 @@ export class BotHistory {
     if (!trimmed || trimmed.length > 60) throw new Error('Enter a name between 1 and 60 characters.');
     this.current.name = trimmed;
     this.current.record.metadata = robotMetadata(this.current);
+    this.save();
     return trimmed;
   }
 
   updateProfile(profile: RobotProfile) {
+    const artStyle = this.current.creative && this.current.profile.artist.painter === profile.artist.painter
+      ? this.current.creative.artStyle : profile.artist.painter;
     this.current.profile = structuredClone(profile);
-    this.current.creative = { medium: this.current.creative?.medium ?? 'painting', artStyle: profile.artist.painter, musicStyle: profile.artist.musician };
+    this.current.creative = { medium: this.current.creative?.medium ?? 'painting', artStyle, musicStyle: profile.artist.musician };
     this.current.record.metadata = robotMetadata(this.current);
+    this.save();
   }
 }

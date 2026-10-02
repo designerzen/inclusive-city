@@ -8,10 +8,11 @@ import type { PainterStyle, MusicianStyle, ArtistPreferences } from '../art/arti
 import { ProceduralPainting } from '../art/ProceduralPainting';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 
-export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void) {
+export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void, initialProfile?: RobotProfile) {
   const allocation = defaultAbilities();
-  let enabledFunctions = defaultFunctions();
-  let artist = defaultArtist();
+  if (initialProfile) for (const pair of abilityPairs) allocation[pair.id] = initialProfile.abilities[pair.id];
+  let enabledFunctions = initialProfile ? [...initialProfile.enabledFunctions] : defaultFunctions();
+  let artist = initialProfile ? normaliseArtist(initialProfile.artist) : defaultArtist();
   let previewRenderer: AsyncPaintingRenderer | null = null;
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `

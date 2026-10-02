@@ -3,22 +3,26 @@ import { createCityScene } from '../city/createCityScene';
 import type { Theme } from '../app/theme';
 import type { CityView } from '../city/cityCamera';
 import { cityPowerups } from '../city/cityLayout';
+import { buildings } from '../city/cityLayout';
+import { buildingKey, wallSides, pavementEdges } from '../city/buildingDimensions';
+import { resizeLimits } from '../city/cityResizer';
 import type { BarrierId, PowerupId } from '../city/cityLayout';
 import type { ArtBot } from '../robot/botHistory';
 import type { CitySounds } from '../audio/CitySounds';
+import type { ScreenSpeech } from '../audio/ScreenSpeech';
 import type { RobotMood } from '../audio/soundPresets';
 import { JourneyCreativity } from '../art/JourneyCreativity';
 import { SoundEffect } from '../audio/SoundEffect';
 import { mapIcon } from './mapIcons';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 import { mountCityFeaturePanel } from './cityFeaturePanel';
-import { describeFeature, featureNames } from '../city/cityDocument';
-import type { CityValue } from '../city/cityDocument';
+import { describeFeature, featureNames, cityEditName } from '../city/cityDocument';
+import type { CityValue, CityEditId } from '../city/cityDocument';
 import { captureFinishedJourney } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
 import { painterStyles, musicianStyles } from '../art/artistStyles';
 
-export function mountCityScreen(container: HTMLElement, onBack: () => void, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void) {
+export function mountCityScreen(container: HTMLElement, onBack: () => void, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
     <h1 class="sr-only">Inclusive city</h1>
     <dialog id="city-instructions" class="city-instructions" aria-labelledby="city-instructions-title" aria-describedby="city-instructions-intro">
@@ -37,17 +41,21 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
       <button id="city-pause" type="button">Start journey</button><button id="city-restart" type="button">Try again</button></div>
     <div class="city-layout">
     <div class="city-stage">
-      <div class="map-view-bar">
-      <div class="map-view-heading"><span>CAMERA VIEW</span><span>Choose your perspective</span></div>
-      <div class="map-views" role="group" aria-label="Map camera view">
-        <button id="city-view-overhead" type="button" data-view="overhead" aria-pressed="true" aria-label="Overhead view" title="Look straight down at the city">${mapIcon('overhead')}<span class="view-copy"><span class="view-name">Overhead</span><span class="view-detail">The whole city</span></span><span class="view-indicator"></span></button>
-        <button id="city-view-angled" type="button" data-view="angled" aria-pressed="false" aria-label="45 degree angled view" title="View the city at a 45 degree angle">${mapIcon('angled')}<span class="view-copy"><span class="view-name">45° angle</span><span class="view-detail">Depth & detail</span></span><span class="view-indicator"></span></button>
-        <button id="city-view-follow" type="button" data-view="follow" aria-pressed="false" aria-label="Follow robot view" title="Follow behind the robot as it travels">${mapIcon('follow')}<span class="view-copy"><span class="view-name">Follow robot</span><span class="view-detail">Along for the ride</span></span><span class="view-indicator"></span></button>
-        <button id="city-view-robot-eye" type="button" data-view="robot-eye" aria-pressed="false" aria-label="Robot-eye view" title="See the city from the robot’s eye level">${mapIcon('eye')}<span class="view-copy"><span class="view-name">Robot-eye</span><span class="view-detail">At street level</span></span><span class="view-indicator"></span></button>
-      </div>
-      </div>
       <div class="city-viewport">
-      <canvas id="city-canvas" role="img" aria-label="Dark city with wireframe buildings, streets, sidewalks, a river, bridge, stairs and elevator. A white route leads to the gallery."></canvas>
+      <div class="map-camera-hud">
+        <div class="map-camera-picker">
+          <span id="city-camera-icon" class="camera-fallback-icon" aria-hidden="true">${mapIcon('overhead')}</span>
+          <select id="city-camera-view" aria-label="Map camera view" title="Camera view: Overhead">
+            <button type="button" data-select-trigger><selectedcontent></selectedcontent></button>
+            <option value="overhead">${mapIcon('overhead')}<span class="camera-option-label">Overhead</span></option>
+            <option value="angled">${mapIcon('angled')}<span class="camera-option-label">45° angle</span></option>
+            <option value="follow">${mapIcon('follow')}<span class="camera-option-label">Follow robot</span></option>
+            <option value="robot-eye">${mapIcon('eye')}<span class="camera-option-label">Robot-eye</span></option>
+          </select>
+        </div>
+        <details class="map-key-picker"><summary aria-label="Map key" title="Map key">${mapIcon('legend')}</summary><div class="city-map-key" aria-label="Map key"><span><i class="key-building" aria-hidden="true"></i>Buildings</span><span><i class="key-route" aria-hidden="true"></i>Robot route</span><span><i class="key-feature" aria-hidden="true"></i>Editable places</span><span><i class="key-spark" aria-hidden="true">♫</i>Creative sparks</span></div></details>
+      </div>
+      <canvas id="city-canvas" role="img" aria-label="City map with named solid buildings, marked roads and zebra crossing, pavements, a river, a bridge with railings, stairs and an elevator. A contrasting route leads from the workshop to the gallery. Rings mark editable places; notes and gems mark creative sparks."></canvas>
       <aside id="journey-art-preview" class="painting-hud" aria-label="Live procedural painting">
         <div class="painting-hud-heading"><h2><span aria-hidden="true">●</span> Live painting</h2><span id="painting-strokes">0 strokes</span></div>
         <div class="artwork-download">
@@ -152,10 +160,10 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
       container.querySelector('#city-editor')!.scrollIntoView({ block: 'start', behavior: 'auto' });
     }
   }
-  function announceEdit(id: BarrierId, prefix = '') {
+  function announceEdit(id: CityEditId, prefix = '') {
     if (!city) return;
     city.syncCity();
-    editor.announce(`${prefix}${featureNames[id]} · ${describeFeature(city.journey.city, id)}.`);
+    editor.announce(`${prefix}${cityEditName(id)} · ${id.startsWith('building:') || id.startsWith('door:') || id.startsWith('pavement:') ? Number(city.journey.city.get(id)).toFixed(2) + ' m' : describeFeature(city.journey.city, id as BarrierId)}.`);
     sounds.interaction('tap'); updatePanel();
   }
   const editor = mountCityFeaturePanel(container.querySelector<HTMLElement>('#city-editor')!, {
@@ -169,6 +177,48 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
       else if (city.journey.ready || city.journey.paused) pause.click();
       pause.focus();
     },
+  }, speech);
+  const reshapePanel = document.createElement('details');
+  reshapePanel.className = 'city-reshape';
+  reshapePanel.innerHTML = `<summary>Resize places</summary>
+    <p>Drag a wall, pavement edge or door frame on the map. Use the 45° view to see front faces.</p>
+    <label for="resize-place">Place</label><select id="resize-place"><option value="sidewalk">Narrow pavement</option>${pavementEdges.map(edge => `<option value="pavement:${edge}">Route pavement ${edge + 1}</option>`).join('')}${buildings.map(b => `${wallSides.map(wall => `<option value="${buildingKey(b.name, wall)}">${b.name} · ${wall} wall</option>`).join('')}<option value="door:${b.name}">${b.name} · door frame</option>`).join('')}</select>
+    <label for="resize-dimension">Size / wall position</label><input id="resize-dimension" type="range" step="0.1" /><output id="resize-value" for="resize-dimension"></output>`;
+  container.querySelector('#city-editor')!.append(reshapePanel);
+  const reshapeSelect = reshapePanel.querySelector<HTMLSelectElement>('select')!;
+  const reshapeRange = reshapePanel.querySelector<HTMLInputElement>('input')!;
+  function refreshResizeControls() {
+    if (!city || city.resizer.active) return;
+    const id = reshapeSelect.value as CityEditId;
+    const { min, max } = resizeLimits(city.journey, id);
+    reshapeRange.min = String(min); reshapeRange.max = String(max);
+    reshapeRange.step = id.startsWith('door:') ? '0.05' : '0.1';
+    reshapeRange.value = String(city.journey.city.get(id));
+    reshapeRange.disabled = !city.journey.canEdit(id);
+    reshapeRange.setAttribute('aria-label', cityEditName(id));
+    reshapePanel.querySelector('output')!.textContent = `${Number(reshapeRange.value).toFixed(2)} m`;
+  }
+  function selectResize(id: CityEditId) {
+    reshapeSelect.value = id;
+    manualSelection = true;
+    if (!city?.journey.ready && !city?.journey.paused && !city?.journey.complete) {
+      city!.journey.paused = true; autoPaused = true; accumulator = 0; sounds.stop();
+    }
+    // Keep focus and scroll on the canvas during direct manipulation.
+    editor.announce(`${cityEditName(id)} selected. Drag to resize.`);
+    refreshResizeControls();
+  }
+  reshapeSelect.addEventListener('change', () => { if (city) selectResize(reshapeSelect.value as CityEditId); });
+  let rangeValue: number | null = null;
+  reshapeRange.addEventListener('input', () => {
+    rangeValue = Number(reshapeRange.value);
+    reshapePanel.querySelector('output')!.textContent = `${rangeValue.toFixed(2)} m`;
+  });
+  reshapeRange.addEventListener('change', () => {
+    if (!city || rangeValue === null) return;
+    const id = reshapeSelect.value as CityEditId;
+    if (city.journey.edit(id, rangeValue)) announceEdit(id);
+    rangeValue = null; refreshResizeControls();
   });
   function beginCreation(bot: ArtBot) {
     clearExhibitionTimer();
@@ -191,9 +241,10 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
   function setMood(value: RobotMood) { mood = value; moodLabel.textContent = moodLabels[value]; sounds.mood(value); }
   function updateMapControls() {
     if (!city) return;
-    container.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(button => {
-      button.setAttribute('aria-pressed', String(button.dataset.view === city!.view));
-    });
+    const picker = container.querySelector<HTMLSelectElement>('#city-camera-view')!;
+    picker.value = city.view;
+    picker.title = `Camera view: ${picker.selectedOptions[0]!.textContent?.trim()}`;
+    container.querySelector('#city-camera-icon')!.innerHTML = mapIcon({ overhead: 'overhead', angled: 'angled', follow: 'follow', 'robot-eye': 'eye' }[city.view] as 'overhead' | 'angled' | 'follow' | 'eye');
     container.querySelectorAll<HTMLButtonElement>('[data-map="left"], [data-map="right"], [data-map="up"], [data-map="down"]').forEach(button => {
       button.disabled = !city!.canPan();
     });
@@ -223,6 +274,7 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
     waiting.hidden = !journey.blocked || journey.blocked.id === selected;
     if (journey.blocked) waiting.textContent = `Show ${featureNames[journey.blocked.id].toLowerCase()}`;
     editor.render(journey, selected, autoPaused);
+    if (document.activeElement !== reshapeRange) refreshResizeControls();
     city.highlightFeature(selected);
     container.querySelectorAll<HTMLButtonElement>('[data-powerup]').forEach(button => {
       const id = button.dataset.powerup as PowerupId;
@@ -273,7 +325,7 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
     if (active && engine && city) { engine.resize(); city.resize(); }
   });
   observer.observe(canvas);
-  container.querySelector('#back-to-designer')!.addEventListener('click', () => { clearExhibitionTimer(); active = false; accumulator = 0; city?.journey.leave(); paintingRenderer?.dispose(); sounds.stop(); onBack(); });
+  container.querySelector('#back-to-designer')!.addEventListener('click', () => { editor.stopGuide(); clearExhibitionTimer(); active = false; accumulator = 0; city?.journey.leave(); paintingRenderer?.dispose(); sounds.stop(); onBack(); });
   container.querySelector('#city-exhibition')!.addEventListener('click', showExhibition);
   pause.addEventListener('click', () => {
     if (!city) return;
@@ -297,10 +349,11 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
     }
   });
   container.querySelector('#city-waiting')!.addEventListener('click', () => { if (city?.journey.blocked) selectFeature(city.journey.blocked.id); });
-  container.querySelector('.map-views')!.addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-view]') : null;
-    if (!city || !button) return;
-    city.setView(button.dataset.view as CityView);
+  container.querySelector<HTMLSelectElement>('#city-camera-view')!.addEventListener('change', event => {
+    if (!city) return;
+    const view = (event.currentTarget as HTMLSelectElement).value as CityView;
+    city.setView(view);
+    sounds.button(`city-view-${view}`);
     updateMapControls();
   });
   container.querySelector('.map-controls')!.addEventListener('click', event => {
@@ -322,17 +375,27 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
   let gestureMoved = false;
   let gestureOrigin = { x: 0, y: 0 };
   canvas.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     canvas.setPointerCapture(event.pointerId);
     previousPinch = 0;
     if (pointers.size === 1) { gestureOrigin = { x: event.clientX, y: event.clientY }; gestureMoved = false; }
-    else gestureMoved = true;
+    else { gestureMoved = true; city?.resizer.finish(false); }
+    if (pointers.size === 1 && city) {
+      const bounds = canvas.getBoundingClientRect();
+      city.resizer.begin(event.clientX - bounds.left, event.clientY - bounds.top);
+      if (city.resizer.active) canvas.style.cursor = 'grabbing';
+    }
   });
   canvas.addEventListener('pointermove', event => {
     const previous = pointers.get(event.pointerId);
     if (!previous || !city || !engine) return;
     if (Math.hypot(event.clientX - gestureOrigin.x, event.clientY - gestureOrigin.y) > 8) gestureMoved = true;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (city.resizer.active) {
+      if (gestureMoved) { const bounds = canvas.getBoundingClientRect(); city.resizer.move(event.clientX - bounds.left, event.clientY - bounds.top); }
+      return;
+    }
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const distance = Math.hypot(a!.x - b!.x, a!.y - b!.y);
@@ -345,7 +408,11 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
     }
   });
   const release = (event: PointerEvent) => {
-    if (event.type === 'pointerup' && pointers.size === 1 && !gestureMoved) {
+    if (city?.resizer.active) {
+      const id = city.resizer.finish(event.type === 'pointerup');
+      if (id) announceEdit(id);
+      canvas.style.cursor = ''; refreshResizeControls();
+    } else if (event.type === 'pointerup' && pointers.size === 1 && !gestureMoved) {
       const bounds = canvas.getBoundingClientRect();
       city?.selectAt(event.clientX - bounds.left, event.clientY - bounds.top);
     }
@@ -354,12 +421,12 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
   };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('lostpointercapture', event => { pointers.delete(event.pointerId); previousPinch = 0; });
-  canvas.addEventListener('wheel', event => { event.preventDefault(); city?.setZoom(event.deltaY > 0 ? 1.1 : 0.9); }, { passive: false });
+  canvas.addEventListener('lostpointercapture', event => { pointers.delete(event.pointerId); previousPinch = 0; city?.resizer.finish(false); canvas.style.cursor = ''; });
+  canvas.addEventListener('wheel', event => { event.preventDefault(); if (!city?.resizer.active) city?.setZoom(event.deltaY > 0 ? 1.1 : 0.9); }, { passive: false });
 
   return {
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
-    suspend() { clearExhibitionTimer(); active = false; instructions.close(); sounds.stop(); },
+    suspend() { editor.stopGuide(); clearExhibitionTimer(); active = false; instructions.close(); sounds.stop(); },
     resume() { active = true; accumulator = 0; engine?.resize(); city?.resize(); updatePanel(); },
     showInstructions() {
       if (instructionsShown || !active || container.hidden) return;
@@ -391,7 +458,7 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
         }
         city?.scene.dispose();
         engine.resize();
-        city = createCityScene(engine, bot, selectFeature, explore);
+        city = createCityScene(engine, bot, selectFeature, explore, selectResize);
         city.setTheme(theme);
         beginCreation(bot);
         updateMapControls();
@@ -402,6 +469,6 @@ export function mountCityScreen(container: HTMLElement, onBack: () => void, soun
         console.error('City initialization failed:', error);
       }
     },
-    dispose() { clearExhibitionTimer(); active = false; instructions.close(); observer.disconnect(); paintingRenderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
+    dispose() { editor.dispose(); clearExhibitionTimer(); active = false; instructions.close(); observer.disconnect(); paintingRenderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
   };
 }

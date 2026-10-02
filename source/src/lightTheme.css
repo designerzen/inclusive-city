@@ -1,5 +1,11 @@
 /* Light surfaces and ink colours complement the city's daylight material palette. */
 :root[data-theme='light'] { color: #203b3c; background: #eef2eb; }
+[data-theme='light'] .city-map-key { color: #46616b; }
+[data-theme='light'] .key-building { background: #c8b995; border-color: #536a7a; }
+[data-theme='light'] .key-route { background: #253d55; }
+[data-theme='light'] .key-feature { border-color: #147850; }
+[data-theme='light'] .key-spark { color: #705499; }
+[data-theme='light'] .city-stage .map-controls { border-color: #a5bbb1; background: #f8faf4; }
 [data-theme='light'] .workshop.attract-mode { background: #f4f3eb; }
 [data-theme='light'] #attract-screen { background: radial-gradient(ellipse at 65% 48%, #d7cce880, transparent 65%); }
 [data-theme='light'] .attract-copy h1 { color: #263c3d; }

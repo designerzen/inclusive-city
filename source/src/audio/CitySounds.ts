@@ -2,6 +2,8 @@ import { SoundEffect } from './SoundEffect';
 import type { SoundSequenceEntry } from './SoundEffect';
 import { buttonSound, interactionSound, robotMoodSound } from './soundPresets';
 import type { ButtonSound, InteractionSound, RobotMood } from './soundPresets';
+
+export interface MusicPlayback { elapsed(): number; stop(): void }
 import { CityMidiOutput } from './MidiOutput';
 
 /** Live controls affect only output; recorded scores stay complete even while muted. */
@@ -72,13 +74,30 @@ export class CitySounds {
     // This timer only releases bookkeeping; every audible note uses the audio clock.
     setTimeout(() => this.active.delete(handle), (delay + effect.duration + 0.1) * 1000);
   }
-  perform(sequence: readonly SoundSequenceEntry[]) {
+  perform(sequence: readonly SoundSequenceEntry[]): MusicPlayback | undefined {
     if (this.disposed || !sequence.length || !this.context || !this.master || this.muted || document.hidden) return;
     const origin = sequence[0]!.at;
-    const handle = this.schedule(sequence.map(entry => ({ ...entry, at: entry.at - origin })), this.context.currentTime + 0.05);
-    this.active.add(handle);
+    const context = this.context;
+    const when = context.currentTime + 0.05;
+    const audio = this.schedule(sequence.map(entry => ({ ...entry, at: entry.at - origin })), when);
     const duration = Math.max(...sequence.map(entry => entry.at - origin + SoundEffect.fromScore(entry.score).duration));
+    let stopped = false, elapsed = 0;
+    const handle: MusicPlayback = {
+      elapsed: () => {
+        if (!stopped && context.state === 'running') {
+          const timestamp = context.getOutputTimestamp?.();
+          const outputTime = timestamp?.contextTime && timestamp.performanceTime
+            ? Math.min(context.currentTime, timestamp.contextTime + (performance.now() - timestamp.performanceTime) / 1000)
+            : context.currentTime - (context.outputLatency ?? context.baseLatency ?? 0);
+          elapsed = Math.max(elapsed, Math.min(duration, Math.max(0, outputTime - when)));
+        }
+        return elapsed;
+      },
+      stop: () => { handle.elapsed(); stopped = true; audio.stop(); this.active.delete(handle); },
+    };
+    this.active.add(handle);
     setTimeout(() => this.active.delete(handle), (duration + 0.1) * 1000);
+    return handle;
   }
   /** Look ahead on the audio clock; keep the loop separate from recorded journey events. */
   loop(sequence: readonly SoundSequenceEntry[], seconds: number) {

@@ -12,6 +12,23 @@ import { createRobotProfile, defaultFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
 import { proximityAttention } from '../src/robot/pointerAttention';
 
+test('explaining animates the mouth without driving the robot and respects reduced motion', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene), mouth = scene.getMeshByName('gasp-mouth')!;
+    const wheel = scene.getMeshByName('wheel-1-1')!;
+    bot.setSpeaking(true); bot.animateTravel(0, .1);
+    const opening = mouth.scaling.y;
+    bot.animateTravel(0, .1);
+    assert.notEqual(mouth.scaling.y, opening);
+    assert.equal(wheel.rotation.x, 0);
+    bot.animateTravel(0, .1, true);
+    assert.equal(mouth.isEnabled(), false);
+    bot.setSpeaking(false); bot.animateTravel(0, .1);
+    assert.equal(mouth.isEnabled(), false);
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('travel animates the complete head and rolls wheels about their axles, then settles when idle', () => {
   const engine = new NullEngine();
   const scene = new Scene(engine);

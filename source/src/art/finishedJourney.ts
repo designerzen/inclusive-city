@@ -1,7 +1,7 @@
 import { SoundEffect } from '../audio/SoundEffect';
 import type { SoundSequenceEntry } from '../audio/SoundEffect';
 import type { PaintStroke } from './ProceduralPainting';
-import type { RobotRun } from '../robot/robotState';
+import type { RobotRun, RobotMetadata } from '../robot/robotState';
 import { ArtworkTitleGenerator } from './ArtworkTitleGenerator';
 import type { ArtworkTitle } from './ArtworkTitleGenerator';
 import { normaliseArtist } from './artistStyles';
@@ -13,6 +13,7 @@ export interface FinishedJourney {
   marks: PaintStroke[]; score: SoundSequenceEntry[];
   artworkTitle: ArtworkTitle;
   artist: ArtistPreferences;
+  robot: Pick<RobotMetadata, 'appearance' | 'profile'>;
 }
 
 /** The exhibition owns a detached record, so another journey cannot rewrite its artwork or music. */
@@ -23,6 +24,7 @@ export function captureFinishedJourney(run: RobotRun): FinishedJourney {
     improvements: run.metrics.interventions, marks: run.creative.marks,
   });
   return structuredClone({ name: run.metadata.name, robotId: run.metadata.id, runId: run.id,
+    robot: { appearance: run.metadata.appearance, profile: run.metadata.profile },
     seed: run.creative.seed, bpm: run.creative.bpm, steps: run.metrics.stepsTaken,
     discoveries: run.pickups.length, improvements: run.metrics.interventions,
     marks: run.creative.marks, score: run.creative.score, artworkTitle: run.creative.title,

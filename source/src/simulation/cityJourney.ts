@@ -4,7 +4,8 @@ import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
 import type { RobotEvent } from '../robot/robotState';
 import { CityDocument } from '../city/cityDocument';
-import type { CityValue } from '../city/cityDocument';
+import type { CityValue, CityEditId } from '../city/cityDocument';
+import { buildingProperty, doorBuilding, pavementEdge } from '../city/buildingDimensions';
 
 export const TRAVEL_UNITS_PER_STEP = 1;
 
@@ -193,13 +194,15 @@ export class CityJourney {
     if (id === 'crossing') return Math.ceil((6 / this.speed + 1) * 10) / 10;
     return true;
   }
-  canEdit(id: BarrierId) {
+  canEdit(id: CityEditId) {
+    if (pavementEdge(id) !== null) return this.ready || this.complete || !(this.edge === pavementEdge(id) && (this.distanceOnEdge > 0 || this.excursion));
+    if (buildingProperty(id) || doorBuilding(id)) return true;
     if (this.ready || this.complete) return true;
     // Editing a surface occupied by the robot must not strand it mid-segment.
     if (id === 'transport' && (this.distanceOnEdge > 0 || this.excursion)) return false;
     return !(cityBarriers.find(b => b.id === id)!.edge === this.edge && this.distanceOnEdge > 0);
   }
-  edit(id: BarrierId, value: CityValue) {
+  edit(id: CityEditId, value: CityValue) {
     if (!this.canEdit(id)) return false;
     const edit = this.city.set(id, value);
     if (!edit) return false;
@@ -215,18 +218,19 @@ export class CityJourney {
     if (!edit || !this.canEdit(edit.id)) return false;
     this.city.redo(); this.afterEdit(edit.id, edit.before, edit.after, 'redo'); return true;
   }
-  private afterEdit(id: BarrierId, before: CityValue, after: CityValue, action: string) {
+  private afterEdit(id: CityEditId, before: CityValue, after: CityValue, action: string) {
     // Completed runs remain immutable; edits are captured in the next run snapshot.
     if (this.complete || this.machine.run.status !== 'active') return;
     this.emit('city_edit', { feature: id, before, after, action });
     if (this.ready) { this.machine.run.citySnapshot = this.city.snapshot(); return; }
+    if (buildingProperty(id) || doorBuilding(id) || pavementEdge(id) !== null) return;
     const barrier = cityBarriers.find(b => b.id === id)!;
     const accessible = !this.inaccessible(barrier);
     if (accessible && this.inaccessible(barrier, before)) {
       this.machine.add('interventions', 1);
       const failure = [...this.machine.record.failures].reverse().find(item => item.runId === this.machine.run.id && item.barrier === id && item.resolvedAt === null);
       if (failure) failure.resolvedAt = this.machine.record.clock;
-      this.emit('intervention', { action }, id);
+      this.emit('intervention', { action }, id as BarrierId);
       this.machine.achievement('access-improved');
     }
     if (accessible && this.blocked?.id === id) {

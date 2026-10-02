@@ -1,4 +1,4 @@
-export function createScreenTransition(workshop: HTMLElement) {
+export function createScreenTransition(workshop: HTMLElement, narration?: { stop(): void; entered(screen: HTMLElement): void }) {
   const curtain = document.createElement('div');
   curtain.className = 'screen-transition';
   curtain.setAttribute('aria-hidden', 'true');
@@ -23,6 +23,7 @@ export function createScreenTransition(workshop: HTMLElement) {
   return {
     async run(from: HTMLElement, to: HTMLElement, swap: () => void, focus: HTMLElement, style: 'city' | 'gallery' = 'city') {
       if (busy || disposed) return;
+      narration?.stop();
       busy = true;
       workshop.inert = true;
       workshop.setAttribute('aria-busy', 'true');
@@ -50,6 +51,7 @@ export function createScreenTransition(workshop: HTMLElement) {
             animate(curtain, [{ opacity: 1 }, { opacity: 0 }], gallery ? 680 : 480),
           ]);
         }
+        if (!disposed) narration?.entered(to);
       } finally {
         animations.forEach(animation => animation.cancel());
         animations.clear();

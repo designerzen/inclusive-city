@@ -5,6 +5,7 @@ export interface CharacterPose {
   headYaw: number; headTilt: number; headLift: number; headStretch: number;
   arms: number; armWave: number; antenna: number;
   eyeWidth: number; eyeHeight: number; brow: number; smile: number; mouthOpen: number;
+  eyeTilt: number; eyeLid: number; eyeCurve: number; eyeAsymmetry: number;
   accent: number;
 }
 const durations: Record<CharacterReaction, number> = { launch: 0.9, surprise: 1.4, relief: 1.2, pickup: 0.85, celebrate: 1.8, turn: 0.65 };
@@ -33,12 +34,14 @@ export class CharacterAnimation {
   reset() { this.clock = 0; this.reaction = null; this.feedback = null; this.mood = 'curious'; }
   tick(seconds: number, moving: boolean, reducedMotion = false): CharacterPose {
     this.clock += seconds;
-    const p: CharacterPose = { stretch: 1, lift: 0, lean: 0, twist: 0, headYaw: 0, headTilt: 0, headLift: 0, headStretch: 1, arms: 0, armWave: 0, antenna: 0, eyeWidth: 1, eyeHeight: 1, brow: 0, smile: 0, mouthOpen: 0, accent: 0 };
+    const p: CharacterPose = { stretch: 1, lift: 0, lean: 0, twist: 0, headYaw: 0, headTilt: 0, headLift: 0, headStretch: 1, arms: 0, armWave: 0, antenna: 0, eyeWidth: 1, eyeHeight: 1, brow: 0, smile: 0, mouthOpen: 0, eyeTilt: -.08, eyeLid: 0, eyeCurve: 0, eyeAsymmetry: .1, accent: 0 };
     if (this.mood === 'sad') {
       p.stretch = .96; p.lean = .07; p.headTilt = .12; p.headLift = -.12;
       p.brow = -.28; p.smile = -1; p.eyeHeight = .7; p.arms = -.15;
+      p.eyeTilt = -.26; p.eyeLid = .45; p.eyeAsymmetry = 0;
     } else if (this.mood === 'happy' || this.mood === 'celebrating') {
       p.smile = 1; p.brow = .1; p.arms = .3; p.eyeHeight = .8;
+      p.eyeTilt = .1; p.eyeCurve = 1.1; p.eyeAsymmetry = 0;
     }
     if (this.feedback) {
       const feedback = this.feedback;
@@ -48,6 +51,7 @@ export class CharacterAnimation {
       const spring = Math.sin(r * 12) * Math.exp(-r * 3);
       const change = feedback.change;
       p.smile = .6;
+      p.eyeCurve = .3;
       if (change.type === 'reset') {
         p.headTilt = -.1 * envelope; p.arms = .45 * envelope; p.eyeHeight = .8;
       } else if (change.type === 'ability') {
@@ -68,6 +72,8 @@ export class CharacterAnimation {
             p.eyeWidth = up ? .7 : 1.25;
             p.eyeHeight = up ? .65 : 1.1;
             p.brow = up ? .2 : -.1;
+            p.eyeLid = up ? .65 : 0; p.eyeTilt = up ? .16 : -.14;
+            p.eyeCurve = 0; p.eyeAsymmetry = up ? 0 : .2;
             p.headYaw = (up ? .08 : .4) * spring;
             break;
           case 'reach':
@@ -137,6 +143,8 @@ export class CharacterAnimation {
         p.headLift += pop * .28;
         p.eyeWidth = 1 + pop * .65;
         p.eyeHeight = 1 + pop * .7;
+        p.eyeTilt *= 1 - pop; p.eyeLid *= 1 - pop;
+        p.eyeCurve *= 1 - pop; p.eyeAsymmetry *= 1 - pop;
         p.mouthOpen = pop;
         p.accent = pop;
         // First look, opposite look, then overshoot and settle: the double take.
@@ -156,6 +164,7 @@ export class CharacterAnimation {
         p.headTilt = recoil * .15;
         p.twist = recoil * .2;
         p.smile = 1;
+        p.eyeCurve = 1.1; p.eyeTilt = .1; p.eyeLid = 0; p.eyeAsymmetry = 0;
         p.antenna = Math.sin(r * 17 - .4) * Math.exp(-r * 3) * .25;
         break;
       }
@@ -168,6 +177,7 @@ export class CharacterAnimation {
         p.eyeWidth = 1 + .25 * pop;
         p.arms = .7 * reach + pop;
         p.smile = 1;
+        p.eyeCurve = .65 * pop; p.eyeTilt = .1 * pop; p.eyeLid = 0;
         p.antenna = recoil * .25;
         break;
       }

@@ -54,6 +54,8 @@ The designer's **Creative personality** settings offer eleven painter styles (in
 
 The final route leads to a raised catwalk beside the gallery. On arrival, the camera frames the robot presenting its finished painting on a stage display while its recorded journey music plays. After a brief catwalk moment, a soft fade opens a dedicated exhibition screen with a large framed painting, journey highlights, and a player for the robot's recorded musical score. Hovering or focusing the artwork reveals a PNG download. **Return to city** revisits the completed map; **Create another journey** returns to the designer. Reduced-motion preferences remove animated screen transitions. Restart creates a new composition and collection run while retaining city access improvements.
 
+The robot appears in front of its painting in the exhibition. **Play journey music** starts a dance driven by the recorded notes and audible playback clock: beat-aligned sways, head bobs, arm gestures and small rolling steps. Silent passages settle; Stop, completion and leaving the screen end the dance. Reduced motion uses a still presentation pose, and PNG downloads contain only the painting.
+
 ## Deploy to GitHub Pages
 
 In the repository's **Settings → Pages**, select **GitHub Actions** as the build and deployment source. The workflow in [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) builds and deploys the site on every push to `main`, or manually from the Actions tab.

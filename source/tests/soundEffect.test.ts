@@ -12,6 +12,8 @@ test('every workshop and city button has a registered musical signature', () => 
   for (const file of ['main.ts', 'ui/attractScreen.ts', 'ui/abilityDesigner.ts', 'ui/cityScreen.ts', 'ui/exhibitionScreen.ts']) {
     const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     for (const [tag] of source.matchAll(/<button\b[^>]*>/g)) {
+      // Customizable select buttons are inert faces of the select, not separate actions.
+      if (tag.includes('data-select-trigger')) continue;
       if (tag.includes('data-function=')) {
         for (const item of robotFunctions) assert.ok(isButtonSound(`function-${item.id}`));
         continue;

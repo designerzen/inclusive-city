@@ -1,4 +1,12 @@
 import type { BarrierId } from './cityLayout';
+import { buildingProperty, initialBuildingWalls, initialDoors, initialPavements, pavementEdge, wallLimits, doorBuilding } from './buildingDimensions';
+import type { BuildingKey, DoorKey, PavementKey } from './buildingDimensions';
+export type CityEditId = BarrierId | BuildingKey | DoorKey | PavementKey;
+export function cityEditName(id: CityEditId) {
+  const property = buildingProperty(id);
+  if (pavementEdge(id) !== null) return `Route pavement ${pavementEdge(id)! + 1}`;
+  return property ? `${property.building.name} ${property.wall} wall` : doorBuilding(id) ? `${doorBuilding(id)!.name} doorway` : featureNames[id as BarrierId];
+}
 
 export const featureNames: Record<BarrierId, string> = {
   transport: 'Transport', curb: 'Curb', crossing: 'Crossing', guidance: 'Route cues',
@@ -9,25 +17,36 @@ export const initialCity = {
   transport: false, curb: false, crossing: 1.5, guidance: false,
   sidewalk: 1.2, bridge: false, stairs: false, elevator: false,
 };
-export type CityProperties = typeof initialCity;
-export interface CityEdit { id: BarrierId; before: CityValue; after: CityValue }
+export type CityProperties = typeof initialCity & Record<BuildingKey | DoorKey | PavementKey, number>;
+export interface CityEdit { id: CityEditId; before: CityValue; after: CityValue }
 
 // One document drives both geometry and access checks. History belongs to the city,
 // so restarting a robot does not reset edits or erase undo.
 export class CityDocument {
-  private values: CityProperties = { ...initialCity };
+  private values: CityProperties = { ...initialCity, ...initialBuildingWalls, ...initialDoors, ...initialPavements };
   private past: CityEdit[] = [];
   private future: CityEdit[] = [];
   revision = 0;
-  get(id: BarrierId): CityValue { return this.values[id]; }
+  get(id: CityEditId): CityValue { return this.values[id]; }
   snapshot(): CityProperties { return { ...this.values }; }
   get undoEdit() { return this.past.at(-1); }
   get redoEdit() { return this.future.at(-1); }
   get changedFeatures(): BarrierId[] {
     return (Object.keys(initialCity) as BarrierId[]).filter(id => this.values[id] !== initialCity[id]);
   }
-  set(id: BarrierId, value: CityValue): CityEdit | null {
-    if (id === 'sidewalk' || id === 'crossing') {
+  set(id: CityEditId, value: CityValue): CityEdit | null {
+    const property = buildingProperty(id);
+    if (pavementEdge(id) !== null) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 2.5 || value > 6) throw new Error('Invalid pavement width');
+      value = Math.round(value * 10) / 10;
+    } else if (doorBuilding(id)) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0.65 || value > 2) throw new Error('Invalid doorway width');
+      value = Math.round(value * 100) / 100;
+    } else if (property) {
+      const limits = wallLimits(property.building.name, property.wall, key => Number(this.get(key)));
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < limits.min || value > limits.max) throw new Error('Invalid building dimension');
+      value = Math.round(value * 10) / 10;
+    } else if (id === 'sidewalk' || id === 'crossing') {
       const [min, max] = id === 'sidewalk' ? [0.8, 6] : [1.5, 20];
       if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error('Invalid city dimension');
       value = Math.round(value * 10) / 10;

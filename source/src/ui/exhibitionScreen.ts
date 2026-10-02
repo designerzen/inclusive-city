@@ -4,6 +4,9 @@ import { musicDuration } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
 import type { CitySounds } from '../audio/CitySounds';
 import { painterStyles, musicianStyles } from '../art/artistStyles';
+import { Engine } from '@babylonjs/core/Engines/engine';
+import { createExhibitionPerformer } from '../app/createExhibitionPerformer';
+import type { MusicPlayback } from '../audio/CitySounds';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
@@ -12,7 +15,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     <div class="exhibition-topline"><span>ARTBOT / JOURNEY COLLECTION</span><span id="exhibition-edition"></span></div>
     <header class="exhibition-header"><p class="exhibition-eyebrow">A journey, made visible.</p><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution"></p></header>
     <figure class="exhibition-work">
-      <div class="exhibition-mat artwork-download"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot’s finished journey painting"></canvas><button id="exhibition-download" class="painting-download" type="button">↓ Download painting</button></div>
+      <div class="exhibition-mat artwork-download"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot’s finished journey painting"></canvas><div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span><canvas id="exhibition-robot" role="img" aria-label="The artist robot stands in front of its painting and dances when its music plays"></canvas></div><button id="exhibition-download" class="painting-download" type="button">↓ Download painting</button></div>
       <figcaption><div><span class="exhibition-work-label">01 / THE PAINTING</span><h2>Every step left a trace</h2><p id="exhibition-art-description"></p></div><span id="exhibition-strokes"></span></figcaption>
     </figure>
     <section class="exhibition-music" aria-labelledby="exhibition-music-title">
@@ -30,9 +33,13 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   const progress = container.querySelector<HTMLProgressElement>('#exhibition-progress')!;
   const time = container.querySelector('#exhibition-time')!;
   const status = container.querySelector('#exhibition-playback-status')!;
+  const performerCanvas = container.querySelector<HTMLCanvasElement>('#exhibition-robot')!;
+  const performerContainer = container.querySelector<HTMLElement>('.exhibition-performer')!;
   let journey: FinishedJourney | null = null;
   let renderer: AsyncPaintingRenderer | null = null;
-  let duration = 0, started = 0, timer = 0;
+  let duration = 0, timer = 0;
+  let playback: MusicPlayback | undefined;
+  let performer: ReturnType<typeof createExhibitionPerformer> | null = null;
   let active = false, playing = false;
   function updateTime(elapsed: number) {
     progress.value = duration ? Math.min(1, elapsed / duration) : 0;
@@ -40,6 +47,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   }
   function stopMusic(reset = true) {
     window.clearInterval(timer); timer = 0; playing = false;
+    performer?.stop(); playback?.stop(); playback = undefined;
     sounds.stop(); container.classList.remove('is-playing');
     play.disabled = !journey?.score.length || !sounds.supported; stop.disabled = true;
     play.textContent = '▶ Play journey music';
@@ -49,11 +57,14 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     if (!active || !journey?.score.length || !sounds.supported) return;
     stopMusic(); sounds.unlock();
     if (sounds.isMuted) { status.textContent = 'Unmute sound to hear this journey.'; return; }
-    sounds.perform(journey.score); started = performance.now(); playing = true;
+    playback = sounds.perform(journey.score);
+    if (!playback) { status.textContent = 'Playback could not start. Please try again.'; return; }
+    playing = true;
+    performer?.play(() => playback?.elapsed() ?? 0);
     play.disabled = true; stop.disabled = false; container.classList.add('is-playing');
-    status.textContent = 'Playing the music composed during this journey.';
+    status.textContent = 'Playing this journey’s music. Its artist dances along.';
     timer = window.setInterval(() => {
-      const elapsed = Math.min(duration, (performance.now() - started) / 1000);
+      const elapsed = playback?.elapsed() ?? 0;
       updateTime(elapsed);
       if (elapsed >= duration) { stopMusic(false); play.textContent = '↻ Replay journey music'; status.textContent = 'The journey’s music has finished.'; }
     }, 100);
@@ -85,7 +96,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   return {
     title,
     async prepare(value: FinishedJourney) {
-      stopMusic(); renderer?.dispose(); active = false;
+      stopMusic(); renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score); updateTime(0);
       play.disabled = !journey.score.length || !sounds.supported;
       title.textContent = journey.artworkTitle.text;
@@ -111,9 +122,16 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       const painting = new ProceduralPainting(journey.seed); painting.marks.push(...journey.marks);
       renderer = new AsyncPaintingRenderer(painting);
       await renderer.snapshot(canvas);
+      if (Engine.IsSupported) {
+        try {
+          performerContainer.hidden = false;
+          performer = createExhibitionPerformer(performerCanvas, journey);
+          performerCanvas.setAttribute('aria-label', `${journey.name}, the robot that created this painting, dances in time to its recorded music. Reduced motion uses a still presentation pose.`);
+        } catch (error) { performerContainer.hidden = true; console.error('Exhibition robot unavailable:', error); }
+      }
     },
-    enter() { active = true; },
-    leave() { active = false; stopMusic(); renderer?.dispose(); renderer = null; },
-    dispose() { active = false; stopMusic(); renderer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
+    enter() { active = true; performer?.enter(); },
+    leave() { active = false; stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
+    dispose() { active = false; stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
   };
 }

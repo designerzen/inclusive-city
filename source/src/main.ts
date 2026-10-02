@@ -10,6 +10,7 @@ import scientistSurnamesText from './data/scientist-surnames.txt?raw';
 import { parseScientistSurnames } from './robot/scientistNames';
 import { mountCityScreen } from './ui/cityScreen';
 import { CitySounds } from './audio/CitySounds';
+import { ScreenSpeech } from './audio/ScreenSpeech';
 import { mountMidiControls } from './ui/midiControls';
 import { isButtonSound } from './audio/soundPresets';
 import { createScreenTransition } from './app/screenTransition';
@@ -21,6 +22,7 @@ import { SoundEffect } from './audio/SoundEffect';
 import { painterStyles } from './art/artistStyles';
 import './styles.css';
 import './lightTheme.css';
+import './accessibility.css';
 import { applyTheme, savedTheme } from './app/theme';
 import type { Theme } from './app/theme';
 
@@ -41,6 +43,7 @@ app.innerHTML = `
       <section class="options-audio" aria-labelledby="options-audio-title"><h3 id="options-audio-title">Sound</h3>
       <button id="sound-mute" type="button" aria-pressed="false">Mute sound</button>
       <label for="sound-volume">Volume</label><input id="sound-volume" type="range" min="0" max="100" value="55" />
+      <label class="speech-option" for="speech-enabled"><span>Spoken introductions & robot guidance</span><input id="speech-enabled" type="checkbox" role="switch" checked /></label>
       </section>
       <section id="midi-controls" class="midi-controls" aria-label="MIDI output"></section>
       <section id="attract-options" aria-labelledby="attract-options-title"><h3 id="attract-options-title">Attract screen</h3></section>
@@ -91,7 +94,26 @@ const editorStage = canvas.parentElement!;
 const presetStage = document.querySelector<HTMLElement>('#preset-stage')!;
 const cityContainer = document.querySelector<HTMLElement>('#city-screen')!;
 const exhibitionContainer = document.querySelector<HTMLElement>('#exhibition-screen')!;
-const screenTransition = createScreenTransition(workshop);
+const screenSpeech = new ScreenSpeech();
+const speechEnabled = document.querySelector<HTMLInputElement>('#speech-enabled')!;
+try { speechEnabled.checked = localStorage.getItem('inclusive-city-speech') !== 'disabled'; } catch { /* Settings work when storage is unavailable. */ }
+screenSpeech.setEnabled(speechEnabled.checked);
+speechEnabled.disabled = !screenSpeech.supported;
+speechEnabled.addEventListener('change', () => {
+  screenSpeech.setEnabled(speechEnabled.checked);
+  try { localStorage.setItem('inclusive-city-speech', speechEnabled.checked ? 'enabled' : 'disabled'); } catch { /* Keep this session's preference. */ }
+});
+const screenTransition = createScreenTransition(workshop, {
+  stop: () => screenSpeech.stop(),
+  entered(screen) {
+    if (document.hidden) return;
+    if (screen === presetsScreen) screenSpeech.introduce('presets');
+    else if (screen === designerScreen) screenSpeech.introduce('editor');
+    else if (screen === cityContainer) screenSpeech.introduce('city', history.current.name);
+    else if (screen === exhibitionContainer) screenSpeech.introduce('art');
+  },
+});
+import.meta.hot?.dispose(() => screenSpeech.dispose());
 import.meta.hot?.dispose(() => screenTransition.dispose());
 const sounds = new CitySounds();
 mountMidiControls(document.querySelector<HTMLElement>('#midi-controls')!, sounds.midi);
@@ -121,7 +143,7 @@ const attract = mountAttractScreen(attractContainer, sounds, () => {
 import.meta.hot?.dispose(() => attract.leave());
 const muteButton = document.querySelector<HTMLButtonElement>('#sound-mute')!;
 const volumeInput = document.querySelector<HTMLInputElement>('#sound-volume')!;
-if (!sounds.supported) {
+if (!sounds.supported && !screenSpeech.supported) {
   muteButton.disabled = true; volumeInput.disabled = true; muteButton.textContent = 'Sound unavailable';
 }
 const unlockSound = () => sounds.unlock();
@@ -133,6 +155,7 @@ const onInteraction = (event: Event) => {
   sounds.unlock();
   if (button.id === 'sound-mute') {
     sounds.setMuted(!sounds.isMuted);
+    screenSpeech.setMuted(sounds.isMuted);
     muteButton.setAttribute('aria-pressed', String(sounds.isMuted));
     muteButton.textContent = sounds.isMuted ? 'Unmute sound' : 'Mute sound';
     sounds.button('sound-mute', !sounds.isMuted);
@@ -152,12 +175,15 @@ const onInteraction = (event: Event) => {
 const onSoundInput = (event: Event) => {
   if (!(event.target instanceof HTMLInputElement)) return;
   sounds.unlock();
-  if (event.target === volumeInput) sounds.setVolume(volumeInput.valueAsNumber / 100);
+  if (event.target === volumeInput) {
+    sounds.setVolume(volumeInput.valueAsNumber / 100);
+    screenSpeech.setVolume(volumeInput.valueAsNumber / 100);
+  }
   else if (event.target.dataset.ability && !event.target.disabled) sounds.tune(event.target.valueAsNumber);
 };
 app.addEventListener('click', onInteraction);
 app.addEventListener('input', onSoundInput);
-const onVisibility = () => { if (document.hidden) sounds.stop(); };
+const onVisibility = () => { if (document.hidden) { sounds.stop(); screenSpeech.stop(); } };
 document.addEventListener('visibilitychange', onVisibility);
 import.meta.hot?.dispose(() => {
   app.removeEventListener('pointerdown', unlockSound, true);
@@ -210,8 +236,10 @@ const cityScreen = mountCityScreen(cityContainer, () => {
     } catch (error) { cityScreen.resume(); console.error('Exhibition could not open:', error); }
     finally { openingExhibition = false; }
   })();
-});
-const history = new BotHistory(parseScientistSurnames(scientistSurnamesText));
+}, screenSpeech);
+let designStorage: Storage | undefined;
+try { designStorage = window.localStorage; } catch { /* The designer works without storage. */ }
+const history = new BotHistory(parseScientistSurnames(scientistSurnamesText), Math.random, designStorage);
 document.querySelector('#enter-city')!.addEventListener('click', () => {
   void screenTransition.run(designerScreen, cityContainer, () => {
     inCity = true;
@@ -253,7 +281,7 @@ const designer = mountAbilityDesigner(document.querySelector('#ability-designer'
   } else if (previous.painter !== artist.painter) {
     sounds.play(new SoundEffect({ root: 60 + painterStyles.findIndex(style => style.id === artist.painter), intervals: [0, 4, 7], pattern: 'up', waveform: 'sine', gain: .08 }), `artist:painter:${artist.painter}`);
   }
-});
+}, history.current.profile);
 import.meta.hot?.dispose(() => designer.dispose());
 const nameInput = document.querySelector<HTMLInputElement>('#bot-name-input')!;
 const nameStatus = document.querySelector('#name-status')!;

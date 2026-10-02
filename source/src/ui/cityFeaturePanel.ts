@@ -1,9 +1,12 @@
 import { cityBarriers } from '../city/cityLayout';
 import type { BarrierId } from '../city/cityLayout';
-import { describeFeature, featureNames } from '../city/cityDocument';
+import { describeFeature, featureNames, cityEditName } from '../city/cityDocument';
 import type { CityValue } from '../city/cityDocument';
 import type { CityJourney } from '../simulation/cityJourney';
 import { mapIcon } from './mapIcons';
+import type { ScreenSpeech } from '../audio/ScreenSpeech';
+import { mountRobotGuide } from './robotGuide';
+import { robotGuidance } from './robotGuidance';
 
 const actions: Record<BarrierId, [string, string]> = {
   transport: ['Add transport', 'Remove transport'], curb: ['Lower curb', 'Raise curb'],
@@ -16,7 +19,7 @@ const icons = { transport: 'follow', curb: 'angled', crossing: 'plus', guidance:
 export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
   select: (id: BarrierId) => void; edit: (id: BarrierId, value: CityValue) => void;
   undo: () => void; redo: () => void; done: () => void;
-}) {
+}, speech?: ScreenSpeech) {
   container.innerHTML = `
     <div class="city-editor-heading"><span class="editor-eyebrow">SHAPE YOUR CITY</span><h2>Plan. Test. Improve.</h2><p id="city-plan-prompt">What would you change before your robot sets off?</p></div>
     <div class="city-how-to" aria-label="How to change the city">
@@ -29,6 +32,7 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     </details>
     <div class="feature-card" aria-labelledby="feature-heading">
       <h3 id="feature-heading">Choose a feature</h3><p id="feature-property">Choose any feature above to reveal its controls. You can edit before your robot moves.</p>
+      <section id="city-robot-guide" class="robot-guide" aria-label="Your robot’s explanation" hidden></section>
       <div id="feature-edit-controls" hidden>
         <div class="feature-actions"><button id="feature-primary" type="button"></button><button id="feature-secondary" type="button" hidden></button></div>
         <p id="feature-occupied" hidden>The robot is using this feature. You can change it when the robot has moved clear.</p>
@@ -42,6 +46,7 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     <button id="city-edit-done" type="button">Start journey <span aria-hidden="true">→</span></button>
   `;
   const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
+  const guide = mountRobotGuide(get('city-robot-guide'), speech);
   const primary = get<HTMLButtonElement>('feature-primary'), secondary = get<HTMLButtonElement>('feature-secondary');
   const help = get<HTMLButtonElement>('feature-help'), hint = get('feature-hint');
   let journey: CityJourney | null = null, selected: BarrierId | null = null, showHelp = false;
@@ -51,6 +56,9 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     if (id !== selected) { showHelp = false; selected = id; }
     const key = `${current.city.revision}:${id}:${current.ready}:${current.paused}:${current.complete}:${current.blocked?.id}:${current.edge}:${current.canEdit(id ?? 'transport')}:${showHelp}:${autoPaused}`;
     if (key === lastKey) return; lastKey = key;
+    // Bring the explanation and choices into view without moving keyboard focus.
+    const card = container.querySelector<HTMLElement>('.feature-card')!;
+    container.insertBefore(card, id ? container.querySelector('.city-how-to') : get('city-edit-feedback'));
     const changed = current.city.changedFeatures.length > 0;
     const changedSelection = id && current.city.changedFeatures.includes(id);
     const contextual = current.blocked?.id === id && !!id;
@@ -87,6 +95,8 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     get('feature-heading').textContent = id ? featureNames[id] : 'Choose a feature';
     get('feature-property').textContent = id ? describeFeature(current.city, id) : 'Choose any feature above to reveal its controls. You can edit before your robot moves.';
     get('feature-edit-controls').hidden = !id;
+    if (id && (current.ready || current.paused || current.blocked || current.complete)) guide.show(current.bot, robotGuidance(current, id, showHelp));
+    else guide.hide();
     if (id) {
       const value = current.city.get(id), numeric = typeof value === 'number';
       const contextual = current.blocked?.id === id;
@@ -109,11 +119,11 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     const undo = get<HTMLButtonElement>('city-undo'), redo = get<HTMLButtonElement>('city-redo');
     undo.disabled = !current.city.undoEdit || !current.canEdit(current.city.undoEdit.id);
     redo.disabled = !current.city.redoEdit || !current.canEdit(current.city.redoEdit.id);
-    undo.title = current.city.undoEdit ? `Undo change to ${featureNames[current.city.undoEdit.id]}` : 'No changes to undo';
-    redo.title = current.city.redoEdit ? `Redo change to ${featureNames[current.city.redoEdit.id]}` : 'No changes to redo';
+    undo.title = current.city.undoEdit ? `Undo change to ${cityEditName(current.city.undoEdit.id)}` : 'No changes to undo';
+    redo.title = current.city.redoEdit ? `Redo change to ${cityEditName(current.city.redoEdit.id)}` : 'No changes to redo';
     const occupiedHistory = [current.city.undoEdit, current.city.redoEdit].find(edit => edit && !current.canEdit(edit.id));
     get('city-history-reason').hidden = !occupiedHistory;
-    if (occupiedHistory) get('city-history-reason').textContent = `The robot is using ${featureNames[occupiedHistory.id].toLowerCase()}. Resume the journey to move clear before undoing or redoing this change.`;
+    if (occupiedHistory) get('city-history-reason').textContent = `The robot is using ${cityEditName(occupiedHistory.id).toLowerCase()}. Resume the journey to move clear before undoing or redoing this change.`;
     const next = get<HTMLButtonElement>('city-edit-done');
     next.hidden = !(current.ready || current.paused || current.complete);
     next.textContent = current.ready ? 'Start journey →' : current.complete ? 'Try again →' : autoPaused ? 'Continue journey →' : 'Resume journey →';
@@ -138,5 +148,5 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
   get('feature-suggestion').addEventListener('click', () => { if (journey && selected) callbacks.edit(selected, journey.suggestedValue(selected)); });
   get('city-undo').addEventListener('click', callbacks.undo); get('city-redo').addEventListener('click', callbacks.redo);
   get('city-edit-done').addEventListener('click', callbacks.done);
-  return { render, announce(message: string) { get('city-edit-status').textContent = message; get('city-edit-feedback').hidden = !message; } };
+  return { render, stopGuide: guide.stop, dispose: guide.dispose, announce(message: string) { get('city-edit-status').textContent = message; get('city-edit-feedback').hidden = !message; } };
 }

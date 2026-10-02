@@ -20,6 +20,8 @@ test('exhibitions capture the completed robot’s artwork and stay intact across
   creativity.advance(1000, false);
   journey.machine.run.creative = { seed: creativity.seed, bpm: creativity.bpm, music: true, art: true, harmony: false, colour: false, marks: creativity.marks, score: creativity.score };
   const exhibition = captureFinishedJourney(journey.machine.run);
+  assert.deepEqual(exhibition.robot.appearance, journey.machine.run.metadata.appearance);
+  assert.deepEqual(exhibition.robot.profile, journey.machine.run.metadata.profile);
   assert.deepEqual(exhibition.artworkTitle, journey.machine.run.creative.title);
   const savedTitle = structuredClone(exhibition.artworkTitle);
   assert.equal(exhibition.name, bot.name); assert.equal(exhibition.steps, journey.metrics.stepsTaken);

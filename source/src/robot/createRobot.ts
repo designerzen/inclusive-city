@@ -9,6 +9,7 @@ import { defaultAppearance } from './appearance';
 import type { RobotAppearance } from './appearance';
 import { CharacterAnimation } from './characterAnimation';
 import type { PointerAttention } from './pointerAttention';
+import { createEyeLens } from './expressiveEyes';
 
 export function createRobot(scene: Scene) {
   function material(name: string, hex: string, emissive = false) {
@@ -51,12 +52,20 @@ export function createRobot(scene: Scene) {
   }
   let head = box('head', [1.7, 1, 1], [0, 2.25, 0]);
   headPart(head);
-  headPart(box('face', [1.1, 0.55, 0.08], [0, 2.25, -0.53], dark));
-  const eyeMeshes = [-1, 1].map(side => {
-    const eye = headPart(box(side < 0 ? 'left-eye' : 'right-eye', [0.25, 0.25, 0.08], [side * .3, 2.3, -.59], eyes));
-    const pupil = box(`pupil-${side}`, [.065, .1, .012], [0, 0, -.052], dark);
+  headPart(box('face', [1.15, 0.62, 0.08], [0, 2.25, -0.53], dark));
+  const eyeRigs = [-1, 1].map(side => {
+    const lens = createEyeLens(side < 0 ? 'left-eye' : 'right-eye', scene);
+    const eye = lens.mesh;
+    eye.parent = headRig; eye.position.set(side * .3, .06, -.625); eye.material = eyes;
+    const rim = createEyeLens(`eye-rim-${side}`, scene);
+    rim.mesh.parent = eye; rim.mesh.position.z = .008;
+    rim.mesh.scaling.set(1.15, 1.15, 1); rim.mesh.material = dark;
+    const pupil = MeshBuilder.CreateSphere(`pupil-${side}`, { diameter: .135, segments: 16 }, scene);
+    pupil.scaling.set(1, 1.08, .12); pupil.position.z = -.016; pupil.material = dark;
     pupil.parent = eye;
-    return eye;
+    const glint = MeshBuilder.CreateSphere(`eye-glint-${side}`, { diameter: .037, segments: 8 }, scene);
+    glint.parent = pupil; glint.position.set(-.027, .027, -.075); glint.material = eyes;
+    return { side, eye, lens, rim, pupil };
   });
   const brows = [-1, 1].map(side => headPart(box(`brow-${side}`, [.26, .035, .025], [side * .3, 2.56, -.59], eyes)));
   const mouth = headPart(box('mouth', [.18, .025, .025], [0, 2.08, -.59], eyes));
@@ -170,6 +179,7 @@ export function createRobot(scene: Scene) {
 
   setAppearance(appearance);
   let travelPhase = 0;
+  let speaking = false, speechPhase = 0;
   const characterAnimation = new CharacterAnimation();
   function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false) {
     if (!Number.isFinite(distance) || !Number.isFinite(seconds) || distance < 0 || seconds <= 0) return;
@@ -182,6 +192,12 @@ export function createRobot(scene: Scene) {
     const bob = moving && !reducedMotion ? Math.sin(travelPhase) * 0.075 : 0;
     const tilt = moving && !reducedMotion ? Math.cos(travelPhase) * 0.025 : 0;
     const pose = characterAnimation.tick(seconds, moving, reducedMotion);
+    if (speaking && !reducedMotion) {
+      speechPhase += seconds;
+      pose.mouthOpen = .1 + Math.abs(Math.sin(speechPhase * 13) * Math.cos(speechPhase * 3)) * .85;
+      pose.headTilt += Math.sin(speechPhase * 3) * .045;
+      pose.brow += Math.sin(speechPhase * 2) * .08;
+    }
     const notice = visionEnabled ? attention.amount : 0;
     if (!reducedMotion) {
       pose.headYaw = pose.headYaw * (1 - notice * .65) - attention.x * notice * .4;
@@ -204,13 +220,23 @@ export function createRobot(scene: Scene) {
       shoulder.rotation.x += (swing - shoulder.rotation.x) * blend;
     });
     antennaRig.rotation.z += (pose.antenna - antennaRig.rotation.z) * blend;
-    eyeMeshes.forEach(eye => eye.scaling.set(pose.eyeWidth, Math.max(.04, pose.eyeHeight), 1));
-    for (const side of [-1, 1]) {
-      const pupil = scene.getMeshByName(`pupil-${side}`)!;
+    eyeRigs.forEach(({ side, eye, lens, rim, pupil }) => {
+      const asymmetry = pose.eyeAsymmetry + notice * .08;
+      const lid = pose.eyeLid, curve = pose.eyeCurve;
+      // Mirrored lid slopes raise the inner corners when worried, like binocular eyes.
+      const slant = -side * lid * .8;
+      lens.reshape(lid, curve, slant); rim.reshape(lid, curve, slant);
+      eye.scaling.set(pose.eyeWidth * (1 + side * asymmetry * .2), Math.max(.04, pose.eyeHeight * (1 + side * asymmetry)), 1);
+      eye.rotation.z = side * pose.eyeTilt;
+      eye.position.y = .06 + side * asymmetry * .045;
       pupil.position.x = attention.x * notice * .045;
-      pupil.position.y = -attention.y * notice * .04;
-    }
-    brows.forEach((brow, i) => { brow.rotation.z = (i ? 1 : -1) * pose.brow; });
+      pupil.position.y = -lid * .025 + curve * .045 - attention.y * notice * .035;
+      pupil.setEnabled(visionEnabled && curve < .5 && pose.eyeHeight > .15);
+    });
+    brows.forEach((brow, i) => {
+      brow.rotation.z = (i ? 1 : -1) * pose.brow;
+      brow.position.y = .31 + Math.max(0, pose.eyeHeight - 1) * .14;
+    });
     mouthCorners.forEach(corner => { corner.position.y = -.17 + pose.smile * .032; corner.scaling.y = Math.abs(pose.smile); });
     const open = pose.mouthOpen > .15;
     mouth.setEnabled(!open); mouthCorners.forEach(corner => corner.setEnabled(!open));
@@ -222,5 +248,5 @@ export function createRobot(scene: Scene) {
       star.rotation.z = pose.accent * (i % 2 ? -.6 : .6);
     });
   }
-  return { robot, setProfile, setAppearance, animateTravel, characterAnimation, setAttention(value: PointerAttention) { attention = { ...value }; } };
+  return { robot, setProfile, setAppearance, animateTravel, characterAnimation, setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
 }

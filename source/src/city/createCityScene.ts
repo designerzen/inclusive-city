@@ -6,6 +6,7 @@ import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import '@babylonjs/core/Rendering/edgesRenderer';
 import { createRobot } from '../robot/createRobot';
 import { createPointerAttention } from '../robot/pointerAttention';
@@ -16,8 +17,11 @@ import type { BarrierId, PowerupId } from './cityLayout';
 import { createCityCamera } from './cityCamera';
 import type { CityView } from './cityCamera';
 import type { Theme } from '../app/theme';
+import { buildingKey } from './buildingDimensions';
+import { createCityResizer } from './cityResizer';
+import type { CityEditId } from './cityDocument';
 
-export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: BarrierId) => void, onExplore: (id: PowerupId) => void = () => {}) {
+export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: BarrierId) => void, onExplore: (id: PowerupId) => void = () => {}, onResizeSelect: (id: CityEditId) => void = () => {}) {
   const scene = new Scene(engine);
   let theme: Theme = 'dark';
   const themeMaterials: { material: StandardMaterial; dark: string }[] = [];
@@ -45,6 +49,13 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
   const green = material('access-green', '#81e6be', true);
   const wire = material('building-wireframe', '#315568', true);
   wire.wireframe = true;
+  const walls = material('building-walls', '#344656');
+  const roof = material('building-roofs', '#536779', true);
+  const windows = material('building-windows', '#8cbfc8', true);
+  const foundations = material('building-foundations', '#182735', true);
+  const markings = material('street-markings', '#d8e3df', true);
+  const stairMat = material('stair-treads', '#9a8063', true);
+  const bridgeRails = material('bridge-rails', '#c4ad83', true);
 
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, mat = sidewalkMat) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
@@ -68,6 +79,11 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
   // Two neighbourhoods, with roads and raised sidewalks on both sides.
   for (const z of [-12, 10]) for (const [x, width] of [[-13.5, 27], [17, 20]]) {
     box(`street-${x}-${z}`, x, -0.015, z, width, 0.04, 3.6, roadMat);
+    for (let dash = 0; dash < Math.floor(width / 3); dash++) {
+      const centre = x - width / 2 + dash * 3 + 1.5;
+      if (z === -12 && Math.abs(centre + 10) < 2) continue;
+      box(`lane-marking-${x}-${z}-${dash}`, centre, .015, z, 1.2, .012, .09, markings);
+    }
     for (const side of [-1, 1]) {
       box(`sidewalk-${x}-${z}-${side}`, x, 0.06, z + side * 2.6, width, 0.12, 1.6);
       for (let i = 0; i < Math.floor(width / 3); i++) {
@@ -81,28 +97,51 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
     box(`avenue-${x}`, x, -0.02, 0, 3, 0.03, 36, roadMat);
     for (const side of [-1, 1]) box(`avenue-sidewalk-${x}-${side}`, x + side * 2.2, 0.06, 0, 1.4, 0.12, 36);
   }
-  for (const building of buildings) {
+  const buildingModels = buildings.map(building => {
+    const firstMesh = scene.meshes.length;
+    const root = new TransformNode(`building-root-${building.name}`, scene);
+    root.position.set(building.x, 0, building.z);
     const base = 'base' in building ? building.base : 0;
-    const mesh = box(`building-${building.name}`, building.x, base + building.h / 2, building.z, building.w, building.h, building.d, wire);
+    box(`foundation-${building.name}`, building.x + .15, .015, building.z + .15, building.w + .5, .03, building.d + .5, foundations);
+    const mesh = box(`building-${building.name}`, building.x, base + building.h / 2, building.z, building.w, building.h, building.d, walls);
+    mesh.isPickable = true; mesh.metadata = { building: building.name };
     outline(mesh);
-    for (let floor = 1; floor < building.h; floor += 1.2) {
-      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]].map(([x, z]) => new Vector3(building.x + x! * building.w / 2, base + floor, building.z + z! * building.d / 2));
-      const ring = MeshBuilder.CreateLines(`floor-${building.name}-${floor}`, { points: corners }, scene);
-      ring.color = Color3.FromHexString('#35586c');
-      ring.isPickable = false;
+    const top = box(`roof-${building.name}`, building.x, base + building.h + .08, building.z, building.w + .18, .16, building.d + .18, roof);
+    outline(top);
+    top.isPickable = true; top.metadata = { building: building.name };
+    for (let floor = .9; floor < building.h - .3; floor += 1.25) {
+      for (const offset of [-building.w * .27, building.w * .27]) {
+        box(`window-front-${building.name}-${floor}-${offset}`, building.x + offset, base + floor, building.z - building.d / 2 - .015, .65, .6, .04, windows);
+      }
+      for (const offset of [-building.d * .27, building.d * .27]) {
+        box(`window-side-${building.name}-${floor}-${offset}`, building.x + building.w / 2 + .015, base + floor, building.z + offset, .04, .6, .65, windows);
+      }
     }
-  }
+    const door = box(`door-${building.name}`, building.x, base + .5, building.z - building.d / 2 - .055, .65, 1, .08, foundations);
+    const doorPosts = [-1, 1].map(side => box(`door-frame-${building.name}-${side}`, building.x + side * .385, base + .55, building.z - building.d / 2 - .1, .12, 1.1, .16, windows));
+    const lintel = box(`door-lintel-${building.name}`, building.x, base + 1.1, building.z - building.d / 2 - .1, .89, .12, .16, windows);
+    for (const part of [door, ...doorPosts, lintel]) { part.isPickable = true; part.metadata = { door: building.name }; }
+    label(building.name.toUpperCase(), building.x, building.z, Math.min(building.w, 5.5), base + building.h + .18);
+    for (const part of scene.meshes.slice(firstMesh)) part.setParent(root);
+    return { building, root, door, doorPosts, lintel };
+  });
   // The path geometry and agent interpolation share this exact route data.
+  const pavementMeshes: { edge: number; mesh: ReturnType<typeof box>; axis: 'x' | 'z' }[] = [];
   for (let edge = 0; edge < cityRoute.length - 1; edge++) {
     if (edge === 4 || edge === 6 || edge === 8 || edge === 10) continue;
     const a = cityRoute[edge]!, b = cityRoute[edge + 1]!;
     const dx = b.x - a.x, dz = b.z - a.z;
-    box(`route-sidewalk-${edge}`, (a.x + b.x) / 2, a.y - 0.07, (a.z + b.z) / 2, Math.abs(dx) || 3.2, 0.12, Math.abs(dz) || 3.2);
+    const pavement = box(`route-sidewalk-${edge}`, (a.x + b.x) / 2, a.y - 0.07, (a.z + b.z) / 2, Math.abs(dx) || 3.2, 0.12, Math.abs(dz) || 3.2);
+    if (edge !== 2) {
+      const axis = dx ? 'z' : 'x';
+      pavement.isPickable = true; pavement.metadata = { pavement: `pavement:${edge}`, resizeAxis: axis };
+      pavementMeshes.push({ edge, mesh: pavement, axis });
+    }
   }
   // Keep the crossing flush with the road rather than a raised path through it.
   const crossingSurface = scene.getMeshByName('route-sidewalk-2')!;
   crossingSurface.material = roadMat;
-  for (let i = 0; i < 7; i++) box(`crossing-stripe-${i}`, -10, 0.13, -13.5 + i * 0.5, 2.5, 0.015, 0.22, curbMat);
+  for (let i = 0; i < 7; i++) box(`crossing-stripe-${i}`, -10, 0.13, -13.5 + i * 0.5, 2.5, 0.015, 0.28, markings);
   const curb = box('raised-curb', -11.5, 0.24, -15, 0.2, 0.48, 3.2, amber);
   const signal = box('crossing-signal', -12, 0.4, -13.8, 0.25, 0.8, 0.25, amber);
   const narrowFloor = box('narrow-sidewalk', -7, 0.075, -4, 6, 0.13, 1.2);
@@ -110,12 +149,26 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
   const bridge = box('drawbridge', 3.5, 1.1, -4, 7.2, 0.16, 3.2, bridgeMat);
   bridge.rotation.z = 0.28;
   outline(bridge);
-  const steps = Array.from({ length: 8 }, (_, i) => box(`stair-${i}`, 10, 0.14 + (i + 1) * 0.05, -3.5 + i, 3.2, (i + 1) * 0.1, 1, curbMat));
+  for (const side of [-1, 1]) {
+    const rail = box(`bridge-rail-${side}`, 0, 0, 0, 7.2, .12, .12, bridgeRails);
+    rail.parent = bridge; rail.position.set(0, .65, side * 1.45);
+    for (const offset of [-3, 0, 3]) {
+      const post = box(`bridge-post-${side}-${offset}`, 0, 0, 0, .12, .65, .12, bridgeRails);
+      post.parent = bridge; post.position.set(offset, .3, side * 1.45);
+    }
+  }
+  const steps = Array.from({ length: 8 }, (_, i) => {
+    const step = box(`stair-${i}`, 10, 0.14 + (i + 1) * 0.05, -3.5 + i, 3.2, (i + 1) * 0.1, 1, stairMat);
+    outline(step, '#ddc6a1'); return step;
+  });
   const ramp = box('accessible-ramp', 10, 0.47, 0, 3.2, 0.14, Math.hypot(8, 0.8));
   ramp.rotation.x = -Math.atan2(0.8, 8);
   ramp.setEnabled(false);
   const shaft = box('elevator-shaft', 15, 1.75, 4, 3, 3.5, 3, wire);
   outline(shaft, '#a6b7c4');
+  for (const x of [-1.45, 1.45]) for (const z of [-1.45, 1.45]) {
+    box(`elevator-post-${x}-${z}`, 15 + x, 1.75, 4 + z, .15, 3.5, .15, bridgeRails);
+  }
   const cab = box('elevator-cab', 15, 0.86, 4, 2.8, 0.16, 2.8, bridgeMat);
   const guidance = box('route-beacon', -11.8, 0.4, -6, 0.25, 0.8, 0.25, amber);
   const botMesh = createRobot(scene);
@@ -175,7 +228,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
   const markers = new Map<BarrierId, ReturnType<typeof box>>();
   for (const barrier of cityBarriers) {
     const p = cityRoute[barrier.edge]!;
-    const marker = MeshBuilder.CreateTorus(`access-${barrier.id}`, { diameter: 1.5, thickness: 0.14, tessellation: 32 }, scene);
+    const marker = MeshBuilder.CreateTorus(`access-${barrier.id}`, { diameter: 1.8, thickness: 0.22, tessellation: 32 }, scene);
     marker.position.set(p.x, p.y + 0.1, p.z);
     marker.material = curbMat;
     marker.metadata = { barrier: barrier.id };
@@ -196,28 +249,43 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
     spotlight.position.set(x, 6, -1.7); spotlight.material = white; spotlight.isPickable = false;
   }
 
-  function label(text: string, x: number, z: number, width = 4) {
-    const texture = new DynamicTexture(`label-${text}`, { width: 512, height: 128 }, scene, false);
+  function drawLabel(entry: { texture: DynamicTexture; text: string }) {
+    const { texture, text } = entry;
+    const { width, height } = texture.getSize();
+    const ctx = texture.getContext() as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = theme === 'light' ? '#faf8f0' : '#142332';
+    ctx.fillRect(0, 0, width, height);
+    ctx.font = 'bold 52px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = theme === 'light' ? '#243f4c' : '#f4f3e8';
+    ctx.fillText(text, width / 2, height / 2); texture.update();
+  }
+  function label(text: string, x: number, z: number, width = 6, y = .22) {
+    const textureWidth = Math.max(256, text.length * 34 + 32);
+    const texture = new DynamicTexture(`label-${text}`, { width: textureWidth, height: 96 }, scene, false);
     texture.hasAlpha = true;
-    texture.drawText(text, null, 82, 'bold 48px sans-serif', '#99b5c4', 'transparent', true);
-    labels.push({ texture, text });
+    const entry = { texture, text }; labels.push(entry); drawLabel(entry);
     const mat = material(`label-material-${text}`, '#ffffff', true);
     mat.diffuseTexture = texture;
+    mat.emissiveTexture = texture;
     mat.useAlphaFromDiffuseTexture = true;
     mat.backFaceCulling = false;
-    const plane = MeshBuilder.CreatePlane(`label-${text}`, { width, height: width / 4 }, scene);
+    const plane = MeshBuilder.CreatePlane(`label-${text}`, { width, height: width * 96 / textureWidth }, scene);
     plane.rotation.x = Math.PI / 2;
-    plane.position.set(x, 0.17, z);
+    plane.position.set(x, y, z);
     plane.material = mat;
     plane.isPickable = false;
+    return entry;
   }
-  label('WORKSHOP', -21, -21.3, 5);
-  label('RIVER', 3.5, 13, 3);
-  label('BRIDGE', 3.5, -7);
-  label('STAIRS', 12.7, 0, 3);
-  label('ELEVATOR', 15, 7, 4);
-  label('GALLERY', 21, 11, 4);
-  label('CATWALK', 22, -2.5, 4);
+  label('RIVER', 3.5, 13, 4.5);
+  label('BRIDGE', 3.5, -7, 5.5);
+  const stairsLabel = label('STAIRS', 14.2, -.5, 4.5);
+  label('LIFT', 15, 4, 4, 3.55);
+  label('CATWALK', 22, -2.5, 5.5, 2.85);
+  label('CURB', -14.2, -17, 4);
+  label('CROSSING', -7.2, -12, 5.5);
+  label('ROUTE CUES', -15, -4.5, 5.5);
+  label('PAVEMENT', -7, -2.2, 5.5);
   let presentationTime = 0;
   let selectedFeature: BarrierId | null = null;
   function highlightFeature(id: BarrierId | null) {
@@ -254,6 +322,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
     heading: botMesh.robot.rotation.y,
     eyeHeight: (1.05 + 2.3 * bot.appearance.height) * 0.55,
   }));
+  const resizer = createCityResizer(scene, engine, journey, syncCity, onResizeSelect);
   function setView(view: CityView) {
     botMesh.robot.getChildMeshes().forEach(mesh => { mesh.isVisible = view !== 'robot-eye'; });
     cameraControls.setView(view);
@@ -329,15 +398,29 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
     cameraControls.update();
   }
   function syncCity() {
+    for (const { edge, mesh, axis } of pavementMeshes) mesh.scaling[axis] = resizer.value(`pavement:${edge}`) / 3.2;
+    for (const { building: b, root, door, doorPosts, lintel } of buildingModels) {
+      const front = resizer.value(buildingKey(b.name, 'front')), back = resizer.value(buildingKey(b.name, 'back'));
+      const left = resizer.value(buildingKey(b.name, 'left')), right = resizer.value(buildingKey(b.name, 'right'));
+      root.position.x = (left + right) / 2; root.position.z = (front + back) / 2;
+      root.scaling.x = (right - left) / b.w; root.scaling.z = (back - front) / b.d;
+      const width = resizer.value(`door:${b.name}`);
+      door.scaling.x = width / .65 / root.scaling.x;
+      for (const [i, post] of doorPosts.entries()) { post.position.x = (i ? 1 : -1) * (width / 2 + .06) / root.scaling.x; post.scaling.x = 1 / root.scaling.x; }
+      lintel.scaling.x = (width + .24) / .89 / root.scaling.x;
+    }
     const state = journey.city.snapshot();
     curb.scaling.y = state.curb ? 0.08 : 1; curb.position.y = state.curb ? 0.02 : 0.24; curb.material = state.curb ? green : amber;
     signal.material = state.crossing > 1.5 ? green : amber;
     guidance.material = state.guidance ? green : amber;
     guidance.scaling.x = state.guidance ? 2 : 1;
-    narrowFloor.scaling.z = state.sidewalk / 1.2;
-    boundaries.forEach((wall, i) => { wall.position.z = -4 + (i ? 1 : -1) * (state.sidewalk / 2 + 0.08); });
+    const pavementWidth = resizer.value('sidewalk');
+    narrowFloor.scaling.z = pavementWidth / 1.2;
+    boundaries.forEach((wall, i) => { wall.position.z = -4 + (i ? 1 : -1) * (pavementWidth / 2 + 0.08); });
     bridge.rotation.z = state.bridge ? 0 : 0.28; bridge.position.y = state.bridge ? 0.06 : 1.1;
     steps.forEach(step => step.setEnabled(!state.stairs)); ramp.setEnabled(state.stairs);
+    const stairsText = state.stairs ? 'RAMP' : 'STAIRS';
+    if (stairsLabel.text !== stairsText) { stairsLabel.text = stairsText; drawLabel(stairsLabel); }
     shaft.edgesColor = Color4.FromHexString(theme === 'light'
       ? state.elevator ? '#147850ff' : '#536a7aff'
       : state.elevator ? '#81e6beff' : '#a6b7c4ff');
@@ -352,6 +435,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
       river: '#80bfd1', 'bridge-deck': '#a4b8c1', 'route-white': '#253d55',
       'barrier-amber': '#a55a0c', 'access-green': '#147850', 'building-wireframe': '#63818d',
       'catwalk-deck': '#c3b9da',
+      'building-walls': '#a6a69b', 'building-roofs': '#c8b995', 'building-windows': '#3e6677',
+      'building-foundations': '#778579', 'street-markings': '#ffffff',
+      'stair-treads': '#a28258', 'bridge-rails': '#6d5134',
     };
     scene.clearColor = Color4.FromHexString(value === 'light' ? '#e8ede5ff' : '#060d18ff');
     for (const { material: mat, dark } of themeMaterials) {
@@ -363,18 +449,13 @@ export function createCityScene(engine: Engine, bot: ArtBot, onSelect: (id: Barr
       const light = dark === '#81e6be' ? '#147850' : dark === '#b6a1ec' ? '#7151a2' : '#536a7a';
       mesh.edgesColor = Color4.FromHexString(`${value === 'light' ? light : dark}ff`);
     }
-    for (const mesh of scene.meshes) if (mesh.name.startsWith('floor-')) {
-      (mesh as ReturnType<typeof MeshBuilder.CreateLines>).color = Color3.FromHexString(value === 'light' ? '#668591' : '#35586c');
-    }
-    for (const { texture, text } of labels) {
-      texture.getContext().clearRect(0, 0, 512, 128);
-      texture.drawText(text, null, 82, 'bold 48px sans-serif', value === 'light' ? '#294958' : '#99b5c4', 'transparent', true);
-    }
+    labels.forEach(drawLabel);
     syncCity();
   }
   syncCity();
   update(0);
   return { scene, journey, resize: cameraControls.update, update, intervene, setView, setTheme,
+    resizer,
     setZoom: cameraControls.setZoom, pan: cameraControls.pan, canPan: cameraControls.canPan,
     get view() { return cameraControls.view; }, fit, present, syncCity, selectAt, highlightFeature };
 }

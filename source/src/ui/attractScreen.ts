@@ -8,25 +8,21 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
     <div class="attract-cloud attract-cloud-pink" aria-hidden="true"></div>
     <div class="attract-cloud attract-cloud-mint" aria-hidden="true"></div>
     <div class="attract-grid" aria-hidden="true"></div>
-    <header class="attract-brand"><span class="attract-brand-mark" aria-hidden="true">✳</span> INCLUSIVE CITY <span class="attract-edition">A little robot. A world of possibility.</span></header>
+    <header class="attract-brand"><span class="attract-brand-mark" aria-hidden="true">✳</span> INCLUSIVE CITY</header>
     <div class="attract-layout">
       <div class="attract-copy">
-        <p class="attract-eyebrow"><span aria-hidden="true"></span> EVERY BODY HAS A BEAT</p>
         <h1 id="attract-title">ART<span class="attract-title-star" aria-hidden="true">✳</span><br><span class="attract-title-bot">BOT.</span></h1>
-        <p class="attract-tagline">Make a little mischief.<br>Make a more inclusive city.</p>
+        <p class="attract-tagline">Learn what life is like for a robot living in a city not designed for it</p>
         <button id="attract-enter" class="attract-enter" type="button">Create your robot <span aria-hidden="true">↗</span></button>
-        <p class="attract-invitation">Your moves. Your music. Your masterpiece.</p>
       </div>
       <div class="attract-stage">
         <div class="attract-orbit attract-orbit-one" aria-hidden="true"></div>
         <div class="attract-orbit attract-orbit-two" aria-hidden="true"></div>
         <div class="attract-disc" aria-hidden="true"></div>
         <div class="attract-sparks" aria-hidden="true">${Array.from({ length: 16 }, (_, i) => `<i style="--i:${i};--x:${(i * 37 + 13) % 100}%;--y:${(i * 23 + 7) % 86}%"></i>`).join('')}</div>
-        <span class="attract-sticker attract-sticker-groove" aria-hidden="true">BUILT TO<br>BE YOU ↗</span>
         <span class="attract-sticker attract-sticker-music" aria-hidden="true">♫</span>
         <canvas id="attract-canvas" role="img" aria-label="A funky mint artbot dances, bobs its head and waves its arms on a glowing dance floor."></canvas>
         <div class="attract-fallback" aria-hidden="true"><span>▰</span><span>● ●</span><span>▰</span><span>◉ ◉</span></div>
-        <span class="attract-stage-caption">100% ROBOT. 100% ORIGINAL.</span>
       </div>
     </div>
     <footer class="attract-footer">
@@ -34,7 +30,6 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <a class="attract-rix" href="https://www.rixinclusiveresearch.org/" target="_blank" rel="noopener noreferrer" aria-label="Visit Rix Inclusive Research (opens in a new tab)">
           <img src="${import.meta.env.BASE_URL}assets/logos/rix.svg" alt="Rix Inclusive Research" width="1410" height="420" />
         </a>
-        <span class="attract-footer-note">A creative adventure in belonging.</span>
       </div>
       <div class="attract-controls">
         <button id="attract-music" type="button" aria-pressed="false"><span class="attract-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="attract-music-label">Play soundtrack</span></button>
