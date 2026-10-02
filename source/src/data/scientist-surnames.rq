@@ -1,0 +1,7 @@
+SELECT DISTINCT ?surname ?surnameLabel WHERE {
+  VALUES ?occupation { wd:Q901 wd:Q169470 wd:Q593644 wd:Q864503 wd:Q170790 wd:Q11063 wd:Q82594 }
+  ?person wdt:P106 ?occupation; wdt:P734 ?surname.
+  ?surname rdfs:label ?surnameLabel.
+  FILTER(LANG(?surnameLabel) = "en")
+}
+LIMIT 2500

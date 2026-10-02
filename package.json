@@ -1,0 +1,14 @@
+{
+  "name": "inclusive-city-workspace",
+  "private": true,
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "start": "turbo run start",
+    "build": "turbo run build",
+    "check": "turbo run check",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.6"
+  }
+}

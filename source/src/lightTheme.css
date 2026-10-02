@@ -1,0 +1,43 @@
+/* Light surfaces and ink colours complement the city's daylight material palette. */
+:root[data-theme='light'] { color: #203b3c; background: #eef2eb; }
+[data-theme='light'] .workshop.attract-mode { background: #f4f3eb; }
+[data-theme='light'] #attract-screen { background: radial-gradient(ellipse at 65% 48%, #d7cce880, transparent 65%); }
+[data-theme='light'] .attract-copy h1 { color: #263c3d; }
+[data-theme='light'] .attract-title-bot, [data-theme='light'] .attract-brand-mark { color: #47732b; }
+[data-theme='light'] :is(.attract-tagline, .attract-edition, .attract-invitation, .attract-footer-note, .attract-stage-caption) { color: #526368; }
+[data-theme='light'] .attract-eyebrow { color: #77528b; }
+[data-theme='light'] .attract-title-star, [data-theme='light'] .attract-sticker-music { color: #ae4476; }
+[data-theme='light'] .attract-footer { border-color: #b5c5ba; }
+[data-theme='light'] .attract-rix img { filter: brightness(.3); }
+[data-theme='light'] :is(button, .attract-mode > .sound-controls button) { color: #24494a; background: #e1ebe4; border-color: #a5bbb1; }
+[data-theme='light'] button:hover:not(:disabled) { background: #d0e1d6; }
+[data-theme='light'] button:focus-visible, [data-theme='light'] select:focus-visible { outline-color: #46784a; }
+[data-theme='light'] .options-dialog { color: #203b3c; background: #f8faf4; border-color: #a5bbb1; }
+[data-theme='light'] .options-dialog section { border-color: #c9d5ca; }
+[data-theme='light'] :is(.midi-settings select, #app-theme, #city-feature, #robot-preset) { color: #24494a; background: #e9efe8; border-color: #a5bbb1; }
+[data-theme='light'] :is(.stage, #ability-designer, .city-stage, .city-editor, .creative-studio, .catwalk-presentation, .city-instructions) { color: #203b3c; background: #f8faf4; border-color: #a5bbb1; }
+[data-theme='light'] .stage { background: #e2eee9; }
+[data-theme='light'] :is(.bot-position, #bot-name-input, .preset-description, .pair-values, output, .function-announcement, #function-count, .switch-state) { color: #355d52; }
+[data-theme='light'] :is(.ability-list, .city-robot-facts, .feature-card, .city-edit-history) { border-color: #c2d0c6; }
+[data-theme='light'] .map-view-bar { background: linear-gradient(110deg, #e0eae3, #f5f6ee); border-color: #b9cbc0; }
+[data-theme='light'] .map-views { background: #f8faf4; border-color: #b9cbc0; }
+[data-theme='light'] :is(.map-views button, .map-controls button, .feature-grid button) { color: #315766; background: #f3f6ee; border-color: #b9cbc0; }
+[data-theme='light'] :is(.map-views button, .feature-grid button)[aria-pressed='true'] { color: #194e35; background: #cce6d4; border-color: #5e8d71; }
+[data-theme='light'] :is(.map-views button:hover, .map-controls button:hover:not(:disabled), .feature-grid button:hover) { color: #194e35; background: #dceade; }
+[data-theme='light'] .map-views button[aria-pressed='true'] .view-detail { color: #356449; }
+[data-theme='light'] :is(.map-view-heading > :first-child, .editor-eyebrow, #robot-mood, .city-robot-facts summary, .feature-help, .catwalk-eyebrow) { color: #24684a; }
+[data-theme='light'] :is(.map-view-heading > :last-child, .view-detail, .city-editor-heading p, .city-feature-list summary span, .city-robot-facts dt, .city-robot-facts dd, #feature-property, #journey-status, #barrier-reason, #feature-occupied, .creative-hint, #creative-status, #catwalk-description, #city-instructions-intro, .city-instruction-steps p, .city-instructions-map) { color: #46616b; }
+[data-theme='light'] :is(.map-zoom, .map-pan) { background: #f8faf4ed; border-color: #9bb7aa; box-shadow: 0 4px 20px #24494a20; }
+[data-theme='light'] .map-pan [data-map='fit'] { background: #cce6d4; color: #194e35; }
+[data-theme='light'] :is(.city-how-to, .city-next-step, .city-edit-feedback, .feature-hint) { background: #e2eee0; border-color: #99b29b; }
+[data-theme='light'] :is(.city-next-step strong, .city-next-step p, .city-edit-feedback strong, #city-edit-status, .city-edit-steps li, .feature-hint p, #feature-secondary, .powerup-list small) { color: #315a45; }
+[data-theme='light'] .city-edit-steps li[aria-current='step'] { color: #173f2a; }
+[data-theme='light'] .painting-hud { background: #f8faf4ed; color: #203b3c; border-color: #a5bbb1; }
+[data-theme='light'] :is(#painting-action, #painting-strokes, .painting-hud-heading h2 span) { color: #456457; }
+[data-theme='light'] #exhibition-screen { color: #203b3c; }
+[data-theme='light'] :is(.exhibition-topline, .exhibition-work p, .exhibition-track p, .exhibition-header > p:last-child, #exhibition-strokes, #exhibition-time, #exhibition-playback-status, .exhibition-stats span, .exhibition-footer p) { color: #50665a; }
+[data-theme='light'] :is(.exhibition-eyebrow, .exhibition-work-label, .exhibition-stats strong) { color: #786039; }
+[data-theme='light'] :is(.exhibition-topline, .exhibition-music, .exhibition-footer) { border-color: #b9cbc0; }
+[data-theme='light'] .screen-transition { background: #dce9df; }
+.options-appearance { display: grid; gap: 12px; }
+#app-theme { width: 100%; padding: 10px; border: 1px solid #ffffff30; border-radius: 4px; background: #26353a; color: #eff5ea; font: inherit; }
