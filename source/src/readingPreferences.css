@@ -30,11 +30,12 @@
 }
 
 /* Large text needs flexible rows and additional room around the city map. */
-:root:not([data-text-size='100']) .workshop { overflow-wrap: anywhere; }
-:root:not([data-text-size='100']) .workshop :is(button, select) { max-width: 100%; }
-:root:not([data-text-size='100']) .function-row { flex-wrap: wrap; }
+.workshop, .music-setup { overflow-wrap: anywhere; }
+.workshop :is(button, select), .music-setup :is(button, select) { max-width: 100%; }
+.function-row { flex-wrap: wrap; }
+.function-row > div { min-width: 0; }
 :root:not([data-text-size='100']) .function-row > div { flex: 1 1 100%; min-width: 0; }
-:root:not([data-text-size='100']) .switch-state { width: auto; }
+.switch-state { width: auto; }
 :root:not([data-text-size='100']) .switch-track { flex: 0 0 38px; }
 :root:not([data-text-size='100']) .designer-heading h2 { max-width: 100%; }
 :root:not([data-text-size='100']) .designer-layout { grid-template-columns: minmax(0, 1fr); }
