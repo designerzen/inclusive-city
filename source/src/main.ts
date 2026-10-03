@@ -62,7 +62,7 @@ app.innerHTML = `
     </dialog>
     <section id="attract-screen" aria-labelledby="attract-title"></section>
     <div id="designer-screen" hidden>
-    <header class="designer-introduction"><p class="flow-step">1 / Create your robot</p><h1 id="designer-title" tabindex="-1">Meet your artbot</h1><p>Choose a robot, make it your own, then plan a journey through the city.</p></header>
+    <header class="designer-introduction"><p class="flow-step">1 / Create your robot</p><h1 id="designer-title" tabindex="-1">Meet your artbot</h1><p>Choose a robot, make it your own, then help it reach the studio.</p></header>
     <div class="designer-layout"><div class="preview-column">
     <div class="bot-navigation" role="group" aria-label="Art bot navigation"><button id="previous-bot" type="button" title="Show previous art bot" hidden disabled><span aria-hidden="true">←</span> Previous robot</button><button id="randomise-design" type="button" title="Show next art bot">Next robot <span aria-hidden="true">→</span></button><button id="choose-existing" type="button">Browse ready-made robots</button></div>
     <div class="bot-identity">

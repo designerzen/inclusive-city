@@ -1,12 +1,12 @@
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
-import { neighbours, robotSpeed, streetBetween, streetProblem } from '../city/proceduralCity';
+import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal } from '../city/proceduralCity';
 import type { CityStreet, ProceduralCity } from '../city/proceduralCity';
 import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
 import { CityDimensions } from '../city/cityDimensions';
 
-/** Movement is confined to the validated, player-drawn street sequence. */
+/** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
   readonly machine: RobotStateMachine;
   readonly bot: ArtBot;
@@ -35,7 +35,7 @@ export class PlannedJourney {
   get complete() { return this.machine.run.status === 'completed'; }
   get speed() { return robotSpeed(this.bot); }
   get metrics() { return this.machine.run.metrics; }
-  get canStart() { return this.ready && this.path.length > 1 && this.path.at(-1) === this.world.destination; }
+  get canStart() { return this.ready && !!routeToGoal(this.world, this.path.at(-1)!); }
   get nextStops() { return this.ready && this.path.at(-1) !== this.world.destination ? neighbours(this.world, this.path.at(-1)!) : []; }
   get currentStreet() { return streetBetween(this.world, this.path[this.edge]!, this.path[this.edge + 1]!); }
   get undoAvailable() { const last = this.history.at(-1); return !!last && this.canEdit(last.id); }
@@ -57,6 +57,8 @@ export class PlannedJourney {
   }
   start() {
     if (!this.canStart) return false;
+    const remaining = routeToGoal(this.world, this.path.at(-1)!)!;
+    this.path.push(...remaining.slice(1));
     const a = this.node(this.path[0]!), b = this.node(this.path[1]!);
     this.heading = Math.atan2(a.x - b.x, a.z - b.z);
     this.savePlan();

@@ -50,16 +50,35 @@ test('width and crossing challenges account for all robots in memory', () => {
   }
 });
 
-test('an empty, disconnected, non-finite or unfinished line never starts the robot', () => {
+test('invalid routes are rejected, while starting needs no drawing and completes a partial route', () => {
   const bot = memories()[0]!, world = generateCity(8, [bot]), j = new PlannedJourney(bot, world);
   const before = j.position;
-  assert.equal(j.start(), false); j.update(100); assert.deepEqual(j.position, before);
+  assert.equal(j.canStart, true); j.update(100); assert.deepEqual(j.position, before);
   assert.equal(j.setRoute([world.start, world.destination]), false);
   assert.equal(j.appendStop('missing'), false);
   assert.equal(j.setRoute([world.start, 'NaN']), false);
   assert.equal(j.appendStop(j.nextStops[0]!.id), true);
-  assert.equal(j.start(), false); j.update(Infinity); assert.deepEqual(j.position, before);
+  j.update(Infinity); assert.deepEqual(j.position, before);
   assert.equal(j.undoStop(), true); assert.deepEqual(j.route, [world.start]);
+  const next = j.nextStops[0]!.id;
+  j.appendStop(next); assert.equal(j.start(), true);
+  assert.deepEqual(j.route.slice(0, 2), [world.start, next]);
+  assert.equal(j.route.at(-1), world.destination);
+});
+
+test('start immediately, repair barriers as they appear, and reach the goal without planning', () => {
+  for (let seed = 0; seed < 30; seed++) {
+    const bot = memories()[0]!, world = generateCity(seed, [bot]), j = new PlannedJourney(bot, world);
+    assert.deepEqual(j.route, [world.start]); assert.equal(j.canStart, true); assert.equal(j.start(), true);
+    assert.equal(j.route.at(-1), world.destination);
+    for (let i = 0; i < world.streets.length + 2 && !j.complete; i++) {
+      j.update(10000);
+      if (j.blocked) assert.equal(j.repair(j.blocked.id), true);
+    }
+    assert.equal(j.complete, true, `seed ${seed} can be played by helping at barriers`);
+    const goal = world.nodes.find(n => n.id === world.destination)!;
+    assert.deepEqual(j.position, { x: goal.x, y: goal.y, z: goal.z });
+  }
 });
 
 test('the robot stops before unedited streets and follows only the drawn line after repairs', () => {

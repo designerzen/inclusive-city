@@ -17,6 +17,20 @@ export function neighbours(city: ProceduralCity, id: string) {
   return city.streets.filter(s => s.a === id || s.b === id).map(s => city.nodes.find(n => n.id === (s.a === id ? s.b : s.a))!);
 }
 
+/** Follow streets to the goal without requiring the player to draw a whole route. */
+export function routeToGoal(city: ProceduralCity, from = city.start) {
+  const queue = [[from]], visited = new Set([from]);
+  for (let i = 0; i < queue.length; i++) {
+    const route = queue[i]!;
+    if (route.at(-1) === city.destination) return route;
+    for (const node of neighbours(city, route.at(-1)!)) {
+      if (visited.has(node.id)) continue;
+      visited.add(node.id); queue.push([...route, node.id]);
+    }
+  }
+  return null;
+}
+
 export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Raised bridge', curb: 'Raised curb', stairs: 'Steps', width: 'Narrow passage', crossing: 'Short crossing signal', guidance: 'Missing route cues' };
 export const streetActions: Record<StreetKind, string> = { clear: 'Street already open', bridge: 'Lower bridge', curb: 'Lower curb', stairs: 'Add ramp', width: 'Widen passage', crossing: 'Give more crossing time', guidance: 'Add route cues' };
 

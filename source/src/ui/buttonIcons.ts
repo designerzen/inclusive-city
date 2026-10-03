@@ -17,7 +17,7 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
   if (/zoom in/i.test(label)) return 'plus';
   if (/zoom out/i.test(label)) return 'minus';
   for (const direction of ['up', 'down', 'left', 'right'] as const) if (label.toLowerCase().includes(`move ${direction}`)) return direction;
-  if (/fit/i.test(label)) return 'fit';
+  if (/fit|show goal/i.test(label)) return 'fit';
   if (/3d/i.test(label)) return 'angled';
   if (/map view/i.test(label)) return 'overhead';
   if (/follow robot/i.test(label)) return 'follow';

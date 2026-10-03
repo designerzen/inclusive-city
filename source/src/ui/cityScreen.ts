@@ -22,17 +22,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     <header class="city-toolbar">
       <div class="city-identity"><strong id="city-bot-name"></strong><span id="city-seed"></span></div>
       <div class="city-tools" role="group" aria-label="City tools">
-        <button id="city-tool-route" type="button" aria-pressed="true">Draw route</button>
-        <button id="city-tool-edit" type="button" aria-pressed="false">Change city</button>
-        <button id="city-pause" type="button" disabled>Start robot</button>
+        <button id="city-tool-route" type="button" aria-pressed="false">Draw route</button>
+        <button id="city-tool-edit" type="button" aria-pressed="true">Change city</button>
+        <button id="city-pause" type="button">Start robot</button>
       </div>
       <button id="back-to-designer" type="button">Edit robot</button>
     </header>
     <div class="city-map">
-      <canvas id="city-canvas" role="img" aria-label="A monochrome generated city with pitched roofs. Junctions join streets; raised bridges cross the river. Draw a continuous route from Workshop to the Duet studio. The robot follows only your drawn line."></canvas>
-      <div class="city-map-actions" role="group" aria-label="Map controls">
-        <button id="city-map-fit" type="button">Fit map</button>
-      </div>
+      <canvas id="city-canvas" role="img" aria-label="Your robot starts at the Workshop. Its goal is the Duet studio, marked by a large finish flag. Start the robot and change the city when a barrier blocks its journey."></canvas>
+      <div id="city-goal" class="city-goal-marker"><strong>⚑ GOAL</strong><span>Duet studio</span><small>Use Show goal</small></div>
       <section id="studio-track" class="studio-track" aria-label="Your duet track" hidden>
         <p class="city-eyebrow">ARTBOT + YOU / THE DUET</p><h2 id="studio-track-title"></h2>
         <p class="studio-invitation">Join your ArtBot! Sway, clap or dance along in your own way.</p>
@@ -48,13 +46,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         <button type="button" data-view="angled" aria-pressed="false">3D view</button>
         <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
         <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
+        <button id="city-map-fit" type="button">Show goal</button>
       </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
-      <h2 id="city-heading" tabindex="-1">Plan your route</h2>
-      <p id="journey-status" role="status" aria-live="polite">Draw from Workshop to the Duet studio.</p>
+      <h2 id="city-heading" tabindex="-1">Reach the goal</h2>
+      <p id="journey-status" role="status" aria-live="polite">Press Start robot. Help it reach the flagged Duet studio.</p>
       <div class="city-route-stats" id="city-route-stats"></div>
       <section id="city-route-controls" aria-label="Draw your route">
-        <p class="city-plan-hint">Choose connected stops below, or drag between junctions on the map. Reach the Duet studio to enable Start robot. Discoveries add music and brushwork.</p>
+        <p class="city-plan-hint">Drawing is optional. Choose stops or draw between junctions to explore. Start robot fills in the rest of the route to the flagged goal.</p>
         <h3 id="city-next-heading">Next stop</h3>
         <div id="city-next-stops" class="city-next-stops"></div>
         <div class="city-secondary-actions"><button id="city-route-undo" type="button" disabled>Undo line</button><button id="city-route-clear" type="button" disabled>Clear line</button></div>
@@ -92,7 +91,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   let sizeId: string | null = null;
   let engine: Engine | null = null, city: ReturnType<typeof createCityScene> | null = null;
   let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
-  let mode: 'route' | 'edit' = 'route', selected: string | null = null, lastBlock: string | null = null;
+  let mode: 'route' | 'edit' = 'edit', selected: string | null = null, lastBlock: string | null = null;
   let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
   let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
   let finished: FinishedJourney | null = null, playback: MusicPlayback | undefined;
@@ -136,7 +135,17 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   function refresh() {
     if (!city) return;
     const j = city.journey;
-    container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'planning' : j.paused ? 'paused' : 'travelling';
+    container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : 'travelling';
+    const goal = city.projectNode(j.world.destination), marker = get('city-goal');
+    const onMap = goal.z >= 0 && goal.z <= 1 && goal.x >= 0 && goal.x <= canvas.clientWidth && goal.y >= 0 && goal.y <= canvas.clientHeight;
+    marker.classList.toggle('is-offscreen', !onMap);
+    const insetX = Math.min(marker.offsetWidth / 2 + 12, canvas.clientWidth / 2), insetY = marker.offsetHeight / 2 + 12;
+    const left = Math.max(insetX, Math.min(canvas.clientWidth - insetX, goal.x));
+    const below = goal.y < marker.offsetHeight + 26;
+    marker.classList.toggle('is-below-goal', below);
+    marker.style.left = `${left}px`;
+    marker.style.top = `${Math.max(insetY, Math.min(canvas.clientHeight - insetY, goal.y + (below ? 1 : -1) * (marker.offsetHeight / 2 + 14)))}px`;
+    marker.style.setProperty('--goal-pointer-offset', `${Math.max(-marker.offsetWidth / 2 + 12, Math.min(marker.offsetWidth / 2 - 12, goal.x - left))}px`);
     get<HTMLButtonElement>('city-tool-route').disabled = !j.ready;
     get('city-tool-route').setAttribute('aria-pressed', String(mode === 'route'));
     get('city-tool-edit').setAttribute('aria-pressed', String(mode === 'edit'));
@@ -159,11 +168,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     lastBlock = j.blocked?.id ?? null;
     const stops = j.route.map(id => j.world.nodes.find(n => n.id === id)!);
     const discoveries = new Set(stops.filter(n => n.discovery).map(n => n.id)).size;
-    const issues = new Set(j.route.slice(1).map((id, i) => streetBetween(j.world, j.route[i]!, id)!).filter(s => j.problem(s)).map(s => s.id)).size;
+    get('city-route-stats').hidden = j.ready && mode !== 'route';
     setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
-    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? j.canStart ? `Line ready. ${issues} street${issues === 1 ? '' : 's'} on it need changes for ${j.bot.name}.` : `Continue from ${stops.at(-1)!.label} to the Duet studio.` : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change a street, then resume when you’re ready.' : `Following your line · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
-    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the studio' : j.ready ? mode === 'route' ? 'Plan your route' : 'Change your city' : j.blocked ? 'Remove this barrier' : j.paused ? 'Journey paused' : 'Your robot is travelling');
-    setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : j.ready ? 'PLAN BEFORE YOU START' : 'YOUR ROBOT FOLLOWS YOUR LINE');
+    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
+    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Help your robot through' : j.paused ? 'Journey paused' : 'Your robot is travelling');
+    setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : 'GOAL / DUET STUDIO');
     if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
     const nextKey = j.route.join('|') + j.ready;
     if (routeKey !== nextKey) {
@@ -176,7 +185,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         button.addEventListener('click', () => { if (j.appendStop(node.id)) { sounds.interaction('tap'); city!.sync(); feedback(''); refresh(); } }); return button;
       }));
       if (focusWasNext) (get('city-next-stops').querySelector<HTMLButtonElement>('button') ?? pause).focus();
-      setText('city-next-heading', j.canStart ? 'Your line reaches the duet studio' : `Next stop from ${stops.at(-1)!.label}`);
+      setText('city-next-heading', j.route.at(-1) === j.world.destination ? 'Your line reaches the goal' : `Next stop from ${stops.at(-1)!.label}`);
     }
     get<HTMLButtonElement>('city-route-undo').disabled = j.route.length < 2 || !j.ready;
     get<HTMLButtonElement>('city-route-clear').disabled = j.route.length < 2 || !j.ready;
@@ -253,7 +262,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     const world = generateCity(seed, robots.length ? robots : [bot]);
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
-    selected = null; mode = 'route'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
+    selected = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
     streetSelect.replaceChildren();
     const initial = document.createElement('option'); initial.value = ''; initial.textContent = 'Choose a street…'; streetSelect.append(initial);
     const transport = document.createElement('option'); transport.value = 'transport'; transport.textContent = 'Workshop · transport'; streetSelect.append(transport);
@@ -266,7 +275,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         const option = document.createElement('option'); option.value = id; option.textContent = city.journey.dimensions.name(id); streetSelect.append(option);
       }
     }
-    setText('city-bot-name', bot.name); setText('city-seed', `2 / Plan your city journey`);
+    setText('city-bot-name', bot.name); setText('city-seed', `2 / Reach the Duet studio`);
     plan.scrollTop = 0; beginCreation(); refresh();
   }
   get('studio-track-play').addEventListener('click', playTrack);
@@ -279,7 +288,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   pause.addEventListener('click', () => { if (!city) return; if (city.journey.ready) { if (city.journey.start()) mode = 'edit'; } else { city.journey.setPaused(!city.journey.paused); if (city.journey.paused) sounds.stop(); } refresh(); });
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
-  get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Keep planning your line.' : 'City changed. Your robot can continue.'); refresh(); } });
+  get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
   get('city-undo').addEventListener('click', () => { if (city?.journey.undoRepair()) { city.sync(); feedback('City change undone.'); refresh(); } });
   get('city-restart').addEventListener('click', () => { if (!city) return; sounds.stop(); city.journey.restart(); city.journey.clearRoute(); beginCreation(); plan.scrollTop = 0; selected = null; mode = 'route'; routeKey = ''; panelKey = ''; lastBlock = null; city.sync(); feedback('City changes kept. Draw a different line.'); refresh(); });
   get('city-new').addEventListener('click', newCity);

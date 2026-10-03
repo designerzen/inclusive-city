@@ -40,6 +40,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const ink = material('route-line', '#ffffff', '#181818', true);
   const muted = material('junctions', '#a0a0a0', '#555555', true);
   const obstruction = material('obstacles', '#dddddd', '#303030', true);
+  const goalMaterial = material('goal-green', '#d4f5a3', '#285d36', true);
+  const flagWhite = material('finish-white', '#ffffff', '#ffffff', true);
+  const flagBlack = material('finish-black', '#17261e', '#17261e', true);
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, mat: StandardMaterial) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene); mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
   }
@@ -113,11 +116,18 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   const nodeModels = world.nodes.map(node => {
     const ring = MeshBuilder.CreateTorus(`node-${node.id}`, { diameter: node.discovery || node.id === world.start || node.id === world.destination ? 1.65 : 1, thickness: .13, tessellation: 20 }, scene);
-    ring.position.set(node.x, .17, node.z); ring.material = muted; ring.metadata = { node: node.id }; ring.isPickable = true;
+    ring.position.set(node.x, .17, node.z); ring.material = node.id === world.destination ? goalMaterial : muted; ring.metadata = { node: node.id }; ring.isPickable = true;
     const glyph = node.id === world.start ? 'WORKSHOP' : node.id === world.destination ? 'DUET STUDIO' : node.discovery ? `${node.discovery === 'music' || node.discovery === 'harmony' ? '♫' : '◇'} ${node.label.toUpperCase()}` : node.label;
     label(glyph, node.x, .2, node.z - 1.4, node.discovery || node.id === world.start || node.id === world.destination ? 4 : 1.5);
     return { node, ring };
   });
+  const goal = world.nodes.find(node => node.id === world.destination)!;
+  const goalRing = MeshBuilder.CreateTorus('goal-finish-ring', { diameter: 4.2, thickness: .35, tessellation: 32 }, scene);
+  goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
+  box('goal-flagpole', goal.x + 1.2, 2.7, goal.z, .15, 5.4, .15, goalMaterial);
+  for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) {
+    box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 5.1 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite);
+  }
   const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
   const camera = createCityCamera(engine, scene, () => ({ position: new Vector3(journey.position.x, journey.position.y - .125, journey.position.z), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }));
@@ -135,7 +145,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       routeKey = key; line?.dispose(); line = null;
       if (journey.route.length > 1) { line = MeshBuilder.CreateTube('drawn-route', { path: journey.route.map(id => { const n = world.nodes.find(n => n.id === id)!; return new Vector3(n.x, .19, n.z); }), radius: .12, tessellation: 8 }, scene); line.material = ink; line.isPickable = false; line.renderingGroupId = 1; }
       const next = journey.nextStops.map(n => n.id);
-      nodeModels.forEach(({ node, ring }) => { ring.material = next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });
+      nodeModels.forEach(({ node, ring }) => { ring.material = node.id === world.destination ? goalMaterial : next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });
     }
     const edits = [...journey.repaired].join('|') + journey.dimensionRevision;
     if (revisionKey !== edits) {
@@ -174,6 +184,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   function projectNode(id: string) {
     const node = world.nodes.find(n => n.id === id)!;
+    scene.updateTransformMatrix();
     const p = Vector3.Project(new Vector3(node.x, .17, node.z), Matrix.Identity(), scene.getTransformMatrix(), scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()));
     return { x: p.x * engine.getHardwareScalingLevel(), y: p.y * engine.getHardwareScalingLevel(), z: p.z };
   }
