@@ -68,8 +68,9 @@ app.innerHTML = `
     <div class="bot-identity">
       <form id="rename-bot"><label for="bot-name-input">Robot name</label><div class="rename-controls">
         <input id="bot-name-input" type="text" required maxlength="60" autocomplete="off" aria-describedby="name-hint" />
-      </div><p id="name-hint" class="control-hint">Change the name if you like. It saves when you leave this field.</p></form>
-      <p id="name-status" role="status" aria-live="polite"></p></div>
+      </div>
+      <p id="name-status" role="status" aria-live="polite"></p>
+    </div>
     <section class="stage" aria-label="Artbot preview">
       <canvas id="render-canvas" role="img" aria-label="A mint robot with four wheels on a circular workshop platform."></canvas>
       <button id="rotation-toggle" type="button" aria-label="Pause rotation" title="Pause rotation" disabled>Ⅱ</button>
