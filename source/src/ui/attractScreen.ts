@@ -13,9 +13,8 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
     <div class="attract-layout">
       <div class="attract-copy">
         <h1 id="attract-title">ART<span class="attract-title-star" aria-hidden="true">✳</span><br><span class="attract-title-bot">BOT.</span></h1>
-        <p class="attract-tagline">Create an art-making robot. Change the city so it can join in.</p>
+        <p class="attract-tagline">Learn what life is like for a robot living in a city not designed for it</p>
         <button id="attract-enter" class="attract-enter primary-action" type="button">Create your robot <span aria-hidden="true">→</span></button>
-        <p class="attract-invitation">Create a robot · Plan a route · Make art and music</p>
       </div>
       <div class="attract-stage">
         <div class="attract-orbit attract-orbit-one" aria-hidden="true"></div>

@@ -17,6 +17,7 @@ import { PlannedJourney } from '../simulation/plannedJourney';
 import type { ProceduralCity } from './proceduralCity';
 import { JourneyDance } from '../robot/journeyDance';
 import type { FinishedJourney } from '../art/finishedJourney';
+import { createProceduralResizer } from './proceduralResizer';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -47,9 +48,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const streetModels = world.streets.map(street => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
     const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
-    const width = street.kind === 'width' ? street.width : 2.6;
+    const width = street.width;
     const surface = box(street.id, x, .025, z, dx || width, .1, dz || width, pavement);
-    surface.metadata = { street: street.id }; surface.isPickable = true;
+    surface.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' }; surface.isPickable = true;
     const parts: ReturnType<typeof box>[] = [];
     if (street.kind !== 'clear' && street.kind !== 'width') {
       const mark = box(`issue-${street.id}`, x, .34, z, dx ? .28 : 2.6, .55, dx ? 2.6 : .28, obstruction);
@@ -58,7 +59,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     }
     const bridge = street.kind === 'bridge' ? box(`bridge-deck-${street.id}`, x, .65, z, dx, .16, 2.6, walls) : null;
     if (bridge) { bridge.metadata = { street: street.id }; bridge.isPickable = true; }
-    return { street, surface, parts, bridge, dx, dz };
+    return { street, surface, parts, bridge, dx, dz, originalWidth: width };
   });
   const labelMaterials: { mat: StandardMaterial; texture: DynamicTexture; text: string }[] = [];
   function label(text: string, x: number, y: number, z: number, width = 3) {
@@ -67,13 +68,48 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const plane = MeshBuilder.CreatePlane(`label-${text}`, { width, height: width / 4 }, scene); plane.rotation.x = Math.PI / 2; plane.position.set(x, y, z); plane.material = mat; plane.isPickable = false;
     labelMaterials.push({ mat, texture, text });
   }
-  for (const b of world.buildings) {
-    const body = box(`building-${b.name}`, b.x, b.h / 2, b.z, b.w, b.h, b.d, walls);
-    body.enableEdgesRendering(); body.edgesColor = new Color4(.4, .4, .4, 1);
-    box(`eaves-${b.name}`, b.x, b.h + .05, b.z, b.w + .4, .12, b.d + .4, details);
+  const buildingModels = world.buildings.map(b => {
+    const pieces = ['left', 'right', 'back', 'front-left', 'front-right', 'lintel'].map(side => {
+      const mesh = box(`wall-${b.name}-${side}`, 0, 0, 0, 1, 1, 1, walls);
+      mesh.metadata = { building: b.name, side: side.startsWith('front') || side === 'lintel' ? 'front' : side };
+      mesh.isPickable = true; mesh.enableEdgesRendering(); mesh.edgesColor = new Color4(.4, .4, .4, 1); return mesh;
+    });
+    const eaves = box(`eaves-${b.name}`, b.x, b.h + .05, b.z, 1, .12, 1, details);
     const rise = Math.min(1.4, b.w * .3);
-    const roof = createBuildingRoof(`roof-${b.name}`, b.w + .4, b.d + .4, rise, scene); roof.position.set(b.x, b.h + .12, b.z); roof.material = roofs; roof.isPickable = false;
-    for (let y = .8; y < b.h - .3; y += 1) for (const offset of [-.9, .9]) box(`window-${b.name}-${y}-${offset}`, b.x + offset, y, b.z - b.d / 2 - .015, .45, .5, .04, details);
+    const roof = createBuildingRoof(`roof-${b.name}`, b.w + .4, b.d + .4, rise, scene); roof.position.set(b.x, b.h + .12, b.z); roof.material = roofs;
+    roof.metadata = { building: b.name }; roof.isPickable = true;
+    const threshold = box(`door-${b.name}`, b.x, .11, b.z - b.d / 2 - .2, 1, .12, .5, details);
+    threshold.metadata = { dimension: `door:${b.name}`, axis: 'x' }; threshold.isPickable = true;
+    const windows: { mesh: ReturnType<typeof box>; side: number }[] = [];
+    for (let y = .8; y < b.h - .3; y += 1) for (const side of [-1, 1]) windows.push({ mesh: box(`window-${b.name}-${y}-${side}`, 0, y, 0, .4, .5, .04, details), side });
+    return { b, pieces, eaves, roof, threshold, windows, originalW: b.w, originalD: b.d };
+  });
+  let onResizeSelected = (_id: string) => {};
+  const resizer = createProceduralResizer(scene, engine, journey, syncDimensions, id => onResizeSelected(id));
+  function syncDimensions() {
+    for (const { b, pieces, eaves, roof, threshold, windows, originalW, originalD } of buildingModels) {
+      const left = resizer.value(`wall:${b.name}:left`), right = resizer.value(`wall:${b.name}:right`);
+      const front = resizer.value(`wall:${b.name}:front`), back = resizer.value(`wall:${b.name}:back`);
+      const width = right - left, depth = back - front, x = (left + right) / 2, z = (front + back) / 2;
+      const door = resizer.value(`door:${b.name}`), doorHeight = Math.min(1.65, b.h - .2), wing = (width - door) / 2;
+      const layouts = [
+        [left, b.h / 2, z, .16, b.h, depth], [right, b.h / 2, z, .16, b.h, depth],
+        [x, b.h / 2, back, width, b.h, .16],
+        [left + wing / 2, b.h / 2, front, wing, b.h, .16], [right - wing / 2, b.h / 2, front, wing, b.h, .16],
+        [x, doorHeight + (b.h - doorHeight) / 2, front, door, b.h - doorHeight, .16],
+      ];
+      pieces.forEach((mesh, i) => { const [px, py, pz, w, h, d] = layouts[i]!; mesh.position.set(px!, py!, pz!); mesh.scaling.set(w!, h!, d!); });
+      eaves.position.set(x, b.h + .05, z); eaves.scaling.set(width + .4, 1, depth + .4);
+      roof.position.set(x, b.h + .12, z); roof.scaling.set((width + .4) / (originalW + .4), 1, (depth + .4) / (originalD + .4));
+      threshold.position.set(x, .11, front - .3); threshold.scaling.x = door;
+      for (const { mesh, side } of windows) { mesh.position.x = x + side * (door / 2 + wing / 2); mesh.position.z = front - .1; }
+    }
+    for (const { street, surface, parts, bridge, dx, originalWidth } of streetModels) {
+      const scale = resizer.value(`width:${street.id}`) / originalWidth;
+      surface.scaling[dx ? 'z' : 'x'] = scale;
+      parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
+      if (bridge) bridge.scaling.z = scale;
+    }
   }
   const nodeModels = world.nodes.map(node => {
     const ring = MeshBuilder.CreateTorus(`node-${node.id}`, { diameter: node.discovery || node.id === world.start || node.id === world.destination ? 1.65 : 1, thickness: .13, tessellation: 20 }, scene);
@@ -101,14 +137,14 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const next = journey.nextStops.map(n => n.id);
       nodeModels.forEach(({ node, ring }) => { ring.material = next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });
     }
-    const edits = [...journey.repaired].join('|');
+    const edits = [...journey.repaired].join('|') + journey.dimensionRevision;
     if (revisionKey !== edits) {
       revisionKey = edits;
+      syncDimensions();
       streetModels.forEach(({ street, surface, parts, bridge, dx }) => {
         const repaired = journey.repaired.has(street.id);
         parts.forEach(m => m.setEnabled(!repaired));
         if (bridge) { bridge.rotation.z = repaired ? 0 : .22; bridge.position.y = repaired ? .06 : .65; }
-        if (street.kind === 'width') surface.scaling[dx ? 'z' : 'x'] = repaired ? 3.8 / street.width : 1;
         if (street.kind === 'guidance' || street.kind === 'crossing') surface.material = repaired ? details : pavement;
       });
     }
@@ -150,7 +186,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   let highlighted: typeof scene.meshes = [];
   function highlight(id: string | null) {
     highlighted.forEach(m => { m.renderOverlay = false; m.visibility = 1; });
-    highlighted = id ? scene.meshes.filter(m => m.metadata?.street === id) : [];
+    highlighted = id ? scene.meshes.filter(m => m.metadata?.street === id || m.metadata?.dimension === id || id.startsWith(`wall:${m.metadata?.building}:`) && (!m.metadata?.side || id.endsWith(`:${m.metadata.side}`))) : [];
     highlighted.forEach(m => { m.renderOverlay = true; m.overlayColor = theme === 'dark' ? Color3.White() : Color3.Black(); m.overlayAlpha = .4; m.visibility = .7; });
   }
   function setTheme(value: Theme) {
@@ -160,6 +196,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   revisionKey = 'initial'; sync(); setTheme('dark'); update(0);
   return { scene, journey, update, sync, setTheme, nodeAt, streetAt, projectNode, highlight,
+    resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },
     resize: () => camera.update(), setZoom: camera.setZoom, pan: camera.pan, fit: camera.fit,
     setSinging(value: boolean) { robot.setSpeaking(value); },
     danceToMusic(value: FinishedJourney, clock: () => number) { dance = new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4); musicClock = clock; },

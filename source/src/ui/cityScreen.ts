@@ -2,6 +2,7 @@ import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
 import type { CityView } from '../city/cityCamera';
+import { sides } from '../city/cityDimensions';
 import { generateCity, streetActions, streetNames, streetBetween } from '../city/proceduralCity';
 import type { Theme } from '../app/theme';
 import type { ArtBot } from '../robot/botHistory';
@@ -58,9 +59,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         <div id="city-next-stops" class="city-next-stops"></div>
         <div class="city-secondary-actions"><button id="city-route-undo" type="button" disabled>Undo line</button><button id="city-route-clear" type="button" disabled>Clear line</button></div>
       </section>
-      <section id="city-change-controls" aria-label="Change a street" hidden>
+      <section id="city-change-controls" aria-label="Change the city" hidden>
         <label for="city-street">Place to change</label><select id="city-street" aria-label="Place to change"></select>
         <h3 id="city-feature-name"></h3><p id="city-feature-reason"></p>
+        <div id="city-size-controls" hidden>
+          <label id="city-size-label" for="city-size">Size</label>
+          <input id="city-size" type="range" aria-describedby="city-size-value" />
+          <output id="city-size-value" for="city-size"></output>
+          <p>Drag a wall, doorway or street edge on the map, or use this slider. Undo lets you try again.</p>
+        </div>
         <button id="city-repair" type="button" disabled>Choose a place</button>
         <button id="city-undo" type="button" disabled>Undo city change</button>
       </section>
@@ -81,6 +88,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   const canvas = get<HTMLCanvasElement>('city-canvas'), painting = get<HTMLCanvasElement>('journey-art');
   const plan = container.querySelector<HTMLElement>('.city-plan')!;
   const pause = get<HTMLButtonElement>('city-pause'), streetSelect = get<HTMLSelectElement>('city-street');
+  const sizeInput = get<HTMLInputElement>('city-size');
+  let sizeId: string | null = null;
   let engine: Engine | null = null, city: ReturnType<typeof createCityScene> | null = null;
   let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
   let mode: 'route' | 'edit' = 'route', selected: string | null = null, lastBlock: string | null = null;
@@ -116,7 +125,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   function setMode(value: typeof mode) {
     if (!city) return;
     if (value === 'route' && !city.journey.ready) return;
-    mode = value; plan.scrollTop = 0; city.highlight(null); get('city-hover').hidden = true; panelKey = ''; refresh();
+    city.resizer.finish(false); mode = value; plan.scrollTop = 0; city.highlight(null); get('city-hover').hidden = true; panelKey = ''; refresh();
   }
   function selectStreet(id: string) {
     if (!city) return;
@@ -153,7 +162,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     const issues = new Set(j.route.slice(1).map((id, i) => streetBetween(j.world, j.route[i]!, id)!).filter(s => j.problem(s)).map(s => s.id)).size;
     setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
     const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? j.canStart ? `Line ready. ${issues} street${issues === 1 ? '' : 's'} on it need changes for ${j.bot.name}.` : `Continue from ${stops.at(-1)!.label} to the Duet studio.` : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change a street, then resume when you’re ready.' : `Following your line · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
-    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the studio' : j.ready ? mode === 'route' ? 'Plan your route' : 'Improve a street' : j.blocked ? 'Remove this barrier' : j.paused ? 'Journey paused' : 'Your robot is travelling');
+    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the studio' : j.ready ? mode === 'route' ? 'Plan your route' : 'Change your city' : j.blocked ? 'Remove this barrier' : j.paused ? 'Journey paused' : 'Your robot is travelling');
     setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : j.ready ? 'PLAN BEFORE YOU START' : 'YOUR ROBOT FOLLOWS YOUR LINE');
     if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
     const nextKey = j.route.join('|') + j.ready;
@@ -171,19 +180,30 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     }
     get<HTMLButtonElement>('city-route-undo').disabled = j.route.length < 2 || !j.ready;
     get<HTMLButtonElement>('city-route-clear').disabled = j.route.length < 2 || !j.ready;
-    const key = `${selected}:${[...j.repaired]}:${j.ready}:${j.paused}:${j.complete}:${j.currentStreet?.id}:${j.distanceOnEdge > 0}`;
+    const key = `${selected}:${[...j.repaired]}:${j.dimensionRevision}:${j.ready}:${j.paused}:${j.complete}:${j.currentStreet?.id}:${j.distanceOnEdge > 0}`;
     if (panelKey !== key) {
       panelKey = key;
       const street = j.world.streets.find(s => s.id === selected);
       const repaired = !!selected && j.repaired.has(selected);
       const transport = selected === 'transport';
-      setText('city-feature-name', transport ? 'Workshop transport' : street ? streetNames[street.kind] : 'Choose a street on the map');
-      setText('city-feature-reason', repaired ? 'Changed. Your robot can use this street.' : transport ? 'Add transport for robots whose drive is disabled.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Tap a street, or choose a place above. There is one clear action for each problem.');
+      const dimension = selected && j.dimensions.limits(selected);
+      sizeId = dimension ? selected : street ? `${street.kind === 'crossing' ? 'crossing' : 'width'}:${street.id}` : null;
+      setText('city-feature-name', dimension ? j.dimensions.name(selected!) : transport ? 'Workshop transport' : street ? streetNames[street.kind] : 'Choose a place on the map');
+      setText('city-feature-reason', dimension ? selected!.startsWith('door:') ? 'Widen or narrow the doorway and watch the opening change.' : 'Move this wall to change the building’s shape.' : repaired ? 'Changed. Your robot can use this street.' : transport ? 'Add transport for robots whose drive is disabled.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Choose a wall, doorway or street to change.');
+      get('city-size-controls').hidden = !sizeId;
+      if (sizeId) {
+        const limits = j.dimensions.limits(sizeId)!;
+        sizeInput.min = String(limits.min); sizeInput.max = String(limits.max); sizeInput.step = 'any';
+        sizeInput.value = String(city.resizer.value(sizeId)); sizeInput.disabled = !j.canEdit(sizeId);
+        setText('city-size-label', sizeId.startsWith('wall:') ? 'Wall position' : sizeId.startsWith('crossing:') ? 'Crossing time' : 'Width');
+      }
       const repair = get<HTMLButtonElement>('city-repair');
+      repair.hidden = !!dimension;
       repair.textContent = repaired ? 'City changed ✓' : transport ? 'Add transport' : street ? streetActions[street.kind] : 'Choose a place';
       repair.disabled = !selected || repaired || !!street && street.kind === 'clear' || !j.canEdit(selected);
       get<HTMLButtonElement>('city-undo').disabled = !j.undoAvailable;
     }
+    if (sizeId) setText('city-size-value', `${city.resizer.value(sizeId).toFixed(2)} ${sizeId.startsWith('crossing:') ? 'seconds' : 'm'}`);
     for (const event of j.machine.record.events.slice(eventCursor)) creation?.consume(event);
     eventCursor = j.machine.record.events.length;
     if (creation) {
@@ -232,13 +252,19 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
     const world = generateCity(seed, robots.length ? robots : [bot]);
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
+    city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
     selected = null; mode = 'route'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
     streetSelect.replaceChildren();
     const initial = document.createElement('option'); initial.value = ''; initial.textContent = 'Choose a street…'; streetSelect.append(initial);
     const transport = document.createElement('option'); transport.value = 'transport'; transport.textContent = 'Workshop · transport'; streetSelect.append(transport);
-    for (const street of world.streets.filter(s => s.kind !== 'clear')) {
+    for (const street of world.streets) {
       const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
       const option = document.createElement('option'); option.value = street.id; option.textContent = `${a.label} → ${b.label} · ${streetNames[street.kind]}`; streetSelect.append(option);
+    }
+    for (const building of world.buildings) {
+      for (const id of [`door:${building.name}`, ...sides.map(side => `wall:${building.name}:${side}`)]) {
+        const option = document.createElement('option'); option.value = id; option.textContent = city.journey.dimensions.name(id); streetSelect.append(option);
+      }
     }
     setText('city-bot-name', bot.name); setText('city-seed', `2 / Plan your city journey`);
     plan.scrollTop = 0; beginCreation(); refresh();
@@ -247,7 +273,9 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   get('studio-track-stop').addEventListener('click', () => { stopTrack(); setText('studio-track-status', 'Track stopped. Replay from the beginning when you’re ready.'); });
   get('city-tool-route').addEventListener('click', () => setMode('route'));
   get('city-tool-edit').addEventListener('click', () => setMode('edit'));
-  streetSelect.addEventListener('change', () => selectStreet(streetSelect.value));
+  streetSelect.addEventListener('change', () => { city?.resizer.finish(false); selectStreet(streetSelect.value); });
+  sizeInput.addEventListener('input', () => { if (city && sizeId) { city.resizer.previewSize(sizeId, Number(sizeInput.value)); refresh(); } });
+  sizeInput.addEventListener('change', () => { city?.resizer.finish(); sounds.interaction('tap'); panelKey = ''; refresh(); });
   pause.addEventListener('click', () => { if (!city) return; if (city.journey.ready) { if (city.journey.start()) mode = 'edit'; } else { city.journey.setPaused(!city.journey.paused); if (city.journey.paused) sounds.stop(); } refresh(); });
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
@@ -258,7 +286,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   container.querySelector('.city-view-tools')!.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-view]') : null;
     if (!button || button.disabled || !city) return;
-    city.setView(button.dataset.view as CityView);
+    city.resizer.finish(false); city.setView(button.dataset.view as CityView);
     refresh();
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
@@ -288,9 +316,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   canvas.addEventListener('pointerdown', event => {
     if (event.button !== 0 || !city || city.journey.complete) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.setPointerCapture(event.pointerId);
-    if (pointers.size > 1) { if (drawing) city.journey.setRoute(savedRoute); drawing = false; city.sync(); pinch = 0; moved = true; refresh(); return; }
+    if (pointers.size > 1) { city.resizer.finish(false); if (drawing) city.journey.setRoute(savedRoute); drawing = false; city.sync(); pinch = 0; moved = true; refresh(); return; }
     origin = { x: event.clientX, y: event.clientY }; moved = false; savedRoute = [...city.journey.route];
     const p = local(event.clientX, event.clientY), id = city.nodeAt(p.x, p.y);
+    if (mode === 'edit' && city.resizer.begin(p.x, p.y)) return;
     drawing = mode === 'route' && city.journey.ready && !!id;
     if (drawing) drawAt(event.clientX, event.clientY);
   });
@@ -298,6 +327,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     if (!city || !engine || city.journey.complete) return;
     const previous = pointers.get(event.pointerId), p = local(event.clientX, event.clientY);
     if (!previous) {
+      const target = mode === 'edit' ? city.resizer.inspect(p.x, p.y) : null;
+      if (target) {
+        get('city-hover').hidden = false; setText('city-hover', `${city.journey.dimensions.name(target.id)} · drag to resize`);
+        city.highlight(target.id); canvas.style.cursor = target.available ? 'ew-resize' : 'not-allowed'; return;
+      }
       const id = mode === 'edit' ? city.streetAt(p.x, p.y) : city.nodeAt(p.x, p.y);
       const street = city.journey.world.streets.find(s => s.id === id), node = city.journey.world.nodes.find(n => n.id === id);
       get('city-hover').hidden = !id;
@@ -307,12 +341,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 8) moved = true;
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a!.x - b!.x, a!.y - b!.y); if (pinch > 0 && d > 0) city.setZoom(pinch / d); pinch = d; return; }
+    if (city.resizer.active) { city.resizer.move(p.x, p.y); refresh(); return; }
     if (drawing) { const steps = Math.ceil(Math.hypot(event.clientX - previous.x, event.clientY - previous.y) / 8); for (let i = 1; i <= steps; i++) drawAt(previous.x + (event.clientX - previous.x) * i / steps, previous.y + (event.clientY - previous.y) * i / steps); }
     else if (moved) { const camera = city.scene.activeCamera!; const width = camera.orthoRight! - camera.orthoLeft!; city.pan(-(event.clientX - previous.x) / canvas.clientWidth * width, (event.clientY - previous.y) / canvas.clientWidth * width); }
   });
   function release(event: PointerEvent) {
     if (!pointers.has(event.pointerId)) return;
-    if (event.type !== 'pointerup' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); refresh(); }
+    if (city?.resizer.active) { city.resizer.finish(event.type === 'pointerup'); panelKey = ''; refresh(); }
+    else if (event.type !== 'pointerup' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); refresh(); }
     else if (mode === 'edit' && !moved && city) { const p = local(event.clientX, event.clientY); const id = city.streetAt(p.x, p.y); if (id) selectStreet(id); }
     drawing = false; pointers.delete(event.pointerId); pinch = 0;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -320,7 +356,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release); canvas.addEventListener('lostpointercapture', release);
   canvas.addEventListener('pointerleave', () => { if (!drawing) { city?.highlight(selected); get('city-hover').hidden = true; } });
   canvas.addEventListener('wheel', event => { event.preventDefault(); city?.setZoom(event.deltaY > 0 ? 1.1 : .9); }, { passive: false });
-  function escape(event: KeyboardEvent) { if (event.key === 'Escape' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); drawing = false; pointers.clear(); feedback('Line drawing cancelled.'); refresh(); } }
+  function escape(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+    if (city?.resizer.active) { city.resizer.finish(false); pointers.clear(); feedback('Resize cancelled.'); refresh(); }
+    if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); drawing = false; pointers.clear(); feedback('Line drawing cancelled.'); refresh(); }
+  }
   window.addEventListener('keydown', escape);
   function visibilityChanged() {
     if (document.hidden && playback) { stopTrack(false); setText('studio-track-status', 'Track stopped while you were away. Replay when you return.'); }
@@ -330,7 +370,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   return {
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
-    suspend() { stopTrack(); active = false; sounds.stop(); speech?.stop(); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
+    suspend() { stopTrack(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
     resume() { active = true; engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       bot = value; robots = remembered; active = true; sounds.unlock();

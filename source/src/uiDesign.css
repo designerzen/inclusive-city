@@ -133,6 +133,8 @@ button:is(#app-options, #options-close, #rotation-toggle, #preset-previous, #pre
 .city-art #painting-strokes { font-size: 0.75rem; }
 #city-screen .city-view-tools { position: static; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
 .city-map-actions { position: absolute; bottom: 12px; left: 12px; z-index: 2; }
+#city-size { display: block; width: 100%; min-height: 44px; margin: 8px 0; }
+#city-size-value { display: block; font-variant-numeric: tabular-nums; }
 .studio-track { max-height: calc(100% - 24px); overflow: auto; }
 
 @media (max-width: 1000px) {

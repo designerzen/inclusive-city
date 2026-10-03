@@ -4,6 +4,7 @@ import { neighbours, robotSpeed, streetBetween, streetProblem } from '../city/pr
 import type { CityStreet, ProceduralCity } from '../city/proceduralCity';
 import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
+import { CityDimensions } from '../city/cityDimensions';
 
 /** Movement is confined to the validated, player-drawn street sequence. */
 export class PlannedJourney {
@@ -11,7 +12,9 @@ export class PlannedJourney {
   readonly bot: ArtBot;
   private path: string[];
   readonly repaired = new Set<string>();
-  private history: { id: string; before: boolean }[] = [];
+  private history: { id: string; before: boolean | number }[] = [];
+  readonly dimensions: CityDimensions;
+  dimensionRevision = 0;
   edge = 0;
   distanceOnEdge = 0;
   heading = 0;
@@ -19,6 +22,7 @@ export class PlannedJourney {
   blocked: { id: string; reason: string } | null = null;
   private encountered: string | null = null;
   constructor(bot: ArtBot, readonly world: ProceduralCity) {
+    this.dimensions = new CityDimensions(world);
     this.bot = { ...robotMetadata(bot), record: bot.record };
     this.path = [world.start];
     this.machine = new RobotStateMachine(bot.record, () => ({ edge: this.edge, position: this.position }));
@@ -55,7 +59,7 @@ export class PlannedJourney {
     if (!this.canStart) return false;
     const a = this.node(this.path[0]!), b = this.node(this.path[1]!);
     this.heading = Math.atan2(a.x - b.x, a.z - b.z);
-    this.machine.run.citySnapshot = Object.fromEntries([...this.repaired].map(id => [id, true]));
+    this.savePlan();
     this.machine.depart(); this.collectAt(this.path[0]!); return true;
   }
   get position(): RoutePoint {
@@ -65,16 +69,44 @@ export class PlannedJourney {
     const t = this.distanceOnEdge / Math.hypot(b.x - a.x, b.z - a.z);
     return { x: a.x + (b.x - a.x) * t, y: a.y, z: a.z + (b.z - a.z) * t };
   }
-  problem(street: CityStreet) { return streetProblem(street, this.bot, this.repaired.has(street.id)); }
-  canEdit(id: string) { return !this.complete && (id !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
+  problem(street: CityStreet) { return streetProblem(street, this.bot, street.kind !== 'width' && street.kind !== 'crossing' && this.repaired.has(street.id)); }
+  canEdit(id: string) { const street = id.replace(/^(width|crossing):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
+  editDimension(id: string, value: number) {
+    if (!this.canEdit(id)) return false;
+    const before = this.dimensions.get(id);
+    if (before === undefined || !this.dimensions.set(id, value)) return false;
+    this.history.push({ id, before }); this.dimensionChanged(id, before, value); return true;
+  }
+  private dimensionChanged(id: string, before: number, value: number, action = 'resize') {
+    this.dimensionRevision++;
+    const street = this.world.streets.find(s => `width:${s.id}` === id || `crossing:${s.id}` === id);
+    if (street && (street.kind === 'width' || street.kind === 'crossing')) {
+      if (this.problem(street)) this.repaired.delete(street.id); else this.repaired.add(street.id);
+      if (!this.problem(street)) {
+        const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === street.id && f.resolvedAt === null);
+        if (failure) failure.resolvedAt = this.machine.record.clock;
+        if (this.blocked?.id === street.id) { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
+      }
+    }
+    this.machine.emit('city_edit', { feature: id, before, after: value, action });
+    if (action === 'resize') { this.machine.add('interventions', 1); this.machine.emit('intervention', { action }, id); }
+    this.savePlan();
+  }
   repair(id: string) {
     const street = this.world.streets.find(s => s.id === id);
     if ((!street && id !== 'transport') || street?.kind === 'clear' || this.repaired.has(id) || !this.canEdit(id)) return false;
+    if (street?.kind === 'width') return this.editDimension(`width:${id}`, Math.min(6, Math.max(3.8, street.width)));
+    if (street?.kind === 'crossing') return this.editDimension(`crossing:${id}`, 20);
     this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
   }
   undoRepair() {
     if (!this.undoAvailable) return false;
-    const edit = this.history.pop()!; this.applyRepair(edit.id, edit.before); return true;
+    const edit = this.history.pop()!;
+    if (typeof edit.before === 'number') {
+      const before = this.dimensions.get(edit.id)!;
+      this.dimensions.set(edit.id, edit.before); this.dimensionChanged(edit.id, before, edit.before, 'undo');
+    } else this.applyRepair(edit.id, edit.before);
+    return true;
   }
   private applyRepair(id: string, value: boolean) {
     if (value) this.repaired.add(id); else this.repaired.delete(id);
@@ -91,6 +123,7 @@ export class PlannedJourney {
   }
   private savePlan() {
     this.machine.run.cityPlan = { world: structuredClone(this.world), route: [...this.path], improvements: [...this.repaired] };
+    this.machine.run.citySnapshot = { ...this.dimensions.snapshot(), ...Object.fromEntries([...this.repaired].map(id => [id, true])) };
   }
   private telemetry() { this.machine.record.telemetry = { edge: this.edge, position: this.position, speed: this.speed, progress: this.path.length < 2 ? 0 : this.complete ? 1 : (this.edge + this.distanceOnEdge / Math.max(1, this.currentStreet ? Math.hypot(this.node(this.currentStreet.a).x - this.node(this.currentStreet.b).x, this.node(this.currentStreet.a).z - this.node(this.currentStreet.b).z) : 1)) / (this.path.length - 1) }; }
   private collectAt(id: string) {
