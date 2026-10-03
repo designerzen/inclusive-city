@@ -133,12 +133,13 @@ mountMidiControls(document.querySelector<HTMLElement>('#midi-controls')!, sounds
 const optionsDialog = document.querySelector<HTMLDialogElement>('#options-dialog')!;
 const optionsButton = document.querySelector<HTMLButtonElement>('#app-options')!;
 optionsButton.addEventListener('click', () => {
+  if (!inAttract) return;
   optionsDialog.showModal(); optionsButton.setAttribute('aria-expanded', 'true');
 });
 document.querySelector('#options-close')!.addEventListener('click', () => optionsDialog.close());
 optionsDialog.addEventListener('close', () => {
   optionsButton.setAttribute('aria-expanded', 'false');
-  optionsButton.focus();
+  if (inAttract) optionsButton.focus();
 });
 optionsDialog.addEventListener('click', event => {
   if (event.target !== optionsDialog) return;

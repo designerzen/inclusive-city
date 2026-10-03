@@ -20,6 +20,8 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
   if (/fit/i.test(label)) return 'fit';
   if (/3d/i.test(label)) return 'angled';
   if (/map view/i.test(label)) return 'overhead';
+  if (/follow robot/i.test(label)) return 'follow';
+  if (/robot eye/i.test(label)) return 'eye';
   if (/city changed|at studio/i.test(label)) return 'check';
   if (/artwork|painting/i.test(label)) return 'art';
   if (/midi/i.test(label)) return 'connect';

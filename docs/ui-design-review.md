@@ -18,7 +18,8 @@ Reviewed 2 October 2026. The interface keeps its playful robot, artwork and colo
 | Primary and secondary actions looked similar in light mode | Shared contrasting primary colours work in both themes; robot browsing stays secondary. |
 | Arrow-only robot navigation and an unlabelled-looking name field | Visible navigation labels, a name label, a save hint and visible save feedback. |
 | Three-function swapping and paired slider rules were hidden from sight | Visible section headings, the three-function rule, per-function swap previews and slider explanations. |
-| Settings disappeared after the opening screen | Sound, volume, narration and appearance remain available throughout. MIDI is behind a labelled disclosure. |
+| Settings placement | Settings are available only on the attract screen. MIDI is behind a labelled disclosure. |
+| Missing city camera controls | Map view, 3D view, Follow robot and Robot eye have labelled buttons with a visible selected state. |
 | City tools and main action had the same emphasis | Lavender identifies the selected tool, green identifies the main action, and disabled actions use neutral colours. The map remains neutral. |
 | Map movement depended on pointer gestures | Labelled zoom and pan buttons provide keyboard alternatives. Route stops and street changes also have buttons/selects. |
 | Fixed mobile offsets could overlap or squeeze the map | Grid rows reserve the map's full minimum height and panel space. The toolbar stays accessible on short screens; controls wrap. |

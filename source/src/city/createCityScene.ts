@@ -165,6 +165,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     danceToMusic(value: FinishedJourney, clock: () => number) { dance = new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4); musicClock = clock; },
     stopDancing() { musicClock = null; },
     get arrivalComplete() { return camera.arrivalComplete; },
-    toggleView() { camera.setView(camera.view === 'overhead' ? 'angled' : 'overhead'); },
+    setView: camera.setView,
     get view() { return camera.view; } };
 }

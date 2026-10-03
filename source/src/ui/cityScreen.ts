@@ -1,6 +1,7 @@
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
+import type { CityView } from '../city/cityCamera';
 import { generateCity, streetActions, streetNames, streetBetween } from '../city/proceduralCity';
 import type { Theme } from '../app/theme';
 import type { ArtBot } from '../robot/botHistory';
@@ -28,8 +29,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     </header>
     <div class="city-map">
       <canvas id="city-canvas" role="img" aria-label="A monochrome generated city with pitched roofs. Junctions join streets; raised bridges cross the river. Draw a continuous route from Workshop to the Duet studio. The robot follows only your drawn line."></canvas>
-      <div class="city-view-tools" role="group" aria-label="Map view">
-        <button id="city-view-toggle" type="button">3D view</button>
+      <div class="city-map-actions" role="group" aria-label="Map controls">
         <button id="city-map-fit" type="button">Fit map</button>
       </div>
       <section id="studio-track" class="studio-track" aria-label="Your duet track" hidden>
@@ -42,6 +42,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
     <aside class="city-plan" aria-label="Route and city changes">
+      <div class="city-view-tools" role="group" aria-label="City view">
+        <button type="button" data-view="overhead" aria-pressed="true">Map view</button>
+        <button type="button" data-view="angled" aria-pressed="false">3D view</button>
+        <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
+        <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
+      </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
       <h2 id="city-heading" tabindex="-1">Plan your route</h2>
       <p id="journey-status" role="status" aria-live="polite">Draw from Workshop to the Duet studio.</p>
@@ -103,7 +109,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     if (!city) return;
     stopTrack(); finished = null; studioStarted = false; studioPreparing = false; get('studio-track').hidden = true;
     delete container.dataset.studioPerformance;
-    setText('city-view-toggle', '3D view');
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot); renderer = new AsyncPaintingRenderer(creation.painting);
     city.journey.machine.run.creative = { seed: creation.seed, bpm: creation.bpm, music: creation.music, art: true, harmony: false, colour: false, artist: structuredClone(creation.artist), score: creation.score, marks: creation.marks };
     eventCursor = city.journey.machine.record.events.length; lastPaint = performance.now();
@@ -126,8 +131,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     get<HTMLButtonElement>('city-tool-route').disabled = !j.ready;
     get('city-tool-route').setAttribute('aria-pressed', String(mode === 'route'));
     get('city-tool-edit').setAttribute('aria-pressed', String(mode === 'edit'));
-    for (const id of ['city-view-toggle', 'city-map-fit', 'city-tool-edit']) get<HTMLButtonElement>(id).disabled = j.complete;
-    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete;
+    for (const id of ['city-map-fit', 'city-tool-edit']) get<HTMLButtonElement>(id).disabled = j.complete;
+    container.dataset.cityView = city.view;
+    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-view]')) {
+      button.disabled = j.complete;
+      button.setAttribute('aria-pressed', String(button.dataset.view === city.view));
+    }
+    const canPan = city.view === 'overhead' || city.view === 'angled';
+    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
     pause.disabled = j.ready ? !j.canStart : j.complete;
     pause.textContent = j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Resume robot' : 'Pause robot';
     get<HTMLButtonElement>('city-restart').disabled = j.ready;
@@ -244,8 +255,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   get('city-undo').addEventListener('click', () => { if (city?.journey.undoRepair()) { city.sync(); feedback('City change undone.'); refresh(); } });
   get('city-restart').addEventListener('click', () => { if (!city) return; sounds.stop(); city.journey.restart(); city.journey.clearRoute(); beginCreation(); plan.scrollTop = 0; selected = null; mode = 'route'; routeKey = ''; panelKey = ''; lastBlock = null; city.sync(); feedback('City changes kept. Draw a different line.'); refresh(); });
   get('city-new').addEventListener('click', newCity);
-  get('city-view-toggle').addEventListener('click', () => { city?.toggleView(); setText('city-view-toggle', city?.view === 'angled' ? 'Map view' : '3D view'); });
-  get('city-map-fit').addEventListener('click', () => { city?.fit(); setText('city-view-toggle', '3D view'); });
+  container.querySelector('.city-view-tools')!.addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-view]') : null;
+    if (!button || button.disabled || !city) return;
+    city.setView(button.dataset.view as CityView);
+    refresh();
+  });
+  get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
   container.querySelector('.city-map-buttons')!.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-map]') : null;
     if (!button || button.disabled || !city) return;
