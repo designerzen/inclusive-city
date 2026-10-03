@@ -4,6 +4,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import type { RobotProfile } from './functions';
 import { defaultAppearance } from './appearance';
 import type { RobotAppearance } from './appearance';
@@ -85,6 +86,21 @@ export function createRobot(scene: Scene) {
     return star;
   });
   box('chest-light', [0.4, 0.25, 0.08], [0, 0.85, -0.47], eyes);
+  box('art-bot-badge', [1.2, 0.34, 0.08], [0, 1.28, -0.47], dark);
+  // Canvas textures are available in rendered scenes; NullEngine has no canvas.
+  if (scene.getEngine().getRenderingCanvas()) {
+    const texture = new DynamicTexture('art-bot-lettering', { width: 512, height: 128 }, scene, false);
+    texture.drawText('ART BOT', null, 94, 'bold 88px sans-serif', '#ffe6a5', '#173e45', true);
+    const lettering = material('art-bot-lettering', '#ffffff');
+    lettering.diffuseTexture = texture;
+    lettering.emissiveTexture = texture;
+    lettering.disableLighting = true;
+    const label = MeshBuilder.CreatePlane('art-bot-label', { width: 1.12, height: 0.28 }, scene);
+    label.parent = upperBody;
+    label.position.set(0, 1.28, -0.515);
+    label.material = lettering;
+    label.isPickable = false;
+  }
   box('neck', [0.4, 0.3, 0.4], [0, 1.65, 0], dark);
   const shoulders = [-1, 1].map(side => {
     const pivot = new TransformNode(`shoulder-${side}`, scene);

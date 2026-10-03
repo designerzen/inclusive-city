@@ -20,7 +20,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <button type="button" id="reset-abilities">Reset abilities</button></div>
     <section class="function-designer" aria-labelledby="functions-heading">
       <h3 id="functions-heading">Active functions <span id="function-count">3 / 5 enabled</span></h3>
-      <p class="control-hint">Three functions stay on. Switching one changes another; the hint below each function tells you which.</p>
+      <p class="control-hint">Pick 3 abilities for your robot.</p>
       <div class="function-list">${robotFunctions.map(item => `
         <div class="function-item">
           <div class="function-row"><div><h3 id="function-label-${item.id}">${item.label}</h3>

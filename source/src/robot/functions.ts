@@ -7,8 +7,8 @@ export const robotFunctions = [
   { id: 'movement', label: 'Movement', description: 'Powered movement along city routes.', support: 'Without a drive, accessible transport and assisted movement will help.' },
   { id: 'vision', label: 'Vision', description: 'Visual signs, landmarks and surroundings.', support: 'Without vision, audio and tactile route cues will help.' },
   { id: 'hearing', label: 'Hearing', description: 'Spoken directions and sound signals.', support: 'Without hearing, visual and tactile information will help.' },
-  { id: 'memory', label: 'Route memory', description: 'Remembering directions between landmarks.', support: 'Without route memory, repeated signs and reminders will help.' },
-  { id: 'balance', label: 'Balance assistance', description: 'Active stabilisation on uneven surfaces.', support: 'Without stabilisation, smooth paving and level routes will help.' },
+  { id: 'memory', label: 'Memory', description: 'Remembering directions between landmarks.', support: 'Without route memory, repeated signs and reminders will help.' },
+  { id: 'balance', label: 'Balance', description: 'Active stabilisation on uneven surfaces.', support: 'Without stabilisation, smooth paving and level routes will help.' },
 ] as const;
 
 export type FunctionId = typeof robotFunctions[number]['id'];

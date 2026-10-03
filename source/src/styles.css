@@ -68,7 +68,7 @@ body { margin: 0; }
 .attract-copy { padding: 38px 0; }
 .attract-eyebrow { display: flex; align-items: center; gap: 9px; color: #d5a5e9; font-size: 0.625rem; letter-spacing: .22em; font-weight: 650; }
 .attract-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: #d5a5e9; box-shadow: 0 0 12px #d5a5e966; }
-.attract-copy h1 { position: relative; display: inline-block; margin: 18px 0 22px; font-size: clamp(5.625rem, 11.8vw, 10.875rem); line-height: .8; letter-spacing: -.085em; font-weight: 900; color: #f4f0e6; }
+.attract-copy h1 { position: relative; display: inline-block; margin: 18px 0 22px; font-size: clamp(2.2rem, 5.4vw, 5.2rem); line-height: .98; letter-spacing: -.065em; font-weight: 900; color: #f4f0e6; }
 .attract-title-bot { color: #cefa76; }
 .attract-title-star { position: absolute; top: 4px; right: -68px; color: #f7a2cd; font-size: 4.75rem; font-weight: 400; animation: attract-star 16s linear infinite; }
 .attract-tagline { margin: 10px 0 28px; color: #d0cfda; font-size: clamp(1.125rem, 2vw, 1.5rem); line-height: 1.45; letter-spacing: -.035em; }
@@ -132,7 +132,7 @@ button.attract-enter:hover { transform: translateY(-3px); background: #e2ffa7; b
   .attract-brand { font-size: 0.5625rem; gap: 8px; }
   .attract-layout { grid-template-columns: 1fr; gap: 0; min-height: auto; }
   .attract-copy { padding: 42px 0 12px; z-index: 4; }
-  .attract-copy h1 { font-size: clamp(5.875rem, 24vw, 9.0625rem); margin: 16px 0; }
+  .attract-copy h1 { font-size: clamp(1.9rem, 8.5vw, 3.4rem); margin: 16px 0; }
   .attract-tagline { font-size: 1.0625rem; margin: 12px 0 20px; }
   .attract-stage { height: 340px; margin-top: -10px; }
   .attract-sticker-groove { width: 72px; height: 72px; font-size: 0.625rem; top: 13%; }
