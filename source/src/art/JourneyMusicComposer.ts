@@ -5,7 +5,8 @@ import { magentaAccompaniment } from '../audio/MagentaAccompaniment';
 import type { AccompanimentProvider } from '../audio/magentaProtocol';
 import { magentaBackingNotes } from '../audio/magentaScore';
 
-interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean }
+export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
+interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; expression?: JourneyExpression }
 type Voice = Partial<SoundScore['voice']>;
 /** Scale degree, beat position, beat length. Original motifs, never song quotations. */
 type Figure = readonly (readonly [number, number, number])[];
@@ -116,7 +117,7 @@ export class JourneyMusicComposer {
     const transpose = ((this.seed >>> 5) % 12) - 5;
     const tonicRoot = root;
     root += transpose;
-    if (data.blocked) { root = 57; minor = true; }
+    if (data.blocked) { root = 57 + transpose; minor = true; }
     const third = minor ? 3 : 4;
     const scale = style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
       : style === 'folk' ? [0, minor ? 3 : 2, minor ? 5 : 4, 7, minor ? 10 : 9, 12, 14]
@@ -212,6 +213,46 @@ export class JourneyMusicComposer {
         if (backing.length) add('magenta-countermelody', { waveform: 'triangle', gain: .09, pan: -.3, cutoff: 1500, attack: .025, release: .2 }, backing);
       }
     }
+    if (data.expression) {
+      const expression = data.expression;
+      const energy = expression.moving ? .9 + Math.min(1, expression.speed / 3) * .2 : data.blocked ? .55 : .45;
+      for (const entry of result) {
+        entry.score.voice.gain *= energy;
+        entry.score.voice.cutoff *= expression.moving ? 1 + Math.abs(expression.slope) * .5 : .7;
+        entry.score.voice.pan = Math.max(-.4, Math.min(.4, expression.turning * .3));
+      }
+      // A full-measure chord bridges sparse genre motifs, including when waiting or stuck.
+      add('city-bed', { waveform: 'sine', gain: .09, attack: .18, sustain: .6, release: .5,
+        cutoff: data.blocked ? 750 : 1200, echoGain: .12, echoTime: beat / 2 },
+      notes([0, third, 7, data.harmony ? 14 : 12].map(interval => [interval, 0, this.beats]), root - 12));
+      if (expression.moving) add('travel-pulse', { waveform: 'triangle', gain: .08, attack: .003,
+        decay: .04, sustain: .1, release: .08, cutoff: 1100, echoGain: .04 },
+      notes(regular([0, 7, third, 7], this.beats, .16), root));
+    }
     return result;
+  }
+
+  /** Short chord-tone answers on the same beat grid as the ongoing arrangement. */
+  react(kind: string, data: Phrase, direction = 0): SoundSequenceEntry {
+    const arrangement = this.compose({ ...data, expression: undefined, harmony: true });
+    const chord = arrangement.find(entry => entry.label?.includes(':harmony:'))!.score.notes;
+    const pitches = [...new Set(chord.map(note => note.midi))].slice(0, 3).map(midi => midi + 12);
+    const figures: Record<string, number[]> = {
+      step: [0, 2], turn: direction < 0 ? [2, 1, 0] : [0, 1, 2],
+      climb: [0, 1, 2, 3], descend: [3, 2, 1, 0], blocked: [2, 1, 1],
+      intervention: [0, 2, 3, 4], pickup: [0, 1, 2, 4], achievement: [0, 2, 4, 5],
+      arrived: [0, 1, 2, 3, 4, 5], segment: [2, 0], exploration: [0, 2, 1],
+      city_edit: [1, 2], journey_started: [0, 1, 2], journey_ended: [2, 1, 0],
+      state_changed: data.expression?.paused ? [2, 1, 0] : [0, 2, 3],
+    };
+    const beat = 60 / this.bpm;
+    const score = new SoundEffect({ ...recipes[this.style].voice, gain: kind === 'step' ? .055 : .12,
+      attack: .008, release: kind === 'blocked' ? .4 : .2, pan: Math.max(-.6, Math.min(.6, direction * .6)),
+      echoTime: beat / 2, echoGain: .16, vibratoDepth: kind === 'blocked' ? 9 : 2 }).toScore();
+    score.notes = (figures[kind] ?? [0, 2]).map((degree, i) => ({
+      midi: pitches[degree % pitches.length]! + Math.floor(degree / pitches.length) * 12,
+      start: i * beat / 4, duration: beat * (kind === 'step' ? .16 : .35),
+    }));
+    return { at: data.at, score, label: `journey:action:${kind}` };
   }
 }

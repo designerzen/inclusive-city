@@ -74,12 +74,11 @@ export class CitySounds {
     // This timer only releases bookkeeping; every audible note uses the audio clock.
     setTimeout(() => this.active.delete(handle), (delay + effect.duration + 0.1) * 1000);
   }
-  perform(sequence: readonly SoundSequenceEntry[]): MusicPlayback | undefined {
+  perform(sequence: readonly SoundSequenceEntry[], origin = sequence[0]?.at ?? 0): MusicPlayback | undefined {
     if (this.disposed || !sequence.length || !this.context || !this.master || this.muted || document.hidden) return;
-    const origin = sequence[0]!.at;
     const context = this.context;
     const when = context.currentTime + 0.05;
-    const audio = this.schedule(sequence.map(entry => ({ ...entry, at: entry.at - origin })), when);
+    const audio = this.schedule(sequence.map(entry => ({ ...entry, at: Math.max(0, entry.at - origin) })), when);
     const duration = Math.max(...sequence.map(entry => entry.at - origin + SoundEffect.fromScore(entry.score).duration));
     let stopped = false, elapsed = 0;
     const handle: MusicPlayback = {

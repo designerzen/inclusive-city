@@ -53,9 +53,9 @@ test('creative personalities survive city entry and generate reproducible export
     for (const entry of phrase) assert.deepEqual(SoundEffect.fromScore(entry.score).toScore(), entry.score);
     if (preset.id === 'donk') {
       assert.equal(a.bpm, 140);
-      assert.equal(phrase.length, 3);
-      assert.equal(phrase[1]!.score.notes.length, 4);
-      assert.ok(phrase[2]!.label!.includes('donk-bass'));
+      assert.equal(phrase.find(entry => entry.label?.includes('techno-kick'))!.score.notes.length, 4);
+      assert.ok(phrase.some(entry => entry.label?.includes('donk-bass')));
+      assert.ok(phrase.some(entry => entry.label?.includes('city-bed')));
     }
     assert.deepEqual(JSON.parse(JSON.stringify(bot.record)).metadata.creative, bot.creative);
   }

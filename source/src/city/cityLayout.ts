@@ -31,7 +31,7 @@ export const cityPickups = [
 ] as const;
 
 export const cityPowerups = [
-  { id: 'music-seed', node: 0, kind: 'music', label: 'Melody spark', description: 'Starts your robot’s journey music', colour: '#b6a1ec', path: [{ x: -18, y: 0.14, z: -15 }, { x: -18, y: 0.14, z: -16 }] },
+  { id: 'music-seed', node: 0, kind: 'music', label: 'Melody spark', description: 'Adds a melodic flourish to your robot’s journey music', colour: '#b6a1ec', path: [{ x: -18, y: 0.14, z: -15 }, { x: -18, y: 0.14, z: -16 }] },
   { id: 'art-seed', node: 0, kind: 'art', label: 'Drawing spark', description: 'Enriches the painting with expressive brushwork', colour: '#f59482', path: [{ x: -24, y: 0.14, z: -15 }, { x: -24, y: 0.14, z: -16 }] },
   { id: 'harmony-seed', node: 5, kind: 'harmony', label: 'Harmony bloom', description: 'Adds chords and bass to the music', colour: '#81c5ee', path: [{ x: -2, y: 0.14, z: -4 }, { x: -2, y: 0.14, z: -6 }] },
   { id: 'colour-seed', node: 9, kind: 'colour', label: 'Colour prism', description: 'Adds colour and geometric marks to the drawing', colour: '#f3c76b', path: [{ x: 10, y: 0.94, z: 6 }, { x: 11, y: 0.94, z: 6 }] },

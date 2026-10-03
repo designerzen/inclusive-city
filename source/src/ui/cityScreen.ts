@@ -10,7 +10,6 @@ import type { CitySounds } from '../audio/CitySounds';
 import type { ScreenSpeech } from '../audio/ScreenSpeech';
 import { JourneyCreativity } from '../art/JourneyCreativity';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
-import { SoundEffect } from '../audio/SoundEffect';
 import type { MusicPlayback } from '../audio/CitySounds';
 import { musicDuration } from '../art/finishedJourney';
 import { captureFinishedJourney } from '../art/finishedJourney';
@@ -18,7 +17,7 @@ import type { FinishedJourney } from '../art/finishedJourney';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
-    <h1 class="sr-only">Get your ArtBot to the duet studio</h1>
+    <h1 class="sr-only">Get your ArtBot to the studio</h1>
     <header class="city-toolbar">
       <div class="city-identity"><strong id="city-bot-name"></strong><span id="city-seed"></span></div>
       <div class="city-tools" role="group" aria-label="City tools">
@@ -96,8 +95,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
   let finished: FinishedJourney | null = null, playback: MusicPlayback | undefined;
   let studioStarted = false, studioPreparing = false, trackElapsed = 0;
+  let cityMusicTime = 0, lastMusicFrame = performance.now();
+  let stopArrivalBed: (() => void) | undefined;
   const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
   function stopTrack(reset = true) {
+    stopArrivalBed?.(); stopArrivalBed = undefined;
     trackElapsed = reset ? 0 : playback?.elapsed() ?? trackElapsed;
     playback?.stop(); playback = undefined; city?.setSinging(false); city?.stopDancing();
     get<HTMLButtonElement>('studio-track-stop').disabled = true;
@@ -118,6 +120,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     stopTrack(); finished = null; studioStarted = false; studioPreparing = false; get('studio-track').hidden = true;
     delete container.dataset.studioPerformance;
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot); renderer = new AsyncPaintingRenderer(creation.painting);
+    cityMusicTime = 0; lastMusicFrame = performance.now();
     city.journey.machine.run.creative = { seed: creation.seed, bpm: creation.bpm, music: creation.music, art: true, harmony: false, colour: false, artist: structuredClone(creation.artist), score: creation.score, marks: creation.marks };
     eventCursor = city.journey.machine.record.events.length; lastPaint = performance.now();
   }
@@ -129,9 +132,20 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   function selectStreet(id: string) {
     if (!city) return;
     selected = id;
-    if (!city.journey.ready && !city.journey.complete && !city.journey.blocked) { city.journey.setPaused(true); sounds.stop(); }
+    if (!city.journey.ready && !city.journey.complete && !city.journey.blocked) city.journey.setPaused(true);
     mode = 'edit'; plan.scrollTop = 0; streetSelect.value = id; city.highlight(id); panelKey = ''; refresh();
   }
+  function updateCityMusic() {
+    const now = performance.now();
+    if (!active || document.hidden || !city || !creation || finished || studioPreparing) { lastMusicFrame = now; return; }
+    cityMusicTime += Math.max(0, (now - lastMusicFrame) / 1000);
+    lastMusicFrame = now;
+    const j = city.journey;
+    creation.observeMotion(city.musicPosition, j.heading, cityMusicTime, j.ready || j.paused);
+    sounds.perform(creation.advance(cityMusicTime, false, j.complete), cityMusicTime);
+  }
+  // Audio keeps its beat even when rendering is slow or animation frames are throttled.
+  const musicTimer = window.setInterval(updateCityMusic, 50);
   function refresh() {
     if (!city) return;
     const j = city.journey;
@@ -216,8 +230,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     for (const event of j.machine.record.events.slice(eventCursor)) creation?.consume(event);
     eventCursor = j.machine.record.events.length;
     if (creation) {
-      const time = j.machine.record.clock - j.machine.run.startedAt - j.metrics.pausedSeconds;
-      if (!j.complete) for (const phrase of creation.advance(time, j.ready || j.paused || !!j.blocked)) sounds.play(SoundEffect.fromScore(phrase.score), phrase.label!);
+      updateCityMusic();
       Object.assign(j.machine.run.creative!, { music: creation.music, harmony: creation.harmony, colour: creation.colour });
       const now = performance.now(); renderer?.frame(painting, (now - lastPaint) / 1000, reducedMotion.matches || j.complete); lastPaint = now;
       setText('painting-strokes', `${creation.marks.length} marks`); setText('painting-action', creation.painting.lastAction);
@@ -225,7 +238,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     if (j.complete && creation && !finished && !studioPreparing) {
       studioPreparing = true;
       const currentCreation = creation, currentCity = city;
-      sounds.stop();
+      const bed = [...creation.score].reverse().find(entry => entry.label?.includes(':city-bed:'));
+      if (bed) stopArrivalBed = sounds.loop([{ ...bed, at: 0 }], (creation.artist.musician === 'waltz' ? 3 : 4) * 60 / creation.bpm);
       setText('journey-status', 'At the studio. Adding new verses and harmonies for our duet.');
       void currentCreation.extendStudioMusic().then(() => {
         if (creation !== currentCreation || city !== currentCity) return;
@@ -253,7 +267,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       }
     }
     const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
-    if (mood !== lastMood) { lastMood = mood; if (!j.ready && !j.complete) sounds.mood(mood); }
+    if (mood !== lastMood) lastMood = mood;
   }
   function newCity() {
     if (!bot || !engine) return;
@@ -285,7 +299,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   streetSelect.addEventListener('change', () => { city?.resizer.finish(false); selectStreet(streetSelect.value); });
   sizeInput.addEventListener('input', () => { if (city && sizeId) { city.resizer.previewSize(sizeId, Number(sizeInput.value)); refresh(); } });
   sizeInput.addEventListener('change', () => { city?.resizer.finish(); sounds.interaction('tap'); panelKey = ''; refresh(); });
-  pause.addEventListener('click', () => { if (!city) return; if (city.journey.ready) { if (city.journey.start()) mode = 'edit'; } else { city.journey.setPaused(!city.journey.paused); if (city.journey.paused) sounds.stop(); } refresh(); });
+  pause.addEventListener('click', () => { if (!city) return; if (city.journey.ready) { if (city.journey.start()) mode = 'edit'; } else city.journey.setPaused(!city.journey.paused); refresh(); });
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
   get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
@@ -372,6 +386,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   }
   window.addEventListener('keydown', escape);
   function visibilityChanged() {
+    lastMusicFrame = performance.now();
     if (document.hidden && playback) { stopTrack(false); setText('studio-track-status', 'Track stopped while you were away. Replay when you return.'); }
   }
   document.addEventListener('visibilitychange', visibilityChanged);
@@ -380,12 +395,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
     suspend() { stopTrack(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
-    resume() { active = true; engine?.resize(); city?.resize(); refresh(); },
+    resume() { active = true; lastMusicFrame = performance.now(); engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       bot = value; robots = remembered; active = true; sounds.unlock();
       if (!engine) { engine = new Engine(canvas, true); engine.runRenderLoop(() => { if (!active || !city || document.hidden) return; city.update(Math.min(.1, engine!.getDeltaTime() / 1000)); refresh(); city.scene.render(); }); }
       newCity();
     },
-    dispose() { stopTrack(); active = false; observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
+    dispose() { stopTrack(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
   };
 }

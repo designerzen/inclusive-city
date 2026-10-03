@@ -61,8 +61,9 @@ test('every musician produces a distinct valid reproducible score within its mea
     const sad = composer.compose({ ...data, blocked: true, harmony: true });
     const harmony = sad.find(entry => entry.label!.includes('harmony'))!;
     const pitches = harmony.score.notes.map(note => note.midi);
-    assert.ok(pitches.includes(48)); // A minor's C: root A2 (45) + minor third.
-    assert.ok(!pitches.includes(49));
+    const root = 45 + ((42661 >>> 5) % 12) - 5;
+    assert.ok(pitches.includes(root + 3));
+    assert.ok(!pitches.includes(root + 4));
   }
   assert.equal(phrases.size, musicianStyles.length);
 });
@@ -80,7 +81,8 @@ test('artist settings survive cached robot navigation, city records, and ability
   creation.music = true;
   assert.equal(creation.advance(0).length > 0, true);
   const nextBar = 3 * 60 / creation.bpm;
-  assert.deepEqual(creation.advance(nextBar - .01), []);
-  assert.ok(creation.advance(nextBar).length > 0);
+  assert.deepEqual(creation.advance(nextBar - .2), []);
+  assert.ok(creation.advance(nextBar - .1).length > 0);
+  assert.deepEqual(creation.advance(nextBar), []);
   assert.deepEqual(normaliseArtist({ painter: 'unknown' as any, musician: 'unknown' as any }), { painter: 'impressionist', musician: 'melodic' });
 });

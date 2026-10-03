@@ -233,6 +233,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     console.warn('City physics could not be loaded; using route movement.', error);
   });
   return { scene, journey, update, sync, setTheme, nodeAt, streetAt, projectNode, highlight,
+    get musicPosition() { const p = physics?.position ?? journey.position; return { x: p.x, y: p.y, z: p.z }; },
     physicsReady, get physicsStatus() { return physicsStatus; },
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },
     resize: () => camera.update(), setZoom: camera.setZoom, pan: camera.pan, fit: camera.fit,

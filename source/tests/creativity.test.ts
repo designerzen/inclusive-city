@@ -64,11 +64,12 @@ test('detours preserve distance and pickup times across simulation tick sizes', 
   assert.ok(creation.marks.some(mark => mark.shape === 'diamond'));
 });
 
-test('creative modes unlock from collection and respond reproducibly to robot identity and route', () => {
+test('music starts immediately and discoveries enrich reproducible robot and route expression', () => {
   const original = bot();
   const j = new CityJourney(original);
   const a = new JourneyCreativity(original), b = new JourneyCreativity(structuredClone(original));
-  assert.deepEqual(a.advance(0), []);
+  assert.ok(a.advance(0).some(entry => entry.label?.includes('city-bed')));
+  b.advance(0);
   j.explore('music-seed'); j.explore('art-seed');
   j.update(100);
   for (const event of j.events) { a.consume(event); b.consume(JSON.parse(JSON.stringify(event))); }
@@ -90,6 +91,6 @@ test('creative modes unlock from collection and respond reproducibly to robot id
   j.explore('harmony-seed'); j.update(100);
   for (const event of j.events) a.consume(event);
   assert.equal(a.harmony, true);
-  assert.equal(a.advance(100).length, 2);
+  assert.ok(a.advance(100).some(entry => entry.label?.includes(':harmony:')));
   assert.deepEqual(JSON.parse(JSON.stringify(a.score)), a.score);
 });

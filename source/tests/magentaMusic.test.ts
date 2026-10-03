@@ -24,7 +24,7 @@ test('AI follows chord, tempo and bar limits, preserves the lead, and remains re
   const fallback = new JourneyMusicComposer('jazz', 42661, 50, { get: () => undefined }).compose(phrase);
   assert.deepEqual(result.filter(e => e !== entry), fallback);
   c.compose({ ...phrase, blocked: true });
-  assert.equal(request!.chord, 'Am7');
+  assert.equal(request!.chord, 'Fm7'); // Tension preserves this robot's transposed key.
 });
 
 test('unavailable models preserve music; styles with defining rhythms never request AI', () => {

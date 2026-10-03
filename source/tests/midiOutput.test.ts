@@ -119,11 +119,15 @@ test('robot cues and replay translate the same audio start into the performance 
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { hidden: false } });
   t.after(() => { (sounds as any).context = null; sounds.dispose(); if (descriptor) Object.defineProperty(globalThis, 'document', descriptor); else Reflect.deleteProperty(globalThis, 'document'); });
-  const audioStarts: number[] = []; const midiStarts: number[] = [];
-  t.mock.method(SoundEffect, 'scheduleSequence', (_context, _destination, _sequence, when) => { audioStarts.push(when!); return { stop() {} }; });
+  const audioStarts: number[] = []; const midiStarts: number[] = []; const offsets: number[][] = [];
+  t.mock.method(SoundEffect, 'scheduleSequence', (_context, _destination, sequence, when) => { audioStarts.push(when!); offsets.push(sequence.map(entry => entry.at)); return { stop() {} }; });
   t.mock.method(sounds.midi, 'schedule', (_sequence, when) => { midiStarts.push(when); return { stop() {} }; });
   sounds.mood('happy'); sounds.perform([{ ...phrase()[0]!, at: 5 }]);
   assert.deepEqual(audioStarts, [10.015, 10.05]);
   assert.ok(Math.abs(midiStarts[0]! - 1035) < .001);
   assert.ok(Math.abs(midiStarts[1]! - 1070) < .001);
+  sounds.perform([{ ...phrase()[0]!, at: 5.1 }, { ...phrase()[0]!, at: 5.4 }], 5);
+  assert.ok(Math.abs(offsets[2]![0]! - .1) < 1e-8);
+  assert.ok(Math.abs(offsets[2]![1]! - .4) < 1e-8);
+  assert.ok(Math.abs(midiStarts[2]! - 1070) < .001);
 });

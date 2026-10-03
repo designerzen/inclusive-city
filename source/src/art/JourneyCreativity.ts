@@ -3,6 +3,7 @@ import type { ArtBot } from '../robot/botHistory';
 import { normaliseArtist } from './artistStyles';
 import type { ArtistPreferences } from './artistStyles';
 import { JourneyMusicComposer } from './JourneyMusicComposer';
+import type { JourneyExpression } from './JourneyMusicComposer';
 import type { RobotEvent } from '../robot/robotState';
 import { PaintingRenderer, ProceduralPainting } from './ProceduralPainting';
 import type { PaintStroke } from './ProceduralPainting';
@@ -13,7 +14,7 @@ export type ArtMark = PaintStroke;
 export class JourneyCreativity {
   readonly seed: number;
   readonly bpm: number;
-  music = false;
+  music = true;
   art = true;
   harmony = false;
   colour = false;
@@ -26,6 +27,12 @@ export class JourneyCreativity {
   private edge = 0;
   private blocked = false;
   private lastSequence = 0;
+  private expression: JourneyExpression = { moving: false, turning: 0, slope: 0, paused: false, speed: 0 };
+  private pending = new Map<string, number>();
+  private previousMotion: { position: RobotEvent['position']; heading: number; time: number } | null = null;
+  private lastTurn = -Infinity;
+  private lastSlope = -Infinity;
+  private scheduledHarmony: { at: number; phrase: number; blocked: boolean }[] = [];
   readonly artist: ArtistPreferences;
   private readonly composer: JourneyMusicComposer;
 
@@ -40,7 +47,6 @@ export class JourneyCreativity {
     this.seed = seed;
     this.composer = new JourneyMusicComposer(this.artist.musician, seed, bot.profile.abilities.speed);
     this.bpm = this.composer.bpm;
-    this.music = bot.creative?.medium === 'music';
     this.composer.prepareAccompaniment();
     this.painting = new ProceduralPainting(seed, bot.appearance.width, bot.creative?.artStyle ?? this.artist.painter);
   }
@@ -49,9 +55,15 @@ export class JourneyCreativity {
     if (event.sequence <= this.lastSequence) return;
     this.lastSequence = event.sequence;
     this.painting.consume(event);
+    // Coalesce repeated events within one frame; the phrase still reflects every state change.
+    this.pending.set(event.type, 0);
     this.edge = event.edge;
     if (event.type === 'blocked') this.blocked = true;
     if (event.type === 'intervention') this.blocked = false;
+    if (event.type === 'state_changed') {
+      this.blocked = event.state === 'blocked';
+      this.expression.paused = event.state === 'paused';
+    }
     if (event.type === 'pickup') {
       const kind = event.data.kind;
       if (kind === 'music' || kind === 'harmony') {
@@ -67,19 +79,57 @@ export class JourneyCreativity {
     }
   }
 
-  /** Time excludes paused time. Returns only newly composed phrases, with saved logical offsets. */
-  advance(time: number, paused = false): SoundSequenceEntry[] {
+  /** Actual rendered travel includes turning in place and the physics body's ramp height. */
+  observeMotion(position: RobotEvent['position'], heading: number, time: number, paused = false) {
+    const previous = this.previousMotion;
+    this.previousMotion = { position: { ...position }, heading, time };
+    this.expression.paused = paused;
+    if (!previous || time <= previous.time) return;
+    const elapsed = time - previous.time;
+    const distance = Math.hypot(position.x - previous.position.x, position.z - previous.position.z);
+    const turn = Math.atan2(Math.sin(heading - previous.heading), Math.cos(heading - previous.heading));
+    const slope = distance > .001 ? (position.y - previous.position.y) / distance : 0;
+    this.expression = { paused, moving: !paused && (distance > .001 || Math.abs(turn) > .001),
+      speed: distance / elapsed, turning: Math.max(-1, Math.min(1, turn / elapsed)), slope: Math.max(-1, Math.min(1, slope)) };
+    if (Math.abs(turn) > .005 && time - this.lastTurn > .65) {
+      this.pending.set('turn', Math.sign(turn)); this.lastTurn = time;
+    }
+    if (Math.abs(slope) > .06 && time - this.lastSlope > .8) {
+      this.pending.set(slope > 0 ? 'climb' : 'descend', 0); this.lastSlope = time;
+    }
+  }
+
+  /** City music time keeps running while the robot waits. Look ahead to avoid gaps between bars. */
+  advance(time: number, paused = false, ending = false): SoundSequenceEntry[] {
     if (!this.music || paused || !Number.isFinite(time)) return [];
     const length = this.composer.beats * 60 / this.bpm;
     if (this.nextPhrase === null) this.nextPhrase = time;
     // Skip unseen measures after an interruption; never emit a catch-up burst.
     if (time - this.nextPhrase > length) this.nextPhrase = time;
-    if (time + 1e-8 < this.nextPhrase) return [];
-    const at = this.nextPhrase;
-    this.nextPhrase += length;
-    const result = this.composer.compose({ at, phrase: this.phrase, steps: this.steps, edge: this.edge, blocked: this.blocked, harmony: this.harmony });
-    this.phrase++;
+    const result: SoundSequenceEntry[] = [];
+    if (!ending && time + .15 >= this.nextPhrase) {
+      const at = this.nextPhrase;
+      this.nextPhrase += length;
+      result.push(...this.composer.compose({ at, phrase: this.phrase, steps: this.steps, edge: this.edge,
+        blocked: this.blocked, harmony: this.harmony, expression: this.expression }));
+      this.phrase++;
+      this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked });
+      this.scheduledHarmony = this.scheduledHarmony.slice(-2);
+    }
+    const beat = 60 / this.bpm;
+    const barStart = this.nextPhrase - length;
+    const at = barStart + Math.ceil((time - barStart) / (beat / 2)) * (beat / 2);
+    const activeHarmony = [...this.scheduledHarmony].reverse().find(bar => bar.at <= at + 1e-8);
+    const phrase = activeHarmony?.phrase ?? Math.max(0, this.phrase - 1);
+    for (const [kind, direction] of this.pending) result.push(this.composer.react(kind, {
+      at: Math.max(time, at), phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
+      harmony: this.harmony, expression: this.expression,
+    }, direction));
+    this.pending.clear();
+    if (!result.length) return result;
+    result.sort((a, b) => a.at - b.at);
     this.score.push(...structuredClone(result));
+    this.score.sort((a, b) => a.at - b.at);
     return result;
   }
 
@@ -103,7 +153,7 @@ export class JourneyCreativity {
     const measure = this.composer.beats * 60 / this.bpm;
     const first = this.score[0]!.at;
     const last = Math.max(...this.score.map(entry => entry.at));
-    const bars = Math.round((last - first) / measure) + 1;
+    const bars = Math.floor((last - first) / measure + 1e-8) + 1;
     const verses = await this.composer.studioVerses(first + bars * measure, bars, this.steps, this.edge);
     this.score.push(...structuredClone(verses));
     this.harmony = true;

@@ -8,6 +8,7 @@ import { SoundEffect } from '../src/audio/SoundEffect';
 import { BotHistory } from '../src/robot/botHistory';
 import { createRobotProfile, defaultFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
+import type { RobotEvent, RobotEventType } from '../src/robot/robotState';
 
 const phrase = { at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: false };
 
@@ -85,6 +86,63 @@ test('designer audition and city composition use the same robot key and motif', 
   creativity.music = true;
   const preview = creativity.previewMusic();
   const live = creativity.advance(0);
-  assert.deepEqual(live[0]!.score, preview[0]!.score);
-  assert.deepEqual(live.find(entry => entry.label === 'journey:bass:0'), preview.find(entry => entry.label === 'journey:bass:0'));
+  assert.deepEqual(live[0]!.score.notes, preview[0]!.score.notes);
+  assert.deepEqual(live.find(entry => entry.label === 'journey:bass:0')!.score.notes, preview.find(entry => entry.label === 'journey:bass:0')!.score.notes);
+});
+
+test('all genres have an uninterrupted bed and distinct, valid chord-matched action responses', () => {
+  const actions = ['step', 'turn', 'climb', 'descend', 'blocked', 'intervention', 'pickup', 'achievement',
+    'arrived', 'segment', 'exploration', 'city_edit', 'journey_started', 'journey_ended', 'state_changed'];
+  for (const style of musicianStyles) {
+    const composer = new JourneyMusicComposer(style.id, 42661, 50, { get: () => undefined });
+    const data = { ...phrase, expression: { moving: false, turning: 0, slope: 0, paused: true, speed: 0 } };
+    const idle = composer.compose(data);
+    const bed = idle.find(entry => entry.label?.includes('city-bed'))!;
+    assert.equal(bed.score.notes[0]!.duration, composer.beats * 60 / composer.bpm);
+    const moving = composer.compose({ ...data, expression: { ...data.expression, moving: true, paused: false, speed: 2 } });
+    assert.ok(moving.some(entry => entry.label?.includes('travel-pulse')));
+    assert.ok(moving[0]!.score.voice.gain > idle[0]!.score.voice.gain);
+    const chord = composer.compose({ ...data, harmony: true }).find(entry => entry.label?.includes(':harmony:'))!;
+    const classes = new Set(chord.score.notes.map(note => note.midi % 12));
+    for (const action of actions) {
+      const entry = composer.react(action, data);
+      assert.deepEqual(SoundEffect.fromScore(entry.score).toScore(), entry.score);
+      assert.ok(entry.score.notes.every(note => classes.has(note.midi % 12)), `${style.id}: ${action} follows harmony`);
+    }
+    assert.notDeepEqual(composer.react('turn', data, -1).score, composer.react('turn', data, 1).score);
+    assert.notDeepEqual(composer.react('climb', data).score.notes, composer.react('descend', data).score.notes);
+  }
+});
+
+test('city waiting, motion, obstacles and arrival are recorded once on a continuous musical timeline', () => {
+  const creation = new JourneyCreativity(new BotHistory(['Curie', 'Einstein']).current);
+  const initial = creation.advance(0);
+  assert.ok(initial.some(entry => entry.label?.includes('city-bed')));
+  const event = (type: RobotEventType, sequence: number, state: RobotEvent['state'] = 'following'): RobotEvent => ({
+    type, sequence, state, botId: 1, runId: 1, time: .5, runTime: .5, edge: 0,
+    position: { x: 0, y: 0, z: 0 }, data: type === 'step' ? { step: 1 } : {},
+  });
+  creation.observeMotion({ x: 0, y: 0, z: 0 }, 0, 0);
+  creation.observeMotion({ x: .1, y: .04, z: 0 }, .2, .1);
+  creation.consume(event('step', 1));
+  const travel = creation.advance(.1);
+  for (const kind of ['step', 'turn', 'climb']) assert.ok(travel.some(entry => entry.label === `journey:action:${kind}`));
+  const beat = 60 / creation.bpm;
+  assert.ok(travel.every(entry => Math.abs(entry.at / (beat / 2) - Math.round(entry.at / (beat / 2))) < 1e-8));
+  creation.consume(event('step', 1));
+  assert.deepEqual(creation.advance(.1), []);
+  creation.consume(event('blocked', 2, 'blocked'));
+  assert.ok(creation.advance(.2).some(entry => entry.label === 'journey:action:blocked'));
+  const measure = 4 * beat;
+  assert.ok(creation.advance(measure - .1).some(entry => entry.label?.includes('city-bed')));
+  creation.consume(event('state_changed', 3, 'paused'));
+  assert.ok(creation.advance(measure).some(entry => entry.label === 'journey:action:state_changed'));
+  assert.ok(creation.advance(measure * 2 - .1).some(entry => entry.label?.includes('city-bed')));
+  creation.consume(event('arrived', 4, 'arrived'));
+  assert.ok(creation.advance(measure * 2, false, true).some(entry => entry.label === 'journey:action:arrived'));
+  assert.deepEqual(creation.score, JSON.parse(JSON.stringify(creation.score)));
+  assert.ok(creation.score.every((entry, i, entries) => i === 0 || entry.at >= entries[i - 1]!.at));
+  const before = creation.score.length;
+  creation.advance(100);
+  assert.ok(creation.score.length - before < 10, 'Returning after an interruption never schedules a burst');
 });
