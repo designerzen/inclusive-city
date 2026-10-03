@@ -66,21 +66,24 @@ app.innerHTML = `
         <h1 id="designer-title" tabindex="-1">Meet your artbot</h1>
     </header>
     <div class="designer-layout"><div class="preview-column">
-    <div class="bot-navigation" role="group" aria-label="Art bot navigation"><button id="previous-bot" type="button" title="Show previous art bot" hidden disabled><span aria-hidden="true">←</span> Previous robot</button><button id="randomise-design" type="button" title="Show next art bot">Next robot <span aria-hidden="true">→</span></button><button id="choose-existing" type="button">Browse ready-made robots</button></div>
     <div class="bot-identity">
       <form id="rename-bot"><div class="rename-controls">
         <label for="bot-name-input">Robot name</label>
         <input id="bot-name-input" type="text" required maxlength="60" autocomplete="off" />
         <button id="random-name" type="button">Random name</button>
       </div>
-      <p id="name-status" role="status" aria-live="polite"></p>
+      <p id="name-error" role="status" aria-live="polite"></p>
       </form>
     </div>
+    <div class="robot-carousel" role="group" aria-label="Art bot navigation">
+    <button id="previous-bot" type="button" aria-label="Previous robot" title="Previous robot" disabled><span aria-hidden="true">←</span></button>
     <section class="stage" aria-label="Artbot preview">
       <canvas id="render-canvas" role="img" aria-label="A mint robot with four wheels on a circular workshop platform."></canvas>
       <button id="rotation-toggle" type="button" aria-label="Pause rotation" title="Pause rotation" disabled>Ⅱ</button>
     </section>
-    <div class="designer-next"><button id="enter-city" class="primary-action" type="button">Start!</button></div>
+    <button id="randomise-design" type="button" aria-label="Next robot" title="Next robot"><span aria-hidden="true">→</span></button>
+    </div>
+    <div class="designer-next"><button id="enter-city" class="primary-action" type="button">Start!</button><button id="choose-existing" type="button">Browse ready-made robots</button></div>
     <p id="engine-status" class="sr-only" role="status">Loading preview…</p>
     </div><aside id="ability-designer" aria-label="Robot ability designer"></aside></div>
     </div>
@@ -304,7 +307,7 @@ const designer = mountAbilityDesigner(document.querySelector('#ability-designer'
 }, history.current.profile);
 import.meta.hot?.dispose(() => designer.dispose());
 const nameInput = document.querySelector<HTMLInputElement>('#bot-name-input')!;
-const nameStatus = document.querySelector('#name-status')!;
+const nameError = document.querySelector('#name-error')!;
 const presetDescription = document.querySelector<HTMLParagraphElement>('#preset-description')!;
 const presetPrevious = document.querySelector<HTMLButtonElement>('#preset-previous')!;
 const presetNext = document.querySelector<HTMLButtonElement>('#preset-next')!;
@@ -384,9 +387,8 @@ function showCurrentBot() {
   applyIdentity(history.current.name, history.current.id);
   nameInput.value = history.current.name;
   nameInput.setCustomValidity('');
-  nameStatus.textContent = '';
+  nameError.textContent = '';
   const previousBot = document.querySelector<HTMLButtonElement>('#previous-bot')!;
-  previousBot.hidden = history.count === 1;
   previousBot.disabled = !history.canGoBack;
   describeRobot();
 }
@@ -406,13 +408,13 @@ nameInput.addEventListener('blur', () => {
     nameInput.value = name;
     applyIdentity(name, history.current.id);
     describeRobot();
-    nameStatus.textContent = `Saved as ${name}.`;
+    nameError.textContent = '';
     sounds.unlock();
     sounds.button('save-name');
   } catch (error) {
     nameInput.value = history.current.name;
     nameInput.setCustomValidity('');
-    nameStatus.textContent = `${error instanceof Error ? error.message : 'Enter a name.'} Kept the previous name.`;
+    nameError.textContent = `${error instanceof Error ? error.message : 'Enter a name.'} Kept the previous name.`;
   }
 });
 document.querySelector('#rename-bot')!.addEventListener('submit', event => {
@@ -425,7 +427,7 @@ document.querySelector('#random-name')!.addEventListener('click', () => {
   nameInput.setCustomValidity('');
   applyIdentity(name, history.current.id);
   describeRobot();
-  nameStatus.textContent = `Saved as ${name}.`;
+  nameError.textContent = '';
 });
 showCurrentBot();
 

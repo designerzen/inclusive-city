@@ -34,8 +34,8 @@ button[data-button-icon] > svg, button[data-button-icon] > span[aria-hidden='tru
   #city-street option { min-height: 44px; display: flex; align-items: center; padding: 10px 12px; white-space: normal; overflow-wrap: anywhere; cursor: pointer; border-radius: 6px; }
   #city-street option:is(:hover, :focus, :checked) { background: var(--ui-selected); color: var(--ui-selected-ink); }
 }
-button:is(#options-close, #rotation-toggle, #preset-previous, #preset-next)[data-button-icon] { font-size: 0; }
-button:is(#app-options, #options-close, #rotation-toggle, #preset-previous, #preset-next)[data-button-icon]::before { margin-right: 0; }
+button:is(#options-close, #rotation-toggle, #previous-bot, #randomise-design, #preset-previous, #preset-next)[data-button-icon] { font-size: 0; }
+button:is(#app-options, #options-close, #rotation-toggle, #previous-bot, #randomise-design, #preset-previous, #preset-next)[data-button-icon]::before { margin-right: 0; }
 .workshop:not(.attract-mode) > .sound-controls { display: none; }
 .workshop { position: relative; }
 #app-options { display: inline-flex; align-items: center; gap: 10px; width: auto; height: auto; padding: 10px 14px; border-color: var(--ui-border); }
@@ -52,8 +52,8 @@ button:is(#app-options, #options-close, #rotation-toggle, #preset-previous, #pre
 .designer-introduction h1 { margin: 0 0 12px; font-size: clamp(1.75rem, 4vw, 2.5rem); line-height: 1.15; letter-spacing: -.03em; }
 .designer-introduction > p:last-child { margin: 0; color: var(--ui-muted); line-height: 1.6; font-size: 1rem; }
 .preview-column { top: 20px; }
-.bot-navigation { justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-.bot-navigation button { width: auto; height: auto; padding: 10px 14px; font-size: 0.875rem; }
+.robot-carousel { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 10px; }
+.robot-carousel > button { width: 44px; height: 44px; padding: 0; }
 #randomise-design { margin-left: 0; background: transparent; color: var(--ui-ink); border-color: var(--ui-border); font-weight: 500; }
 #randomise-design:hover { background: #78988d20; }
 #choose-existing { margin: 0; }
@@ -63,12 +63,12 @@ button:is(#app-options, #options-close, #rotation-toggle, #preset-previous, #pre
 #random-name { max-width: 40%; padding: 10px 12px; font-size: 0.875rem; border-color: var(--ui-border); }
 #bot-name-input { border-color: var(--ui-border); }
 .control-hint { font-size: 0.875rem; line-height: 1.55; color: var(--ui-muted); margin: 8px 0 12px; }
-#name-status { color: var(--ui-muted); font-size: 0.875rem; line-height: 1.5; margin: 8px 0; }
-#name-status:empty { display: none; }
+#name-error { color: var(--ui-muted); font-size: 0.875rem; line-height: 1.5; margin: 8px 0; }
+#name-error:empty { display: none; }
 .stage { border-radius: 18px; }
 #render-canvas { height: clamp(260px, 34vh, 340px); }
 #rotation-toggle { bottom: 16px; left: 16px; }
-.designer-next { margin-top: 16px; }
+.designer-next { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
 .workshop :is(#enter-city, #edit-robot, #attract-enter) { position: static; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 16px; padding: 13px 22px; border: 1px solid var(--ui-primary); border-radius: 12px; background: var(--ui-primary); color: var(--ui-primary-ink); font-size: 1rem; font-weight: 700; line-height: 1.4; box-shadow: none; transform: none; }
 .workshop :is(#enter-city, #edit-robot, #attract-enter):hover:enabled { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); transform: none; box-shadow: 0 4px 16px #0002; }
 .workshop #enter-city { width: 100%; }
@@ -170,7 +170,7 @@ button:is(#app-options, #options-close, #rotation-toggle, #preset-previous, #pre
 }
 @media (max-width: 600px) {
   .designer-introduction { margin: 0 0 24px; }
-  .bot-navigation button { padding: 10px 12px; }
+  .robot-carousel { gap: 8px; }
   #ability-designer { padding: 20px 16px; }
   .designer-heading h2 { font-size: 1.25rem; }
   #render-canvas { height: 300px; }
