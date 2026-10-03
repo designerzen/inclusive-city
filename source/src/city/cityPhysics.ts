@@ -11,7 +11,7 @@ import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { robotFootprint } from './proceduralCity';
 
-/** Static box colliders and one capsule, independent of decorative mesh complexity. */
+/** Static box colliders and robot capsules, independent of decorative mesh complexity. */
 export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids: readonly Mesh[], instance: Awaited<ReturnType<typeof HavokPhysics>>) {
   const gravity = new Vector3(0, -9.81, 0), down = new Vector3(0, -1, 0);
   const plugin = new HavokPlugin(true, instance);
@@ -39,6 +39,40 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   controller.keepDistance = .01; controller.keepContactTolerance = .03;
   controller.maxStepHeight = .18;
   controller.maxSlopeCosine = Math.cos(Math.PI / 4);
+  const characters = [{ controller, radius, height, id: 'player' }];
+  function addRobot(id: string, position: Vector3, radius: number, height: number) {
+    const controller = new PhysicsCharacterController(position, { capsuleRadius: radius, capsuleHeight: height }, scene);
+    controller.keepDistance = .01; controller.keepContactTolerance = .03;
+    controller.maxStepHeight = .18; controller.maxSlopeCosine = Math.cos(Math.PI / 4);
+    const character = { controller, radius, height, id };
+    characters.push(character);
+    return character;
+  }
+  // Sweep against the other capsules explicitly as well: their Havok animated
+  // bodies are committed during rendering, whereas several bots move per tick.
+  function moveRobot(character: typeof characters[number], velocity: Vector3, seconds: number, gravity = Vector3.Zero()) {
+    const before = character.controller.getPosition().clone();
+    const dx = velocity.x * seconds, dz = velocity.z * seconds, lengthSquared = dx * dx + dz * dz;
+    let fraction = 1, contact: string | undefined;
+    if (lengthSquared > 0) for (const other of characters) {
+      if (other === character) continue;
+      const p = other.controller.getPosition();
+      if (Math.abs(p.y - before.y) >= (character.height + other.height) / 2) continue;
+      const x = before.x - p.x, z = before.z - p.z;
+      const radius = character.radius + other.radius + .02;
+      const dot = x * dx + z * dz;
+      if (dot >= 0) continue;
+      const c = x * x + z * z - radius * radius;
+      const discriminant = dot * dot - lengthSquared * c;
+      if (discriminant < 0) continue;
+      const hit = Math.max(0, (-dot - Math.sqrt(discriminant)) / lengthSquared);
+      if (hit < fraction) { fraction = hit; contact = other.id; }
+    }
+    const support = character.controller.checkSupport(seconds, down);
+    character.controller.setVelocity(new Vector3(velocity.x * fraction, velocity.y, velocity.z * fraction));
+    character.controller.integrate(seconds, support, gravity);
+    return { distance: Vector3.Distance(before, character.controller.getPosition()), contact };
+  }
   let verticalVelocity = 0;
   let stationarySeconds = 0;
   function reset() {
@@ -61,6 +95,8 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   }
   function blocker() {
     const p = controller.getPosition();
+    const other = characters.find(c => c.controller !== controller && Math.hypot(c.controller.getPosition().x - p.x, c.controller.getPosition().z - p.z) < radius + c.radius + .1);
+    if (other) return { id: `robot:${other.id}`, reason: 'Another robot is crossing the path. Waiting for it to move.' };
     let nearest: Mesh | undefined, best = Infinity;
     for (const mesh of colliders.keys()) {
       if (!mesh.metadata?.building) continue;
@@ -75,9 +111,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   journey.constrainTravel = (from, to, seconds) => {
     const dx = to.x - from.x, dz = to.z - from.z, requested = Math.hypot(dx, dz);
     const before = controller.getPosition().clone();
-    const support = controller.checkSupport(seconds, down);
-    controller.setVelocity(new Vector3(dx / seconds, 0, dz / seconds));
-    controller.integrate(seconds, support, Vector3.Zero());
+    moveRobot(characters[0]!, new Vector3(dx / seconds, 0, dz / seconds), seconds);
     const after = controller.getPosition();
     const distance = Math.max(0, Math.min(requested, ((after.x - before.x) * dx + (after.z - before.z) * dz) / requested));
     stationarySeconds = distance < Math.min(requested * .1, 1e-4) ? stationarySeconds + seconds : 0;
@@ -89,10 +123,11 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   function dispose() {
     if (disposed) return;
     disposed = true; journey.constrainTravel = undefined;
-    controller.dispose(); colliders.forEach(({ aggregate }) => aggregate.dispose()); colliders.clear();
+    characters.forEach(c => c.controller.dispose()); characters.length = 0;
+    colliders.forEach(({ aggregate }) => aggregate.dispose()); colliders.clear();
   }
   scene.onDisposeObservable.addOnce(dispose);
-  return { sync, update, reset, dispose, controller,
+  return { sync, update, reset, dispose, controller, addRobot, moveRobot,
     get position() { const p = controller.getPosition(); return new Vector3(p.x, p.y - height / 2 - .04, p.z); },
     get colliderCount() { return colliders.size; } };
 }

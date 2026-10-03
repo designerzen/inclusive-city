@@ -20,6 +20,7 @@ import type { FinishedJourney } from '../art/finishedJourney';
 import { createProceduralResizer } from './proceduralResizer';
 import { createCityPhysics } from './cityPhysics';
 import { loadCityPhysics } from './loadCityPhysics';
+import { createAutonomousBots } from './autonomousBots';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -27,6 +28,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   scene.metadata = { journey, world };
   const solids: ReturnType<typeof MeshBuilder.CreateBox>[] = [];
   let physics: ReturnType<typeof createCityPhysics> | undefined;
+  let autonomousBots: ReturnType<typeof createAutonomousBots> | undefined;
   let physicsStatus: 'loading' | 'ready' | 'unavailable' = 'loading';
   const light = new HemisphericLight('city-light', new Vector3(-1, 3, -2), scene); light.intensity = 1.2;
   let theme: Theme = 'dark';
@@ -89,6 +91,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const eaves = box(`eaves-${b.name}`, b.x, b.h + .05, b.z, 1, .12, 1, details);
     const rise = Math.min(1.4, b.w * .3);
     const roof = createBuildingRoof(`roof-${b.name}`, b.w + .4, b.d + .4, rise, scene); roof.position.set(b.x, b.h + .12, b.z); roof.material = roofs;
+    solids.push(eaves, roof);
     roof.metadata = { building: b.name }; roof.isPickable = true;
     const threshold = box(`door-${b.name}`, b.x, .11, b.z - b.d / 2 - .2, 1, .12, .5, details);
     solids.push(threshold);
@@ -135,9 +138,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const goal = world.nodes.find(node => node.id === world.destination)!;
   const goalRing = MeshBuilder.CreateTorus('goal-finish-ring', { diameter: 4.2, thickness: .35, tessellation: 32 }, scene);
   goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
-  box('goal-flagpole', goal.x + 1.2, 2.7, goal.z, .15, 5.4, .15, goalMaterial);
+  solids.push(box('goal-flagpole', goal.x + 1.2, 2.7, goal.z, .15, 5.4, .15, goalMaterial));
   for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) {
-    box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 5.1 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite);
+    solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 5.1 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
   }
   const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
@@ -174,6 +177,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function update(seconds: number) {
     const before = journey.position, heading = journey.heading;
     sync(); physics?.update(seconds);
+    autonomousBots?.update(seconds, reducedMotionPreference().matches);
     if (physicsStatus !== 'loading') journey.update(seconds);
     sync(); const p = journey.position;
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
@@ -224,8 +228,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const physicsReady = loadCityPhysics().then(instance => {
     if (scene.isDisposed) return;
     physics = createCityPhysics(scene, journey, solids, instance);
+    autonomousBots = createAutonomousBots(scene, world, physics);
     physicsStatus = 'ready';
     scene.metadata.physics = physics;
+    scene.metadata.autonomousBots = autonomousBots;
   }).catch(error => {
     if (scene.isDisposed) return;
     physics?.dispose(); scene.disablePhysicsEngine();

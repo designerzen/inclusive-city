@@ -10,6 +10,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { BotHistory } from '../src/robot/botHistory';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { createCityPhysics } from '../src/city/cityPhysics';
+import { createAutonomousBots } from '../src/city/autonomousBots';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 import { generateCity } from '../src/city/proceduralCity';
 
@@ -23,6 +24,68 @@ function fixture() {
   const floor = MeshBuilder.CreateBox('floor', { width: 30, height: .1, depth: 30 }, scene); floor.position.y = .025;
   return { engine, scene, journey, floor };
 }
+
+test('robot sweeps stop the player and autonomous robots at each other, including large moves', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  const physics = createCityPhysics(scene, journey, [floor], await wasm);
+  const first = physics.addRobot('first', new Vector3(3, 1, 0), .5, 1.8);
+  const second = physics.addRobot('second', new Vector3(6, 1, 0), .5, 1.8);
+  try {
+    journey.start();
+    const result = journey.constrainTravel!({ x: 0, y: .16, z: 0 }, { x: 8, y: .16, z: 0 }, 1);
+    assert.ok(result.distance < 2, 'player cannot tunnel through a bot');
+    assert.ok(result.distance > .5);
+    const before = first.controller.getPosition().clone();
+    assert.equal(physics.moveRobot(first, new Vector3(-8, 0, 0), 1).contact, 'player');
+    assert.ok(Vector3.Distance(before, first.controller.getPosition()) < .001, 'bot cannot enter the player');
+    assert.equal(physics.moveRobot(second, new Vector3(-8, 0, 0), 1).contact, 'first');
+    assert.ok(second.controller.getPosition().x >= first.controller.getPosition().x + 1);
+    physics.moveRobot(first, new Vector3(0, 0, 3), 1);
+    assert.ok(first.controller.getPosition().z > 2.9, 'bots can move away from contact');
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('autonomous bots wander, reverse at solid walls, and follow collider edits without teleporting', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  journey.world.nodes.push({ id: 'c', label: 'Junction', x: -6, y: .16, z: 0 }, { id: 'd', label: 'Junction', x: -12, y: .16, z: 0 });
+  journey.world.streets.push({ id: 'other', a: 'c', b: 'd', kind: 'clear', width: 3, crossingSeconds: 20 });
+  const wall = MeshBuilder.CreateBox('wall', { width: .2, height: 4, depth: 8 }, scene); wall.position.set(-9, 2, 0);
+  const physics = createCityPhysics(scene, journey, [floor, wall], await wasm);
+  const autonomous = createAutonomousBots(scene, journey.world, physics);
+  try {
+    assert.equal(autonomous.bots.length, 2);
+    for (let i = 0; i < 1800; i++) {
+      const before = autonomous.bots.map(bot => bot.character.controller.getPosition().clone());
+      autonomous.update(1 / 60, true);
+      autonomous.bots.forEach((bot, index) => assert.ok(Vector3.Distance(before[index]!, bot.character.controller.getPosition()) < .04));
+      assert.ok(autonomous.bots[0]!.character.controller.getPosition().x > -8.5);
+      assert.ok(autonomous.bots[1]!.character.controller.getPosition().x < -9.5);
+    }
+    assert.ok(autonomous.bots.every(bot => bot.turns > 0 && bot.distance > 2));
+    assert.ok(autonomous.bots.every(bot => Math.abs(bot.model.robot.position.y - .045) < .04));
+    const distance = autonomous.bots.reduce((sum, bot) => sum + bot.distance, 0);
+    wall.setEnabled(false); physics.sync();
+    for (let i = 0; i < 1800; i++) autonomous.update(1 / 60);
+    assert.ok(autonomous.bots.reduce((sum, bot) => sum + bot.distance, 0) > distance + 10);
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('the player waits for another robot and resumes when it moves away', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  const physics = createCityPhysics(scene, journey, [floor], await wasm);
+  const other = physics.addRobot('crossing', new Vector3(3, 1, 0), .55, 1.8);
+  try {
+    journey.start();
+    for (let i = 0; i < 600; i++) { physics.update(1 / 60); journey.update(1 / 60); }
+    assert.equal(journey.blocked?.id, 'robot:crossing');
+    assert.equal(journey.metrics.failures, 1);
+    physics.moveRobot(other, new Vector3(0, 0, 3), 1);
+    scene.getPhysicsEngine()!._step(1 / 60);
+    for (let i = 0; i < 900 && !journey.complete; i++) { physics.update(1 / 60); journey.update(1 / 60); }
+    assert.equal(journey.complete, true);
+    assert.ok(journey.machine.record.failures[0]!.resolvedAt !== null);
+  } finally { scene.dispose(); engine.dispose(); }
+});
 
 test('Havok gravity grounds the robot, and swept travel stops at walls without false steps or repeated failures', async () => {
   const { engine, scene, journey, floor } = fixture();
