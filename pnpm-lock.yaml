@@ -118,6 +118,9 @@ importers:
       '@babylonjs/core':
         specifier: 9.29.0
         version: 9.29.0
+      '@babylonjs/havok':
+        specifier: ^1.3.14
+        version: 1.3.14
       '@breezystack/lamejs':
         specifier: 1.2.7
         version: 1.2.7
@@ -146,6 +149,9 @@ packages:
 
   '@babylonjs/core@9.29.0':
     resolution: {integrity: sha512-qWrtTRsZF0DO6IouYTEZrcQtUEJzlKbc3i/7Ek2T1INFJ+zp9fxO+CIRJ9HRInOG6HYjQl1i6RhxXVyUbx8yxQ==}
+
+  '@babylonjs/havok@1.3.14':
+    resolution: {integrity: sha512-+j2FDwLtkh5Gb//KizE8Ks3GIB/3vH8Yx9cQsMvZQpsKkH5gn089wIlJ9Yt8dJxbwBmWKGpMTIXxZE7YdOHUnQ==}
 
   '@breezystack/lamejs@1.2.7':
     resolution: {integrity: sha512-6wc7ck65ctA75Hq7FYHTtTvGnYs6msgdxiSUICQ+A01nVOWg6rqouZB8IdyteRlfpYYiFovkf67dIeOgWIUzTA==}
@@ -509,6 +515,9 @@ packages:
     resolution: {integrity: sha512-dZ0/ZFH2AU/l1KdqISVkWUSnm0ufWZyiYRLDYCL+rJAhkUDMFhTZkSnYEL2O/m0tOu/Jy/EKAnZfocuyMX3LMQ==}
     cpu: [arm64]
     os: [win32]
+
+  '@types/emscripten@1.41.6':
+    resolution: {integrity: sha512-uN+9i8bFT5CUcZfyIEYDrSueACEyKGbUs5kC/72DGlZZoinh84sJfVV0i8UOJD1asdzkvLPBRrKs41kZ8MdEXg==}
 
   '@types/long@4.0.2':
     resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
@@ -1338,6 +1347,10 @@ snapshots:
 
   '@babylonjs/core@9.29.0': {}
 
+  '@babylonjs/havok@1.3.14':
+    dependencies:
+      '@types/emscripten': 1.41.6
+
   '@breezystack/lamejs@1.2.7': {}
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -1587,6 +1600,8 @@ snapshots:
 
   '@turbo/windows-arm64@2.11.6':
     optional: true
+
+  '@types/emscripten@1.41.6': {}
 
   '@types/long@4.0.2': {}
 

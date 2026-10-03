@@ -85,6 +85,10 @@ export class BotHistory {
     return this.current;
   }
 
+  randomiseName(): string {
+    return this.rename(this.chooseName(this.current.name));
+  }
+
   rename(name: string): string {
     const trimmed = name.trim();
     if (!trimmed || trimmed.length > 60) throw new Error('Enter a name between 1 and 60 characters.');

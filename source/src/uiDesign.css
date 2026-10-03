@@ -57,7 +57,10 @@ button:is(#app-options, #options-close, #rotation-toggle, #preset-previous, #pre
 #randomise-design { margin-left: 0; background: transparent; color: var(--ui-ink); border-color: var(--ui-border); font-weight: 500; }
 #randomise-design:hover { background: #78988d20; }
 #choose-existing { margin: 0; }
-#rename-bot label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.875rem; }
+#rename-bot .rename-controls { align-items: center; }
+#rename-bot label { margin: 0; flex: 0 1 auto; max-width: 25%; font-weight: 600; font-size: 0.875rem; }
+#rename-bot input { flex: 1 1 0; width: 0; }
+#random-name { max-width: 40%; padding: 10px 12px; font-size: 0.875rem; border-color: var(--ui-border); }
 #bot-name-input { border-color: var(--ui-border); }
 .control-hint { font-size: 0.875rem; line-height: 1.55; color: var(--ui-muted); margin: 8px 0 12px; }
 #name-status { color: var(--ui-muted); font-size: 0.875rem; line-height: 1.5; margin: 8px 0; }

@@ -18,11 +18,16 @@ import type { ProceduralCity } from './proceduralCity';
 import { JourneyDance } from '../robot/journeyDance';
 import type { FinishedJourney } from '../art/finishedJourney';
 import { createProceduralResizer } from './proceduralResizer';
+import { createCityPhysics } from './cityPhysics';
+import { loadCityPhysics } from './loadCityPhysics';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
   const journey = new PlannedJourney(bot, world);
   scene.metadata = { journey, world };
+  const solids: ReturnType<typeof MeshBuilder.CreateBox>[] = [];
+  let physics: ReturnType<typeof createCityPhysics> | undefined;
+  let physicsStatus: 'loading' | 'ready' | 'unavailable' = 'loading';
   const light = new HemisphericLight('city-light', new Vector3(-1, 3, -2), scene); light.intensity = 1.2;
   let theme: Theme = 'dark';
   const palette: { mat: StandardMaterial; dark: string; light: string }[] = [];
@@ -46,13 +51,14 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, mat: StandardMaterial) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene); mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
   }
-  box('ground', 0, -.12, 0, 56, .15, 44, ground);
+  solids.push(box('ground', 0, -.12, 0, 56, .15, 44, ground));
   box('river', world.riverX, -.025, 0, 7, .05, 44, water);
   const streetModels = world.streets.map(street => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
     const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     const width = street.width;
     const surface = box(street.id, x, .025, z, dx || width, .1, dz || width, pavement);
+    solids.push(surface);
     surface.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' }; surface.isPickable = true;
     const parts: ReturnType<typeof box>[] = [];
     if (street.kind !== 'clear' && street.kind !== 'width') {
@@ -62,6 +68,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     }
     const bridge = street.kind === 'bridge' ? box(`bridge-deck-${street.id}`, x, .65, z, dx, .16, 2.6, walls) : null;
     if (bridge) { bridge.metadata = { street: street.id }; bridge.isPickable = true; }
+    if (bridge) solids.push(bridge);
+    if (street.kind === 'curb' || street.kind === 'stairs' || street.kind === 'bridge') solids.push(...parts);
     return { street, surface, parts, bridge, dx, dz, originalWidth: width };
   });
   const labelMaterials: { mat: StandardMaterial; texture: DynamicTexture; text: string }[] = [];
@@ -77,11 +85,13 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       mesh.metadata = { building: b.name, side: side.startsWith('front') || side === 'lintel' ? 'front' : side };
       mesh.isPickable = true; mesh.enableEdgesRendering(); mesh.edgesColor = new Color4(.4, .4, .4, 1); return mesh;
     });
+    solids.push(...pieces);
     const eaves = box(`eaves-${b.name}`, b.x, b.h + .05, b.z, 1, .12, 1, details);
     const rise = Math.min(1.4, b.w * .3);
     const roof = createBuildingRoof(`roof-${b.name}`, b.w + .4, b.d + .4, rise, scene); roof.position.set(b.x, b.h + .12, b.z); roof.material = roofs;
     roof.metadata = { building: b.name }; roof.isPickable = true;
     const threshold = box(`door-${b.name}`, b.x, .11, b.z - b.d / 2 - .2, 1, .12, .5, details);
+    solids.push(threshold);
     threshold.metadata = { dimension: `door:${b.name}`, axis: 'x' }; threshold.isPickable = true;
     const windows: { mesh: ReturnType<typeof box>; side: number }[] = [];
     for (let y = .8; y < b.h - .3; y += 1) for (const side of [-1, 1]) windows.push({ mesh: box(`window-${b.name}-${y}-${side}`, 0, y, 0, .4, .5, .04, details), side });
@@ -113,6 +123,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale;
     }
+    physics?.sync();
   }
   const nodeModels = world.nodes.map(node => {
     const ring = MeshBuilder.CreateTorus(`node-${node.id}`, { diameter: node.discovery || node.id === world.start || node.id === world.destination ? 1.65 : 1, thickness: .13, tessellation: 20 }, scene);
@@ -130,7 +141,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
-  const camera = createCityCamera(engine, scene, () => ({ position: new Vector3(journey.position.x, journey.position.y - .125, journey.position.z), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }));
+  const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }));
   let dance: JourneyDance | null = null, musicClock: (() => number) | null = null;
   const rig = scene.getTransformNodeByName('character-rig')!;
   const head = scene.getTransformNodeByName('head-rig')!;
@@ -157,14 +168,18 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
         if (bridge) { bridge.rotation.z = repaired ? 0 : .22; bridge.position.y = repaired ? .06 : .65; }
         if (street.kind === 'guidance' || street.kind === 'crossing') surface.material = repaired ? details : pavement;
       });
+      physics?.sync();
     }
   }
   function update(seconds: number) {
     const before = journey.position, heading = journey.heading;
-    journey.update(seconds); sync(); const p = journey.position;
+    sync(); physics?.update(seconds);
+    if (physicsStatus !== 'loading') journey.update(seconds);
+    sync(); const p = journey.position;
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;
+    if (physics) robot.robot.position.copyFrom(physics.position);
     const moved = Math.hypot(p.x - before.x, p.z - before.z);
     const delta = Math.atan2(Math.sin(journey.heading - heading), Math.cos(journey.heading - heading));
     robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready || !!journey.blocked, delta);
@@ -206,7 +221,19 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     labelMaterials.forEach(({ texture, text }) => { const ctx = texture.getContext() as CanvasRenderingContext2D; ctx.clearRect(0, 0, 512, 128); ctx.fillStyle = value === 'dark' ? '#171717' : '#eeeeee'; ctx.fillRect(0, 0, 512, 128); ctx.font = 'bold 45px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = value === 'dark' ? '#eeeeee' : '#222222'; ctx.fillText(text, 256, 64); texture.update(); });
   }
   revisionKey = 'initial'; sync(); setTheme('dark'); update(0);
+  const physicsReady = loadCityPhysics().then(instance => {
+    if (scene.isDisposed) return;
+    physics = createCityPhysics(scene, journey, solids, instance);
+    physicsStatus = 'ready';
+    scene.metadata.physics = physics;
+  }).catch(error => {
+    if (scene.isDisposed) return;
+    physics?.dispose(); scene.disablePhysicsEngine();
+    physicsStatus = 'unavailable';
+    console.warn('City physics could not be loaded; using route movement.', error);
+  });
   return { scene, journey, update, sync, setTheme, nodeAt, streetAt, projectNode, highlight,
+    physicsReady, get physicsStatus() { return physicsStatus; },
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },
     resize: () => camera.update(), setZoom: camera.setZoom, pan: camera.pan, fit: camera.fit,
     setSinging(value: boolean) { robot.setSpeaking(value); },

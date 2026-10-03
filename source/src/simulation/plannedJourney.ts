@@ -8,6 +8,8 @@ import { CityDimensions } from '../city/cityDimensions';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
+  /** The renderer can constrain route travel to distance actually allowed by physics. */
+  constrainTravel?: (from: RoutePoint, to: RoutePoint, seconds: number) => { distance: number; blocker?: { id: string; reason: string } };
   readonly machine: RobotStateMachine;
   readonly bot: ArtBot;
   private path: string[];
@@ -154,7 +156,8 @@ export class PlannedJourney {
         }
         this.machine.advance(remaining, 'blockedSeconds'); this.telemetry(); return;
       }
-      this.blocked = null; this.encountered = null; this.machine.transition('following');
+      this.blocked = null;
+      if (!this.constrainTravel || this.machine.state !== 'blocked') this.machine.transition('following');
       const a = this.node(this.path[this.edge]!), b = this.node(this.path[this.edge + 1]!);
       const target = Math.atan2(a.x - b.x, a.z - b.z);
       const delta = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
@@ -164,8 +167,20 @@ export class PlannedJourney {
         this.machine.advance(time, 'movingSeconds'); remaining -= time; continue;
       }
       const length = Math.hypot(b.x - a.x, b.z - a.z);
-      const distance = Math.min(length - this.distanceOnEdge, remaining * this.speed, this.metrics.stepsTaken + 1 - this.metrics.distance);
-      const duration = distance / this.speed;
+      let distance = Math.min(length - this.distanceOnEdge, remaining * this.speed, this.metrics.stepsTaken + 1 - this.metrics.distance);
+      const requestedDuration = distance / this.speed;
+      let collision: { id: string; reason: string } | undefined;
+      if (this.constrainTravel && distance > 0) {
+        const from = this.position;
+        const to = { ...from, x: from.x + (b.x - a.x) / length * distance, z: from.z + (b.z - a.z) / length * distance };
+        const result = this.constrainTravel(from, to, distance / this.speed);
+        distance = Number.isFinite(result.distance) ? Math.max(0, Math.min(distance, result.distance)) : 0;
+        collision = result.blocker;
+      }
+      if (!collision && distance > 1e-4) this.machine.transition('following');
+      // A collision sweep consumes its requested time even when a step or
+      // contact slows it down. Do not retry a tiny remainder in the same tick.
+      const duration = this.constrainTravel && !collision ? requestedDuration : distance / this.speed;
       this.distanceOnEdge += distance; this.machine.add('distance', distance); this.machine.advance(duration, 'movingSeconds'); remaining = Math.max(0, remaining - duration);
       if (this.metrics.distance >= this.metrics.stepsTaken + 1 - 1e-8) { this.machine.add('stepsTaken', 1); this.machine.emit('step', { step: this.metrics.stepsTaken, distance: this.metrics.distance, speed: this.speed }); }
       if (this.distanceOnEdge >= length - 1e-8) {
@@ -173,6 +188,21 @@ export class PlannedJourney {
         this.machine.emit('segment', { segment: this.edge - 1 }); this.collectAt(this.path[this.edge]!);
       }
       this.telemetry();
+      if (collision || !this.constrainTravel && distance <= 1e-9) {
+        this.blocked = collision ?? { id: street.id, reason: 'A solid object blocks this street. Move the nearby wall or widen the passage.' };
+        this.machine.transition('blocked');
+        if (this.encountered !== this.blocked.id) {
+          this.encountered = this.blocked.id; this.machine.add('failures', 1);
+          this.machine.record.failures.push({ kind: 'environment-barrier', barrier: this.blocked.id, runId: this.machine.run.id, time: this.machine.record.clock, resolvedAt: null });
+          this.machine.emit('blocked', { reason: this.blocked.reason }, this.blocked.id);
+        }
+        this.machine.advance(remaining, 'blockedSeconds'); return;
+      }
+      if (this.encountered && distance > 1e-4) {
+        const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === this.encountered && f.resolvedAt === null);
+        if (failure) failure.resolvedAt = this.machine.record.clock;
+        this.encountered = null;
+      }
     }
     if (this.edge === this.path.length - 1) {
       this.machine.transition('arrived'); this.machine.add('journeysCompleted', 1); this.machine.achievement('gallery-reached');

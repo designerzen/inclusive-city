@@ -61,6 +61,7 @@ const buttonSignatures = {
   'randomise-design': { root: 60, intervals: [0, 4, 7], pattern: 'up' },
   'previous-bot': { root: 60, intervals: [0, 4, 7], pattern: 'down' },
   'save-name': { root: 72, intervals: [0, 4, 7], pattern: 'chord', waveform: 'sine', durationBeats: 0.4 },
+  'random-name': { root: 74, intervals: [0, 3, 7], pattern: 'up', waveform: 'sine', durationBeats: 0.4 },
   'reset-abilities': { root: 60, intervals: [0, 7, 12], pattern: 'down' },
   'rotation-toggle': { root: 67, intervals: [0, 5, 12], pattern: 'up-down', waveform: 'sine', stepBeats: 0.12 },
   'enter-city': { root: 48, intervals: [0, 7, 12, 16], pattern: 'up', stepBeats: 0.18, layers: 2 },

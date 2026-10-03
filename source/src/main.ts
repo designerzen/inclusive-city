@@ -68,10 +68,13 @@ app.innerHTML = `
     <div class="designer-layout"><div class="preview-column">
     <div class="bot-navigation" role="group" aria-label="Art bot navigation"><button id="previous-bot" type="button" title="Show previous art bot" hidden disabled><span aria-hidden="true">←</span> Previous robot</button><button id="randomise-design" type="button" title="Show next art bot">Next robot <span aria-hidden="true">→</span></button><button id="choose-existing" type="button">Browse ready-made robots</button></div>
     <div class="bot-identity">
-      <form id="rename-bot"><label for="bot-name-input">Robot name</label><div class="rename-controls">
-        <input id="bot-name-input" type="text" required maxlength="60" autocomplete="off" aria-describedby="name-hint" />
+      <form id="rename-bot"><div class="rename-controls">
+        <label for="bot-name-input">Robot name</label>
+        <input id="bot-name-input" type="text" required maxlength="60" autocomplete="off" />
+        <button id="random-name" type="button">Random name</button>
       </div>
       <p id="name-status" role="status" aria-live="polite"></p>
+      </form>
     </div>
     <section class="stage" aria-label="Artbot preview">
       <canvas id="render-canvas" role="img" aria-label="A mint robot with four wheels on a circular workshop platform."></canvas>
@@ -415,6 +418,14 @@ nameInput.addEventListener('blur', () => {
 document.querySelector('#rename-bot')!.addEventListener('submit', event => {
   event.preventDefault();
   nameInput.blur();
+});
+document.querySelector('#random-name')!.addEventListener('click', () => {
+  const name = history.randomiseName();
+  nameInput.value = name;
+  nameInput.setCustomValidity('');
+  applyIdentity(name, history.current.id);
+  describeRobot();
+  nameStatus.textContent = `Saved as ${name}.`;
 });
 showCurrentBot();
 
