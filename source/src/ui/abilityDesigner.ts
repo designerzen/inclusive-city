@@ -16,8 +16,10 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   let previewRenderer: AsyncPaintingRenderer | null = null;
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `
-    <div class="designer-heading"><h2>Robot settings</h2>
-      <button type="button" id="reset-abilities">Reset abilities</button></div>
+    <div class="designer-heading">
+      <h2>Robot settings</h2>
+      <button hidden type="button" id="reset-abilities">Reset abilities</button>
+    </div>
     <section class="function-designer" aria-labelledby="functions-heading">
       <h3 id="functions-heading">Active functions <span id="function-count">3 / 5 enabled</span></h3>
       <p class="control-hint">Pick 3 abilities for your robot.</p>
