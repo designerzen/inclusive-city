@@ -40,6 +40,32 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   controller.maxStepHeight = .18;
   controller.maxSlopeCosine = Math.cos(Math.PI / 4);
   const characters = [{ controller, radius, height, id: 'player' }];
+  type Character = typeof characters[number];
+  const contacts = new Map<string, { a: Character; b?: Character; mesh?: Mesh }>();
+  function refreshContacts() {
+    for (const [key, { a, b, mesh }] of contacts) {
+      const p = a.controller.getPosition();
+      if (b) {
+        const q = b.controller.getPosition();
+        if (Math.hypot(p.x - q.x, p.z - q.z) > a.radius + b.radius + .12 || Math.abs(p.y - q.y) > (a.height + b.height) / 2) contacts.delete(key);
+      } else if (mesh) {
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        if (!mesh.isEnabled() || mesh.isDisposed() || Math.hypot(Math.max(min.x - p.x, 0, p.x - max.x), Math.max(min.z - p.z, 0, p.z - max.z)) > a.radius + .12) contacts.delete(key);
+      }
+    }
+  }
+  function collision(a: Character, speed: number, b?: Character, mesh?: Mesh) {
+    const other = b?.id ?? `solid:${mesh!.name}`;
+    const key = b ? [a.id, b.id].sort().join('|') : `${a.id}|solid:${mesh!.uniqueId}`;
+    if (contacts.has(key)) return;
+    contacts.set(key, { a, b, mesh });
+    const p = a.controller.getPosition();
+    const event = journey.machine.emit('collision', { actor: a.id, other, kind: b ? 'robot' : 'world', speed });
+    event.position = { x: p.x, y: p.y - a.height / 2, z: p.z };
+  }
+  function collisionPartners(character: Character) {
+    return [...contacts.values()].flatMap(({ a, b }) => b && a === character ? [b.id] : b === character ? [a.id] : []);
+  }
   function addRobot(id: string, position: Vector3, radius: number, height: number) {
     const controller = new PhysicsCharacterController(position, { capsuleRadius: radius, capsuleHeight: height }, scene);
     controller.keepDistance = .01; controller.keepContactTolerance = .03;
@@ -51,6 +77,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   // Sweep against the other capsules explicitly as well: their Havok animated
   // bodies are committed during rendering, whereas several bots move per tick.
   function moveRobot(character: typeof characters[number], velocity: Vector3, seconds: number, gravity = Vector3.Zero()) {
+    refreshContacts();
     const before = character.controller.getPosition().clone();
     const dx = velocity.x * seconds, dz = velocity.z * seconds, lengthSquared = dx * dx + dz * dz;
     let fraction = 1, contact: string | undefined;
@@ -71,6 +98,21 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
     const support = character.controller.checkSupport(seconds, down);
     character.controller.setVelocity(new Vector3(velocity.x * fraction, velocity.y, velocity.z * fraction));
     character.controller.integrate(seconds, support, gravity);
+    const after = character.controller.getPosition();
+    const speed = Math.hypot(velocity.x, velocity.z);
+    if (contact) collision(character, speed, characters.find(c => c.id === contact)!);
+    if (lengthSquared > 0 && !contact && (after.x - before.x) * dx + (after.z - before.z) * dz < lengthSquared * .9) {
+      const feet = after.y - character.height / 2;
+      let nearest: Mesh | undefined, best = character.radius + .12;
+      for (const mesh of colliders.keys()) {
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        // Ground and walkable step tops are support, rather than impacts.
+        if (max.y <= feet + character.controller.maxStepHeight || min.y >= after.y + character.height / 2) continue;
+        const distance = Math.hypot(Math.max(min.x - after.x, 0, after.x - max.x), Math.max(min.z - after.z, 0, after.z - max.z));
+        if (distance < best) { best = distance; nearest = mesh; }
+      }
+      if (nearest) { contact = `solid:${nearest.name}`; collision(character, speed, undefined, nearest); }
+    }
     return { distance: Vector3.Distance(before, character.controller.getPosition()), contact };
   }
   let verticalVelocity = 0;
@@ -81,6 +123,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
     controller.setVelocity(Vector3.Zero()); verticalVelocity = 0; stationarySeconds = 0;
   }
   function update(seconds: number) {
+    refreshContacts();
     if (journey.ready && Vector3.DistanceSquared(controller.getPosition(), new Vector3(journey.position.x, controller.getPosition().y, journey.position.z)) > .0001) reset();
     // Small steps keep gravity and support stable after a slow frame.
     let remaining = Math.min(.1, Math.max(0, seconds));
@@ -124,10 +167,10 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
     if (disposed) return;
     disposed = true; journey.constrainTravel = undefined;
     characters.forEach(c => c.controller.dispose()); characters.length = 0;
-    colliders.forEach(({ aggregate }) => aggregate.dispose()); colliders.clear();
+    colliders.forEach(({ aggregate }) => aggregate.dispose()); colliders.clear(); contacts.clear();
   }
   scene.onDisposeObservable.addOnce(dispose);
-  return { sync, update, reset, dispose, controller, addRobot, moveRobot,
+  return { sync, update, reset, dispose, controller, addRobot, moveRobot, collisionPartners, player: characters[0]!,
     get position() { const p = controller.getPosition(); return new Vector3(p.x, p.y - height / 2 - .04, p.z); },
     get colliderCount() { return colliders.size; } };
 }

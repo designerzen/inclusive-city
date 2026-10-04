@@ -9,7 +9,7 @@ import type { FunctionId } from '../src/robot/functions';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 import { robotButtonReach } from '../src/city/proceduralCity';
 
-function crossing(functions: FunctionId[] = ['movement', 'vision', 'memory'], green = 12) {
+function crossing(functions: FunctionId[] = ['communication', 'vision', 'memory'], green = 12) {
   const bot = new BotHistory(['Curie', 'Einstein']).current;
   bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0 }, functions);
   const world: ProceduralCity = { seed: 1, start: 'a', destination: 'b', riverX: 30, rememberedRobots: 1, buildings: [],
@@ -48,7 +48,7 @@ test('short green is a barrier based on the full crossing length; extending it r
 });
 
 test('robots without eyes need beepers; robots without eyes or ears use tactile cues', () => {
-  for (const functions of [['movement', 'hearing', 'memory'], ['movement', 'balance', 'memory']] as FunctionId[][]) {
+  for (const functions of [['communication', 'hearing', 'memory'], ['communication', 'balance', 'memory']] as FunctionId[][]) {
     const j = crossing(functions); j.start(); j.update(1);
     assert.match(j.blocked!.reason, /cannot see/);
     assert.equal(j.repair('signals:cross'), true);
@@ -73,7 +73,7 @@ test('late arrivals wait for the next full green; pauses, restarts and tick size
 
 test('short reach blocks a crossing even on green until its button panel is lowered', () => {
   const j = crossing();
-  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 0 }, ['movement', 'vision', 'memory']);
+  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 0 }, ['communication', 'vision', 'memory']);
   const original = structuredClone(j.bot.profile), street = j.world.streets[0]!;
   j.start(); j.setPaused(true); j.update(4); j.setPaused(false); j.update(.1);
   assert.equal(j.signal(street).green, true);
@@ -97,7 +97,7 @@ test('short reach blocks a crossing even on green until its button panel is lowe
 
 test('long reach operates the high panel once per crossing and panel edits respect occupancy', () => {
   const j = crossing();
-  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 100 }, ['movement', 'vision', 'memory']);
+  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 100 }, ['communication', 'vision', 'memory']);
   const street = j.world.streets[0]!;
   j.start(); j.update(2);
   assert.equal(j.waiting, true); assert.equal(j.blocked, null);
@@ -108,8 +108,8 @@ test('long reach operates the high panel once per crossing and panel edits respe
 });
 
 test('lowering a panel does not bypass crossing timing or sensory barriers', () => {
-  const j = crossing(['movement', 'hearing', 'memory'], 2);
-  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 0 }, ['movement', 'hearing', 'memory']);
+  const j = crossing(['communication', 'hearing', 'memory'], 2);
+  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 0 }, ['communication', 'hearing', 'memory']);
   j.start(); j.update(1); assert.ok(j.reachProblem(j.world.streets[0]!));
   j.repair('cross'); j.update(1); assert.match(j.blocked!.reason, /green light gives/);
   j.repair('cross'); j.update(1); j.repair('cross'); j.update(30);

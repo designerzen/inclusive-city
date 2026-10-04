@@ -11,12 +11,12 @@ import { environmentChoiceCards } from './environmentChoices';
 import type { EnvironmentChoiceKind } from './environmentChoices';
 
 const actions: Record<BarrierId, [string, string]> = {
-  transport: ['Add transport', 'Remove transport'], curb: ['Lower curb', 'Raise curb'],
+  communication: ['Add communication board', 'Remove communication board'], curb: ['Lower curb', 'Raise curb'],
   crossing: ['More time', 'Less time'], guidance: ['Add route cues', 'Remove route cues'],
   sidewalk: ['Widen pavement', 'Narrow pavement'], bridge: ['Lower bridge', 'Raise bridge'],
   stairs: ['Convert to ramp', 'Restore steps'], elevator: ['Enable elevator', 'Disable elevator'],
 };
-const icons = { transport: 'follow', curb: 'angled', crossing: 'plus', guidance: 'eye', sidewalk: 'overhead', bridge: 'angled', stairs: 'angled', elevator: 'up' } as const;
+const icons = { communication: 'message', curb: 'angled', crossing: 'plus', guidance: 'eye', sidewalk: 'overhead', bridge: 'angled', stairs: 'angled', elevator: 'up' } as const;
 
 export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
   select: (id: BarrierId) => void; edit: (id: BarrierId, value: CityValue) => void;
@@ -57,7 +57,7 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
   function render(current: CityJourney, id: BarrierId | null, autoPaused: boolean) {
     journey = current;
     if (id !== selected) { showHelp = false; selected = id; }
-    const key = `${current.city.revision}:${id}:${current.ready}:${current.paused}:${current.complete}:${current.blocked?.id}:${current.edge}:${current.canEdit(id ?? 'transport')}:${showHelp}:${autoPaused}`;
+    const key = `${current.city.revision}:${id}:${current.ready}:${current.paused}:${current.complete}:${current.blocked?.id}:${current.edge}:${current.canEdit(id ?? 'communication')}:${showHelp}:${autoPaused}`;
     if (key === lastKey) return; lastKey = key;
     // Bring the explanation and choices into view without moving keyboard focus.
     const card = container.querySelector<HTMLElement>('.feature-card')!;

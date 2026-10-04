@@ -34,7 +34,7 @@ test('restart restores the selected preset and its custom edits without duplicat
   const history = new BotHistory(scientistNames, () => .2, storage);
   history.selectPreset('donk');
   history.rename('My donkBot');
-  history.updateProfile(createRobotProfile(defaultAbilities(), ['movement', 'hearing', 'balance'], { painter: 'pop', musician: 'techno' }));
+  history.updateProfile(createRobotProfile(defaultAbilities(), ['communication', 'hearing', 'balance'], { painter: 'pop', musician: 'techno' }));
   const restored = new BotHistory(scientistNames, Math.random, storage);
   assert.deepEqual(restored.current, history.current);
   assert.equal(restored.current.presetId, 'donk');
@@ -54,7 +54,7 @@ test('invalid saved data falls back to a usable new design', () => {
     JSON.stringify({ ...JSON.parse(valid), bots: [] }),
   ];
   const badProfile = JSON.parse(valid);
-  badProfile.bots[0].profile.enabledFunctions = ['movement', 'movement', 'vision'];
+  badProfile.bots[0].profile.enabledFunctions = ['communication', 'communication', 'vision'];
   invalid.push(JSON.stringify(badProfile));
   const badAppearance = JSON.parse(valid);
   badAppearance.bots[0].appearance.width = -1;
@@ -131,7 +131,7 @@ test('names and profiles are saved independently for each bot', () => {
   const first = structuredClone(history.current);
   history.next();
   history.rename('Second bot');
-  history.updateProfile(createRobotProfile(defaultAbilities(), ['movement', 'balance', 'hearing']));
+  history.updateProfile(createRobotProfile(defaultAbilities(), ['communication', 'balance', 'hearing']));
   const second = structuredClone(history.current);
   assert.deepEqual(history.previous(), first);
   assert.deepEqual(history.next(), second);
@@ -146,4 +146,19 @@ test('invalid names are rejected without changing the saved name', () => {
   assert.throws(() => history.rename('   '));
   assert.throws(() => history.rename('a'.repeat(61)));
   assert.equal(history.current.name, name);
+});
+
+
+test('saved movement selections migrate to communication without losing the design', () => {
+  const storage = memoryStorage();
+  const history = new BotHistory(scientistNames, () => .2, storage);
+  history.rename('Legacy robot');
+  history.updateProfile(createRobotProfile({ ...defaultAbilities(), speed: 85 }, ['communication', 'vision', 'memory']));
+  const saved = JSON.parse(storage.getItem(robotDesignStorageKey)!);
+  saved.bots[0].profile.enabledFunctions[0] = 'movement';
+  storage.setItem(robotDesignStorageKey, JSON.stringify(saved));
+  const restored = new BotHistory(scientistNames, () => { throw new Error('Must restore legacy design'); }, storage);
+  assert.equal(restored.current.name, 'Legacy robot');
+  assert.deepEqual(restored.current.profile.enabledFunctions, ['communication', 'vision', 'memory']);
+  assert.equal(restored.current.profile.effectiveAbilities.speed, 85);
 });

@@ -103,19 +103,20 @@ test('adapting the city lets the same bot finish, and improvements persist on re
   assert.equal(journey.fixed.size, 6);
 });
 
-test('movement and sensory support depend on the enabled functions', () => {
-  const withoutDrive = bot();
-  withoutDrive.profile = createRobotProfile(defaultAbilities(), ['vision', 'memory', 'hearing']);
-  const transportJourney = new CityJourney(withoutDrive);
-  transportJourney.update(1000);
-  assert.equal(transportJourney.blocked?.id, 'transport');
-  assert.deepEqual(transportJourney.position, cityRoute[0]);
-  transportJourney.intervene('transport');
-  transportJourney.update(1000);
-  assert.equal(transportJourney.blocked?.id, 'curb');
+test('communication and sensory support depend on the enabled functions', () => {
+  const withoutCommunication = bot();
+  withoutCommunication.profile = createRobotProfile(defaultAbilities(), ['vision', 'memory', 'hearing']);
+  const communicationJourney = new CityJourney(withoutCommunication);
+  assert.equal(communicationJourney.speed, 2.05);
+  communicationJourney.update(1000);
+  assert.equal(communicationJourney.blocked?.id, 'communication');
+  assert.deepEqual(communicationJourney.position, cityRoute[0]);
+  communicationJourney.intervene('communication');
+  communicationJourney.update(1000);
+  assert.equal(communicationJourney.blocked?.id, 'curb');
 
   const withoutVision = bot();
-  withoutVision.profile = createRobotProfile(defaultAbilities(), ['movement', 'memory', 'hearing']);
+  withoutVision.profile = createRobotProfile(defaultAbilities(), ['communication', 'memory', 'hearing']);
   const guidanceJourney = new CityJourney(withoutVision);
   guidanceJourney.intervene('curb');
   guidanceJourney.intervene('crossing');
@@ -129,7 +130,7 @@ test('movement and sensory support depend on the enabled functions', () => {
 test('compact bots fit the narrow sidewalk and forgetful bots need additional route cues', () => {
   const compact = bot();
   compact.appearance.width = 0.75;
-  compact.profile = createRobotProfile({ ...defaultAbilities(), reach: 0 }, ['movement', 'vision', 'memory']);
+  compact.profile = createRobotProfile({ ...defaultAbilities(), reach: 0 }, ['communication', 'vision', 'memory']);
   const journey = new CityJourney(compact);
   journey.intervene('curb');
   journey.intervene('crossing');
@@ -138,7 +139,7 @@ test('compact bots fit the narrow sidewalk and forgetful bots need additional ro
   assert.equal(journey.fixed.has('sidewalk'), false);
 
   const forgetful = bot();
-  forgetful.profile = createRobotProfile({ ...defaultAbilities(), speed: 90 }, ['movement', 'vision', 'memory']);
+  forgetful.profile = createRobotProfile({ ...defaultAbilities(), speed: 90 }, ['communication', 'vision', 'memory']);
   const other = new CityJourney(forgetful);
   other.intervene('curb');
   other.intervene('crossing');

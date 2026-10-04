@@ -100,3 +100,13 @@ test('muted and unavailable audio still records complete detached scores for rep
   sounds.mood('curious');
   assert.equal(sounds.sequence.length, 2);
 });
+
+test('each collision has a recorded sound even while muted, with different robot and world cues', () => {
+  const sounds = new CitySounds();
+  sounds.setMuted(true);
+  sounds.collision(1, 'robot'); sounds.collision(2, 'world'); sounds.collision(1, 'robot');
+  assert.deepEqual(sounds.sequence.map(entry => entry.label), ['collision:robot', 'collision:world', 'collision:robot']);
+  assert.notDeepEqual(sounds.sequence[0]!.score, sounds.sequence[1]!.score);
+  sounds.sequence.forEach(entry => assert.deepEqual(SoundEffect.fromScore(entry.score).toScore(), entry.score));
+  sounds.dispose();
+});

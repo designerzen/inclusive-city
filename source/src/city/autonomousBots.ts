@@ -21,25 +21,55 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
     model.robot.getChildMeshes().forEach(mesh => { mesh.isPickable = false; mesh.metadata = { autonomousBot: i + 1 }; });
     const radius = .55, height = 1.725;
     const character = physics.addRobot(`city-bot-${i + 1}`, new Vector3(node.x, .075 + height / 2, node.z), radius, height);
-    return { model, character, node, target: node, previous: '', heading: 0, wait: .3 + random(), stuck: 0, speed: .8 + random() * .6, verticalVelocity: 0, distance: 0, turns: 0, crossingEntered: false };
+    return { model, character, node, target: node, previous: '', avoid: '', returning: false, yielding: false,
+      escape: null as { x: number; z: number } | null, escapeSide: i % 2 ? -1 : 1,
+      heading: 0, wait: .3 + random(), stuck: 0, speed: .8 + random() * .6, verticalVelocity: 0, distance: 0, turns: 0, crossingEntered: false };
   });
+  function retreat(bot: typeof bots[number]) {
+    if (bot.returning) return;
+    bot.avoid = bot.target.id;
+    const target = bot.target; bot.target = bot.node; bot.node = target;
+    bot.returning = true; bot.crossingEntered = true;
+    bot.wait = 0; bot.stuck = 0; bot.turns++;
+  }
+  function stepAside(bot: typeof bots[number]) {
+    const p = bot.character.controller.getPosition();
+    const dx = bot.target.x - bot.node.x, dz = bot.target.z - bot.node.z, length = Math.hypot(dx, dz) || 1;
+    const clearance = physics.player.radius + bot.character.radius + .4;
+    bot.escape = { x: p.x + (dz / length || (dx === 0 ? 1 : 0)) * clearance * bot.escapeSide,
+      z: p.z - dx / length * clearance * bot.escapeSide };
+    bot.escapeSide *= -1; bot.wait = 0; bot.stuck = 0;
+  }
   function update(seconds: number, reducedMotion = false, signalTime = 0) {
     let remaining = Math.min(.1, Math.max(0, seconds));
     while (remaining > 1e-9) {
       const dt = Math.min(1 / 60, remaining);
       for (const bot of bots) {
         const before = bot.character.controller.getPosition().clone();
+        const player = physics.player.controller.getPosition();
+        const playerContact = physics.collisionPartners(bot.character).includes('player');
+        if (playerContact) bot.yielding = true;
+        if (Math.hypot(player.x - before.x, player.z - before.z) > physics.player.radius + bot.character.radius + 2) bot.yielding = false;
+        // Respond to player-initiated impacts too. If the player is ahead,
+        // return to the junction; if behind, hurry forward to clear their path.
+        if (playerContact && !bot.returning && !bot.escape && (player.x - before.x) * (bot.target.x - before.x) + (player.z - before.z) * (bot.target.z - before.z) > 0) retreat(bot);
+        if (bot.escape && Math.hypot(bot.escape.x - before.x, bot.escape.z - before.z) < .12) { bot.escape = null; bot.stuck = 0; }
         const distanceToTarget = Math.hypot(bot.target.x - before.x, bot.target.z - before.z);
-        if (distanceToTarget < .12) {
+        if (!bot.escape && distanceToTarget < .12) {
           bot.previous = bot.node.id; bot.node = bot.target;
           const options = neighbours(world, bot.node.id);
-          const forward = options.filter(n => n.id !== bot.previous);
-          const choices = forward.length ? forward : options;
+          const unblocked = options.filter(n => n.id !== bot.avoid);
+          const forward = unblocked.filter(n => n.id !== bot.previous);
+          let choices = forward.length ? forward : unblocked.length ? unblocked : options;
+          if (bot.yielding) choices = choices.filter(n => (n.x - before.x) * (player.x - before.x) + (n.z - before.z) * (player.z - before.z) <= 0);
           bot.target = choices[Math.floor(random() * choices.length)] ?? bot.node;
+          bot.returning = false;
           bot.crossingEntered = false;
-          bot.wait = .3 + random() * .7;
+          bot.wait = bot.yielding ? 0 : .3 + random() * .7;
+          if (!choices.length && bot.yielding) stepAside(bot);
         }
-        const dx = bot.target.x - before.x, dz = bot.target.z - before.z;
+        const destination = bot.escape ?? bot.target;
+        const dx = destination.x - before.x, dz = destination.z - before.z;
         const distance = Math.hypot(dx, dz);
         const desired = Math.atan2(-dx, -dz);
         const turn = Math.atan2(Math.sin(desired - bot.heading), Math.cos(desired - bot.heading));
@@ -48,25 +78,25 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
         bot.wait = Math.max(0, bot.wait - dt);
         const street = streetBetween(world, bot.node.id, bot.target.id);
         let waitForGreen = false;
-        if (street?.kind === 'crossing' && !bot.crossingEntered) {
+        if (street?.kind === 'crossing' && !bot.crossingEntered && !bot.returning && !bot.escape && !bot.yielding) {
           const signal = crossingSignal(signalTime, street.crossingSeconds);
           const length = Math.hypot(bot.target.x - bot.node.x, bot.target.z - bot.node.z);
           waitForGreen = !signal.green || signal.remaining < length / bot.speed;
           if (!waitForGreen && bot.wait === 0 && Math.abs(turn) <= .1) bot.crossingEntered = true;
         }
-        const speed = bot.wait > 0 || waitForGreen || Math.abs(turn) > .1 ? 0 : Math.min(bot.speed, distance / dt);
+        const speed = bot.wait > 0 || waitForGreen || Math.abs(turn) > .1 ? 0 : Math.min(bot.yielding ? Math.max(1.8, bot.speed) : bot.speed, distance / dt);
         bot.verticalVelocity = Math.max(-10, bot.verticalVelocity - 9.81 * dt);
-        physics.moveRobot(bot.character, new Vector3(distance ? dx / distance * speed : 0, bot.verticalVelocity, distance ? dz / distance * speed : 0), dt, new Vector3(0, -9.81, 0));
+        const movement = physics.moveRobot(bot.character, new Vector3(distance ? dx / distance * speed : 0, bot.verticalVelocity, distance ? dz / distance * speed : 0), dt, new Vector3(0, -9.81, 0));
         bot.verticalVelocity = bot.character.controller.getVelocity().y;
         const p = bot.character.controller.getPosition();
         const moved = Math.hypot(p.x - before.x, p.z - before.z);
         bot.distance += moved;
         bot.stuck = speed > 0 && moved < speed * dt * .1 ? bot.stuck + dt : 0;
+        if (movement.contact === 'player') bot.yielding = true;
+        if (movement.contact && !bot.returning && !bot.escape) retreat(bot);
         if (bot.stuck > .65 + bots.indexOf(bot) * .1) {
-          // Reverse toward the last junction without teleporting out of contact.
-          const target = bot.target; bot.target = bot.node; bot.node = target;
-          bot.crossingEntered = false;
-          bot.wait = .2 + random() * .4; bot.stuck = 0; bot.turns++;
+          if (bot.returning || bot.yielding || bot.escape) stepAside(bot);
+          else retreat(bot);
         }
         bot.model.robot.position.set(p.x, p.y - bot.character.height / 2 - .04, p.z);
         bot.model.robot.rotation.y = bot.heading;

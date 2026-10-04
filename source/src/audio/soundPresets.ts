@@ -77,7 +77,7 @@ const buttonSignatures = {
   'midi-disconnect': { root: 55, intervals: [0, 5, 12], pattern: 'down', stepBeats: .09, waveform: 'sine' },
   'app-options': { root: 64, intervals: [0, 5, 12], pattern: 'up', stepBeats: .08, gain: .1 },
   'options-close': { root: 62, intervals: [0, 7, 12], pattern: 'down', stepBeats: .08, gain: .1 },
-  'function-movement': { root: 48, intervals: [0, 7, 12], pattern: 'up', waveform: 'triangle', stepBeats: 0.1 },
+  'function-communication': { root: 48, intervals: [0, 7, 12], pattern: 'up', waveform: 'triangle', stepBeats: 0.1 },
   'function-vision': { root: 76, intervals: [0, 3, 8], pattern: 'up', waveform: 'sine', stepBeats: 0.14 },
   'function-hearing': { root: 67, intervals: [0, 5, 9], pattern: 'up-down', waveform: 'sine', stepBeats: 0.1 },
   'function-memory': { root: 60, intervals: [0, 4], pattern: 'up', repeats: 2, stepBeats: 0.12 },

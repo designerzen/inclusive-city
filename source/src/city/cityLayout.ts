@@ -11,7 +11,7 @@ export const cityRoute: readonly RoutePoint[] = [
 ];
 
 export const cityBarriers = [
-  { id: 'transport', edge: 0, label: 'Movement support', action: 'Add accessible transport', explanation: 'The drive is disabled. Accessible transport can carry this bot along the route.' },
+  { id: 'communication', edge: 0, label: 'Communication support', action: 'Add communication board', explanation: 'This bot needs another way to share its needs. A symbol board lets it request help before setting off.' },
   { id: 'curb', edge: 1, label: 'Raised curb', action: 'Lower curb', explanation: 'The raised curb blocks the wheels. A dropped curb connects the sidewalk to the crossing.' },
   { id: 'crossing', edge: 2, label: 'Short crossing signal', action: 'Extend crossing time', explanation: 'The signal changes before this bot can cross safely. Give it more time.' },
   { id: 'guidance', edge: 3, label: 'Route information', action: 'Add accessible route cues', explanation: 'Repeated audio and tactile cues support this bot’s vision and route-memory needs.' },

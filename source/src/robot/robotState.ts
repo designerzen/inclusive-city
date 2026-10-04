@@ -20,7 +20,7 @@ export interface RobotMetrics {
   failures: number; interventions: number; pickups: number; pickupValue: number;
   journeysStarted: number; journeysCompleted: number;
 }
-export type RobotEventType = 'state_changed' | 'journey_started' | 'journey_ended' | 'city_edit' | 'blocked' | 'intervention' | 'step' | 'segment' | 'pickup' | 'exploration' | 'crossing_requested' | 'achievement' | 'arrived';
+export type RobotEventType = 'state_changed' | 'journey_started' | 'journey_ended' | 'city_edit' | 'blocked' | 'collision' | 'intervention' | 'step' | 'segment' | 'pickup' | 'exploration' | 'crossing_requested' | 'achievement' | 'arrived';
 export interface RobotEvent {
   sequence: number; botId: number; runId: number; time: number; runTime: number;
   type: RobotEventType; state: RobotState; edge: number;

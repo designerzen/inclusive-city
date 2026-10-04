@@ -94,7 +94,7 @@ test('mouse interest is local to the robot silhouette and gaze respects vision a
     const rig = scene.getTransformNodeByName('head-rig')!;
     assert.ok(rig.rotation.y < 0);
     assert.ok(scene.getMeshByName('pupil-1')!.position.x > 0);
-    bot.setProfile(createRobotProfile(defaultAbilities(), ['movement', 'memory', 'hearing']));
+    bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'memory', 'hearing']));
     bot.animateTravel(0, .1);
     assert.equal(scene.getMeshByName('pupil-1')!.position.x, 0);
     assert.equal(scene.getMeshByName('left-eye')!.material!.name, 'dark-joints');
@@ -118,7 +118,7 @@ test('editor feedback responds to both directions of every tradeoff and distingu
   assert.equal(new Set(poses).size, abilityPairs.length);
   const modulePoses = robotFunctions.map(item => {
     const animation = new CharacterAnimation();
-    animation.feel({ type: 'function', id: item.id, enabled: true, swapEnabled: item.id, swapDisabled: item.id === 'movement' ? 'hearing' : 'movement' });
+    animation.feel({ type: 'function', id: item.id, enabled: true, swapEnabled: item.id, swapDisabled: item.id === 'communication' ? 'hearing' : 'communication' });
     return JSON.stringify(animation.tick(.25, false));
   });
   assert.equal(new Set(modulePoses).size, robotFunctions.length);

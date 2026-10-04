@@ -93,10 +93,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       const value = allocation[pair.id];
       const slider = container.querySelector<HTMLInputElement>(`#ability-${pair.id}`)!;
       slider.value = String(value);
-      const inactive = (pair.id === 'visualDetail' && !enabledFunctions.includes('vision'))
-        || (pair.id === 'burstPower' && !enabledFunctions.includes('movement'))
-        || (pair.id === 'speed' && !enabledFunctions.includes('movement') && !enabledFunctions.includes('memory'))
-        || (pair.id === 'agility' && !enabledFunctions.includes('movement') && !enabledFunctions.includes('balance'));
+      const inactive = pair.id === 'visualDetail' && !enabledFunctions.includes('vision');
       slider.disabled = inactive;
       slider.title = inactive ? 'Module off; settings retained.' : pair.description;
       slider.style.setProperty('--allocation', `${value}%`);

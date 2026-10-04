@@ -239,7 +239,7 @@ export class JourneyMusicComposer {
     const pitches = [...new Set(chord.map(note => note.midi))].slice(0, 3).map(midi => midi + 12);
     const figures: Record<string, number[]> = {
       step: [0, 2], turn: direction < 0 ? [2, 1, 0] : [0, 1, 2],
-      climb: [0, 1, 2, 3], descend: [3, 2, 1, 0], blocked: [2, 1, 1],
+      climb: [0, 1, 2, 3], descend: [3, 2, 1, 0], blocked: [2, 1, 1], collision: [2, 0, 1, 0],
       intervention: [0, 2, 3, 4], pickup: [0, 1, 2, 4], achievement: [0, 2, 4, 5],
       arrived: [0, 1, 2, 3, 4, 5], segment: [2, 0], exploration: [0, 2, 1],
       city_edit: [1, 2], journey_started: [0, 1, 2], journey_ended: [2, 1, 0],

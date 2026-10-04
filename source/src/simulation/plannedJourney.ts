@@ -1,7 +1,7 @@
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
-import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal, crossingReachProblem, robotButtonReach } from '../city/proceduralCity';
-import type { CityStreet, ProceduralCity } from '../city/proceduralCity';
+import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal, crossingReachProblem, robotButtonReach, studioEntranceProblem, studioDoorTypes, robotFootprint } from '../city/proceduralCity';
+import type { CityStreet, ProceduralCity, StudioDoorType } from '../city/proceduralCity';
 import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
 import { CityDimensions } from '../city/cityDimensions';
@@ -96,7 +96,9 @@ export class PlannedJourney {
     return street.kind === 'crossing' && !this.crossingCue(street)
       ? `${this.bot.name} cannot see the green light. Add an audible beeper and tactile crossing cues.` : null;
   }
-  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals|panel):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
+  get entranceProblem() { return studioEntranceProblem(this.world.studioEntrance, this.bot); }
+  setStudioDoor(type: StudioDoorType) { return this.editDimension('studio:type', studioDoorTypes.indexOf(type)); }
+  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals|panel):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'communication' || this.ready || this.metrics.distance === 0); }
   editDimension(id: string, value: number) {
     if (!this.canEdit(id)) return false;
     const before = this.dimensions.get(id);
@@ -114,18 +116,31 @@ export class PlannedJourney {
         if (this.blocked?.id === street.id) { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
       }
     }
+    if (id.startsWith('studio:') && !this.entranceProblem) {
+      const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === 'studio-entrance' && f.resolvedAt === null);
+      if (failure) failure.resolvedAt = this.machine.record.clock;
+      if (this.blocked?.id === 'studio-entrance') { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
+    }
     this.machine.emit('city_edit', { feature: id, before, after: value, action });
     if (action === 'resize') { this.machine.add('interventions', 1); this.machine.emit('intervention', { action }, id); }
     this.savePlan();
   }
   repair(id: string): boolean {
+    if (this.world.bicycleGarage && this.world.bicycles?.some(bike => bike.id === id)) {
+      if (this.complete || this.repaired.has(id)) return false;
+      this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
+    }
+    if (id === 'studio-entrance' && this.world.studioEntrance && this.canEdit(id)) {
+      if (this.world.studioEntrance.width < robotFootprint(this.bot) + .15) return this.editDimension('studio:width', Math.min(6, robotFootprint(this.bot) + .2));
+      return this.setStudioDoor('automatic');
+    }
     if (id.startsWith('signals:')) {
       const crossing = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
       if (!crossing || this.hasCrossingCues(crossing) || !this.canEdit(id)) return false;
       this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
     }
     const street = this.world.streets.find(s => s.id === id);
-    if ((!street && id !== 'transport') || street?.kind === 'clear' || this.repaired.has(id) || !this.canEdit(id)) return false;
+    if ((!street && id !== 'communication') || street?.kind === 'clear' || this.repaired.has(id) || !this.canEdit(id)) return false;
     if (street?.kind === 'width') return this.editDimension(`width:${id}`, Math.min(6, Math.max(3.8, street.width)));
     if (street?.kind === 'crossing') {
       if (this.reachProblem(street)) return this.lowerCrossingPanel(street);
@@ -138,7 +153,7 @@ export class PlannedJourney {
   setFeature(id: string, enabled: boolean): boolean {
     const street = this.world.streets.find(s => s.id === id);
     const signal = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
-    if (id !== 'transport' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind))) return false;
+    if (id !== 'communication' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind))) return false;
     const before = this.repaired.has(id);
     if (before === enabled || !this.canEdit(id)) return false;
     this.history.push({ id, before }); this.applyRepair(id, enabled); return true;
@@ -185,10 +200,16 @@ export class PlannedJourney {
     let remaining = seconds;
     while (remaining > 1e-9 && this.edge < this.path.length - 1) {
       const street = this.currentStreet!;
-      const transport = !this.bot.profile.enabledFunctions.includes('movement') && !this.repaired.has('transport');
-      const reason = transport ? 'The drive is disabled. Add transport at the workshop before this robot can follow the line.' : this.problem(street);
+      const bicycle = this.world.bicycles?.find(bike => bike.street === street.id && !this.repaired.has(bike.id));
+      const bicycleStop = bicycle ? Math.max(0, this.crossingLength(street) / 2 - 1 - robotFootprint(this.bot) / 2) : Infinity;
+      const bicycleReason = bicycle && this.distanceOnEdge >= bicycleStop - 1e-8
+        ? `A bicycle blocks the ${bicycle.location}. Move it into the bicycle garage so the robot can continue.` : null;
+      const communication = !this.bot.profile.enabledFunctions.includes('communication') && !this.repaired.has('communication');
+      const entranceStop = this.edge === this.path.length - 2 ? Math.max(0, this.crossingLength(street) - 2 - robotFootprint(this.bot) / 2 - .2) : Infinity;
+      const entranceReason = this.distanceOnEdge >= entranceStop - 1e-8 ? this.entranceProblem : null;
+      const reason = bicycleReason ?? entranceReason ?? (communication ? 'This bot needs a way to share its needs. Add a communication board at the workshop before it sets off.' : this.problem(street));
       if (reason) {
-        const id = transport ? 'transport' : street.id;
+        const id = bicycleReason ? bicycle!.id : entranceReason ? 'studio-entrance' : communication ? 'communication' : street.id;
         this.blocked = { id, reason }; this.machine.transition('blocked');
         if (this.encountered !== id) {
           this.encountered = id; this.machine.add('failures', 1);
@@ -225,6 +246,8 @@ export class PlannedJourney {
         this.machine.transition('following');
       }
       let distance = Math.min(length - this.distanceOnEdge, remaining * this.speed, this.metrics.stepsTaken + 1 - this.metrics.distance);
+      if (this.entranceProblem && this.distanceOnEdge < entranceStop) distance = Math.min(distance, entranceStop - this.distanceOnEdge);
+      if (bicycle && this.distanceOnEdge < bicycleStop) distance = Math.min(distance, bicycleStop - this.distanceOnEdge);
       const requestedDuration = distance / this.speed;
       let collision: { id: string; reason: string } | undefined;
       if (this.constrainTravel && distance > 0) {

@@ -1,11 +1,11 @@
-export type EnvironmentChoiceKind = 'curb' | 'stairs' | 'bridge' | 'guidance' | 'transport' | 'signals' | 'elevator';
+export type EnvironmentChoiceKind = 'curb' | 'stairs' | 'bridge' | 'guidance' | 'communication' | 'signals' | 'elevator';
 
 export const environmentChoices: Record<EnvironmentChoiceKind, readonly [string, string, string, string]> = {
   curb: ['Raised curb · no cut', 'Curb cut · sloped edge', 'A vertical edge between road and pavement.', 'A gentle slope connects road and pavement.'],
   stairs: ['Steps', 'Ramp', 'Separate steps lead to the higher level.', 'One continuous slope leads to the higher level.'],
   bridge: ['Bridge raised', 'Bridge lowered', 'The bridge deck is up, leaving a gap.', 'The bridge deck connects both banks.'],
   guidance: ['No route cues', 'Route cues', 'A plain path with no direction markers.', 'Repeated arrows show the way along the path.'],
-  transport: ['No transport', 'Transport available', 'The robot travels using its own wheels.', 'A wheeled platform carries the robot.'],
+  communication: ['No communication board', 'Symbol board available', 'No alternative way to share messages or request help.', 'Symbols let the robot share its needs and request help.'],
   signals: ['Visual signal only', 'Sound + tactile cues', 'The crossing uses a light signal.', 'The light also has a beeper and a tactile indicator.'],
   elevator: ['Elevator off', 'Elevator enabled', 'The lift is closed and cannot carry the robot.', 'The lift opens and carries the robot between levels.'],
 };
@@ -34,13 +34,11 @@ export function environmentIllustration(kind: EnvironmentChoiceKind, enabled: bo
     drawing += enabled ? box(-1.5,-1.3,3,2.6,.6,.25,'#8cddc6') : slope(-1.5,-1.3,3,2.6,2.5);
   } else if (kind === 'guidance') {
     if (enabled) for (const y of [-1.7,0,1.7]) drawing += polygon([[-.7,y+.3,.32],[0,y-.5,.32],[.7,y+.3,.32],[.25,y+.3,.32],[.25,y+.8,.32],[-.25,y+.8,.32],[-.25,y+.3,.32]], '#087b63');
-  } else if (kind === 'transport') {
+  } else if (kind === 'communication') {
+    drawing += box(-.8,-.8,1.6,1.6,.3,1.4,'#ffd479');
     if (enabled) {
-      drawing += box(-1.7,-1.7,3.4,3.4,.5,.5,'#8cddc6');
-      for (const x of [-1.7,1.7]) for (const y of [-1,1]) drawing += `<ellipse cx="${110+(x-y)*14}" cy="${65+(x+y)*7-5}" rx="5" ry="7" fill="#334155"/>`;
+      drawing += '<rect x="135" y="24" width="55" height="42" rx="4" fill="#8cddc6" stroke="#334155" stroke-width="2"/><path d="M143 34h14m-7-7v14M169 30l10 10m0-10-10 10M143 52h35" stroke="#334155" stroke-width="3"/><path d="M161 66v27" stroke="#334155" stroke-width="4"/>';
     }
-    drawing += box(-.8,-.8,1.6,1.6,enabled ? 1 : .3,1.4,'#ffd479');
-    drawing += polygon([[-.6,.82,enabled ? 1.8 : 1.1],[.6,.82,enabled ? 1.8 : 1.1],[.6,.82,enabled ? 2.1 : 1.4],[-.6,.82,enabled ? 2.1 : 1.4]], '#334155');
   } else if (kind === 'signals') {
     for (let i = 0; i < 4; i++) drawing += polygon([[-2.5,-2+i*1.2,.32],[1,-2+i*1.2,.32],[1,-1.4+i*1.2,.32],[-2.5,-1.4+i*1.2,.32]], '#ffffff');
     drawing += box(1.6,-2,.25,.25,.3,2.7) + box(1.3,-2.2,.9,.6,3,1.1,'#334155');
@@ -64,4 +62,13 @@ export function environmentIllustration(kind: EnvironmentChoiceKind, enabled: bo
 export function environmentChoiceCards(kind: EnvironmentChoiceKind, current: boolean, disabled: boolean): string {
   const labels = environmentChoices[kind];
   return `<p class="environment-choice-prompt">Choose one setting. Your selection changes the city immediately.</p><div class="environment-choice-grid" role="group" aria-label="${kind === 'signals' ? 'Crossing cues' : kind} settings">${[false, true].map(value => `<button type="button" class="environment-choice" data-environment-value="${value}" aria-pressed="${value === current}" ${disabled ? 'disabled' : ''}>${environmentIllustration(kind, value)}<strong>${labels[value ? 1 : 0]}</strong><span>${labels[value ? 3 : 2]}</span><span class="environment-choice-state">${value === current ? '✓ Current setting' : 'Choose this setting'}</span></button>`).join('')}</div>`;
+}
+
+export function studioDoorChoiceCards(current: string, disabled: boolean): string {
+  const doors = [
+    ['revolving', 'Revolving door', 'Needs 60 agility to turn with the rotating panels.'],
+    ['automatic', 'Automatic door', 'Opens for the robot. No pushing or handle needed.'],
+    ['push', 'Push door', 'Needs 40 burst power and reach to a 1.20 m push bar.'],
+  ];
+  return `<p class="environment-choice-prompt">Choose a studio door. Every door still needs enough width for your robot.</p><div class="environment-choice-grid" role="group" aria-label="Studio door choices">${doors.map(([type, label, description]) => `<button type="button" class="environment-choice" data-studio-door="${type}" aria-pressed="${type === current}" ${disabled ? 'disabled' : ''}><svg class="environment-illustration" viewBox="0 0 220 125" aria-hidden="true"><rect x="65" y="12" width="90" height="105" rx="4" fill="#334155"/><rect x="74" y="20" width="72" height="97" fill="#93cfe8"/>${type === 'revolving' ? '<ellipse cx="110" cy="69" rx="32" ry="43" fill="none" stroke="#334155" stroke-width="4"/><path d="M110 25v90m-30-66 60 40m-60 0 60-40" stroke="#334155" stroke-width="4"/>' : type === 'automatic' ? '<path d="M110 20v97M91 63H77l7-7m-7 7 7 7m45-7h14l-7-7m7 7-7 7" fill="none" stroke="#087b63" stroke-width="4"/>' : '<path d="M85 70h50" stroke="#334155" stroke-width="7"/>'}</svg><strong>${label}</strong><span>${description}</span><span class="environment-choice-state">${type === current ? '✓ Current setting' : 'Choose this door'}</span></button>`).join('')}</div>`;
 }

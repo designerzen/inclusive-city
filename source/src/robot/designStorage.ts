@@ -39,7 +39,7 @@ export function loadDesigns(storage?: DesignStorage): SavedDesigns | undefined {
     if (!object(saved) || saved.version !== 1 || !Array.isArray(saved.bots) || !saved.bots.length
       || !Number.isInteger(saved.cursor) || !boundedNumber(saved.cursor, 0, saved.bots.length - 1) || !saved.bots.every(validDesign)) return;
     // Rebuild derived abilities and validate the three-function selection.
-    const bots = saved.bots.map((bot: RobotDesign) => ({ ...bot, profile: createRobotProfile(bot.profile.abilities, bot.profile.enabledFunctions, bot.profile.artist) }));
+    const bots = saved.bots.map((bot: RobotDesign) => ({ ...bot, profile: createRobotProfile(bot.profile.abilities, bot.profile.enabledFunctions.map(id => (id as string) === 'movement' ? 'communication' : id), bot.profile.artist) }));
     if (new Set(bots.filter(bot => bot.presetId).map(bot => bot.presetId)).size !== bots.filter(bot => bot.presetId).length) return;
     return { version: 1, cursor: saved.cursor, bots };
   } catch { /* Corrupt or unavailable storage must not prevent startup. */ }

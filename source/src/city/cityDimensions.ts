@@ -1,5 +1,5 @@
 import type { ProceduralCity } from './proceduralCity';
-import { crossingButtonHeight } from './proceduralCity';
+import { crossingButtonHeight, studioDoorTypes } from './proceduralCity';
 
 export const sides = ['front', 'back', 'left', 'right'] as const;
 export type BuildingSide = typeof sides[number];
@@ -24,17 +24,20 @@ export class CityDimensions {
         this.values[`panel:${street.id}`] = crossingButtonHeight(street);
       }
     }
+    if (world.studioEntrance) { this.values['studio:width'] = world.studioEntrance.width; this.values['studio:type'] = studioDoorTypes.indexOf(world.studioEntrance.doorType); }
     this.originals = { ...this.values };
   }
   get(id: string) { return this.values[id]; }
   snapshot() { return { ...this.values }; }
   name(id: string) {
     const [kind, name, side] = id.split(':');
+    if (kind === 'studio') return name === 'width' ? 'Studio doorway width' : 'Studio door type';
     return kind === 'wall' ? `${name} ${side} wall` : kind === 'door' ? `${name} doorway` : kind === 'crossing' ? 'Crossing time' : kind === 'panel' ? 'Crossing button panel height' : 'Street width';
   }
   limits(id: string) {
     if (!(id in this.values)) return null;
     const [kind, name, side] = id.split(':');
+    if (kind === 'studio') return name === 'width' ? { min: .5, max: 6, step: .05 } : { min: 0, max: 2, step: 1 };
     if (kind === 'door') return { min: .65, max: 2, step: .05 };
     if (kind === 'crossing') return { min: Math.min(.1, this.originals[id]!), max: 20, step: .1 };
     if (kind === 'panel') return { min: .5, max: 2.2, step: .05 };
@@ -47,10 +50,14 @@ export class CityDimensions {
   set(id: string, value: number) {
     const limits = this.limits(id);
     if (!limits || !Number.isFinite(value) || value < limits.min - 1e-8 || value > limits.max + 1e-8) return false;
+    if (id === 'studio:type' && !Number.isInteger(value)) return false;
     if (this.values[id] === value) return false;
     this.values[id] = value;
     const [kind, name] = id.split(':');
-    if (kind === 'wall') {
+    if (kind === 'studio' && this.world.studioEntrance) {
+      if (name === 'width') this.world.studioEntrance.width = value;
+      else this.world.studioEntrance.doorType = studioDoorTypes[value]!;
+    } else if (kind === 'wall') {
       const b = this.world.buildings.find(b => b.name === name)!;
       const left = this.values[`wall:${name}:left`]!, right = this.values[`wall:${name}:right`]!;
       const front = this.values[`wall:${name}:front`]!, back = this.values[`wall:${name}:back`]!;

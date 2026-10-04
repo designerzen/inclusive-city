@@ -29,6 +29,7 @@ export class JourneyCreativity {
   private lastSequence = 0;
   private expression: JourneyExpression = { moving: false, turning: 0, slope: 0, paused: false, speed: 0 };
   private pending = new Map<string, number>();
+  private collisions: RobotEvent[] = [];
   private previousMotion: { position: RobotEvent['position']; heading: number; time: number } | null = null;
   private lastTurn = -Infinity;
   private lastSlope = -Infinity;
@@ -56,7 +57,8 @@ export class JourneyCreativity {
     this.lastSequence = event.sequence;
     this.painting.consume(event);
     // Coalesce repeated events within one frame; the phrase still reflects every state change.
-    this.pending.set(event.type, 0);
+    if (event.type === 'collision') this.collisions.push(structuredClone(event));
+    else this.pending.set(event.type, 0);
     this.edge = event.edge;
     if (event.type === 'blocked') this.blocked = true;
     if (event.type === 'intervention') this.blocked = false;
@@ -125,6 +127,15 @@ export class JourneyCreativity {
       at: Math.max(time, at), phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
       harmony: this.harmony, expression: this.expression,
     }, direction));
+    // Each impact leaves its own saved musical answer, even within one frame.
+    this.collisions.forEach((event, index) => {
+      const reaction = this.composer.react('collision', { at: Math.max(time, at) + index * beat / 4,
+        phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
+        harmony: this.harmony, expression: this.expression }, Math.min(1, Number(event.data.speed) / 3));
+      reaction.label = `journey:action:collision:${event.sequence}:${event.data.actor}:${event.data.other}`;
+      result.push(reaction);
+    });
+    this.collisions = [];
     this.pending.clear();
     if (!result.length) return result;
     result.sort((a, b) => a.at - b.at);

@@ -4,7 +4,7 @@ import { cityBarriers } from '../city/cityLayout';
 import { describeFeature, featureNames } from '../city/cityDocument';
 
 const issues: Record<BarrierId, string> = {
-  transport: 'There’s no accessible transport on this route! Add a ride and I’m ready to roll.',
+  communication: 'I need another way to share my needs! Add a symbol board so I can request help before setting off.',
   curb: 'This curb is too high for my wheels! Lower it and the crossing is back on the menu.',
   crossing: 'This signal changes too quickly for me to cross safely! More crossing time, more time to enjoy the view.',
   guidance: 'This junction is missing clear route cues! Audio and tactile directions will keep this explorer on track.',

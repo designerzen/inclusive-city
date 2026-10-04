@@ -1,4 +1,5 @@
 const paths = {
+  message: '<path d="M4 4h16v12H9l-5 4V4Z"/><path d="M8 8h8M8 12h5"/>',
   legend: '<rect x="3" y="4" width="5" height="5" rx="1"/><path d="M12 6.5h9"/><circle cx="5.5" cy="17.5" r="2.5"/><path d="M12 17.5h9"/>',
   overhead: '<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>',
   angled: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/>',

@@ -1,5 +1,6 @@
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import type { Engine } from '@babylonjs/core/Engines/engine';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
@@ -22,6 +23,7 @@ import { createCityPhysics } from './cityPhysics';
 import { loadCityPhysics } from './loadCityPhysics';
 import { createAutonomousBots } from './autonomousBots';
 import { createStudioInstruments } from '../app/createStudioInstruments';
+import { createBicycleGarage } from './bicycleGarage';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -138,6 +140,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const plane = MeshBuilder.CreatePlane(`label-${text}`, { width, height: width / 4 }, scene); plane.rotation.x = Math.PI / 2; plane.position.set(x, y, z); plane.material = mat; plane.isPickable = false;
     labelMaterials.push({ mat, texture, text });
   }
+  const syncBicycles = createBicycleGarage(scene, journey, signalAmber, flagBlack, walls);
+  if (world.bicycleGarage) label('BICYCLE GARAGE', world.bicycleGarage.x, 2.1, world.bicycleGarage.z + 2.2, 5);
   const buildingModels = world.buildings.map(b => {
     const pieces = ['left', 'right', 'back', 'front-left', 'front-right', 'lintel'].map(side => {
       const mesh = box(`wall-${b.name}-${side}`, 0, 0, 0, 1, 1, 1, walls);
@@ -194,6 +198,45 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     return { node, ring };
   });
   const goal = world.nodes.find(node => node.id === world.destination)!;
+  const entranceRoot = new TransformNode('studio-entrance', scene);
+  const entranceParts = Array.from({ length: 7 }, (_, i) => {
+    const mesh = box(`studio-door-part-${i}`, 0, 0, 0, 1, 1, 1, i < 3 ? walls : details);
+    mesh.parent = entranceRoot; mesh.isPickable = true; mesh.metadata = { street: 'studio-entrance' };
+    return mesh;
+  });
+  function syncEntrance() {
+    entranceRoot.setEnabled(!!world.studioEntrance);
+    if (!world.studioEntrance) return;
+    const incoming = world.streets.find(s => s.a === goal.id || s.b === goal.id);
+    const neighbour = incoming?.a === goal.id ? incoming.b : incoming?.a;
+    const previous = world.nodes.find(n => n.id === journey.route.at(-2)) ?? world.nodes.find(n => n.id === neighbour) ?? world.nodes.find(n => n.id !== goal.id)!;
+    const dx = goal.x - previous.x, dz = goal.z - previous.z, length = Math.hypot(dx, dz);
+    entranceRoot.position.set(goal.x - dx / length * 2, .15, goal.z - dz / length * 2);
+    entranceRoot.rotation.y = Math.atan2(dx, dz);
+    const width = resizer.value('studio:width');
+    const place = (i: number, x: number, y: number, w: number, h: number, d: number, rotation = 0) => {
+      const mesh = entranceParts[i]!; mesh.setEnabled(true); mesh.position.set(x, y, 0); mesh.scaling.set(w, h, d); mesh.rotation.y = rotation;
+    };
+    place(0, -width / 2 - .25, 1.8, .5, 3.6, .45);
+    place(1, width / 2 + .25, 1.8, .5, 3.6, .45);
+    place(2, 0, 3.7, width + 1, .3, .45);
+    entranceParts[2]!.metadata = { street: 'studio-entrance', dimension: 'studio:width', axis: Math.abs(dx) > Math.abs(dz) ? 'z' : 'x' };
+    entranceParts.slice(3).forEach(m => m.setEnabled(false));
+    const open = !journey.entranceProblem && !journey.ready && Math.hypot(journey.position.x - entranceRoot.position.x, journey.position.z - entranceRoot.position.z) < 4;
+    if (world.studioEntrance.doorType === 'automatic') {
+      for (const side of [-1, 1]) place(side < 0 ? 3 : 4, side * width * (open ? .75 : .25), 1.75, width / 2, 3.5, .09);
+      place(5, 0, 3.4, .45, .16, .2); entranceParts[5]!.material = signalGreen;
+    } else if (world.studioEntrance.doorType === 'push') {
+      place(3, open ? -width / 2 : 0, 1.75, open ? .09 : width, 3.5, open ? width : .09);
+      if (open) entranceParts[3]!.position.z = -width / 2;
+      else place(4, 0, 1.2, width * .65, .12, .2);
+    } else {
+      const rotation = open && !reducedMotionPreference().matches ? journey.signalTime * .8 : 0;
+      place(3, 0, 1.75, .15, 3.5, .15);
+      place(4, 0, 1.75, width, 3.5, .09, rotation);
+      place(5, 0, 1.75, .09, 3.5, width, rotation);
+    }
+  }
   const goalRing = MeshBuilder.CreateTorus('goal-finish-ring', { diameter: 4.2, thickness: .35, tessellation: 32 }, scene);
   goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
   solids.push(box('goal-flagpole', goal.x + 1.2, 2.7, goal.z, .15, 5.4, .15, goalMaterial));
@@ -214,6 +257,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   let line: ReturnType<typeof MeshBuilder.CreateTube> | null = null;
   let routeKey = '', revisionKey = '';
   function sync() {
+    syncEntrance();
     const key = journey.route.join('|');
     if (key !== routeKey) {
       routeKey = key; line?.dispose(); line = null;
@@ -225,6 +269,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (revisionKey !== edits) {
       revisionKey = edits;
       syncDimensions();
+      syncBicycles();
       streetModels.forEach(({ street, surface, parts, bridge, dx }) => {
         const repaired = journey.repaired.has(street.id);
         parts.forEach(m => m.setEnabled(!repaired));
@@ -239,7 +284,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     sync(); physics?.update(seconds);
     autonomousBots?.update(seconds, reducedMotionPreference().matches, journey.signalTime);
     if (physicsStatus !== 'loading') journey.update(seconds);
-    sync(); syncSignals(); const p = journey.position;
+    sync(); syncSignals(); syncEntrance(); const p = journey.position;
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;

@@ -4,6 +4,7 @@ import { createCityScene } from '../city/createCityScene';
 import type { CityView } from '../city/cityCamera';
 import { sides } from '../city/cityDimensions';
 import { generateCity, streetActions, streetNames, streetBetween } from '../city/proceduralCity';
+import type { StudioDoorType } from '../city/proceduralCity';
 import type { Theme } from '../app/theme';
 import type { ArtBot } from '../robot/botHistory';
 import type { CitySounds } from '../audio/CitySounds';
@@ -15,7 +16,7 @@ import { musicDuration } from '../art/finishedJourney';
 import { captureFinishedJourney } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
 import { pianoSynthScore } from '../audio/pianoSynth';
-import { environmentChoiceCards } from './environmentChoices';
+import { environmentChoiceCards, studioDoorChoiceCards } from './environmentChoices';
 import type { EnvironmentChoiceKind } from './environmentChoices';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
@@ -77,6 +78,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         <button id="city-undo" type="button" disabled>Undo city change</button>
       </section>
       <p id="city-feedback" role="status" aria-live="polite"></p>
+      <p id="city-garage-status" role="status" aria-live="polite"></p>
       <div id="city-finished" hidden><p id="city-result"></p><button id="city-exhibition" type="button">See your artwork</button></div>
       <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
         <div class="city-map-buttons" role="group" aria-label="Zoom and pan controls">
@@ -156,6 +158,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   function refresh() {
     if (!city) return;
     const j = city.journey;
+    const bikes = j.world.bicycles ?? [];
+    setText('city-garage-status', `Bicycle garage · ${bikes.filter(bike => j.repaired.has(bike.id)).length} / ${bikes.length} bikes stored. Move blocking bicycles here to clear pavements and roads.`);
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const goal = city.projectNode(j.world.destination), marker = get('city-goal');
     const onMap = goal.z >= 0 && goal.z <= 1 && goal.x >= 0 && goal.x <= canvas.clientWidth && goal.y >= 0 && goal.y <= canvas.clientHeight;
@@ -215,11 +219,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       panelKey = key;
       const street = j.world.streets.find(s => s.id === selected);
       const repaired = !!selected && j.repaired.has(selected);
-      const transport = selected === 'transport';
+      const bicycle = j.world.bicycles?.find(bike => bike.id === selected);
+      const communication = selected === 'communication';
+      const studio = selected === 'studio-entrance' || selected === 'studio:width';
       const dimension = selected && j.dimensions.limits(selected);
-      sizeId = dimension ? selected : street ? `${street.kind === 'crossing' ? j.reachProblem(street) ? 'panel' : 'crossing' : 'width'}:${street.id}` : null;
-      setText('city-feature-name', dimension ? j.dimensions.name(selected!) : transport ? 'Workshop transport' : street ? streetNames[street.kind] : 'Choose a place on the map');
-      setText('city-feature-reason', dimension ? selected!.startsWith('panel:') ? 'Lower the button panel so robots with shorter reach can press it to request a green light.' : selected!.startsWith('door:') ? 'Widen or narrow the doorway and watch the opening change.' : 'Move this wall to change the building’s shape.' : repaired ? 'Changed. Your robot can use this street.' : transport ? 'Add transport for robots whose drive is disabled.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Choose a wall, doorway or street to change.');
+      sizeId = studio ? 'studio:width' : dimension ? selected : street ? `${street.kind === 'crossing' ? j.reachProblem(street) ? 'panel' : 'crossing' : 'width'}:${street.id}` : null;
+      setText('city-feature-name', bicycle ? `Bicycle on ${bicycle.location}` : studio ? 'Duet studio entrance' : dimension ? j.dimensions.name(selected!) : communication ? 'Workshop communication board board' : street ? streetNames[street.kind] : 'Choose a place on the map');
+      setText('city-feature-reason', bicycle ? repaired ? 'Stored in the bicycle garage. The route is clear of this bike.' : `This bicycle blocks the ${bicycle.location}. Move it into the garage to let the robot pass.` : studio ? j.entranceProblem ?? 'The robot can enter through this door. Try different doors and widths.' : dimension ? selected!.startsWith('panel:') ? 'Lower the button panel so robots with shorter reach can press it to request a green light.' : selected!.startsWith('door:') ? 'Widen or narrow the doorway and watch the opening change.' : 'Move this wall to change the building’s shape.' : repaired ? 'Changed. Your robot can use this street.' : communication ? 'Add a symbol board so robots can share messages and request help.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Choose a wall, doorway or street to change.');
       get('city-size-controls').hidden = !sizeId;
       if (sizeId) {
         const limits = j.dimensions.limits(sizeId)!;
@@ -228,18 +234,20 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         setText('city-size-label', sizeId.startsWith('panel:') ? 'Button panel height' : sizeId.startsWith('wall:') ? 'Wall position' : sizeId.startsWith('crossing:') ? 'Crossing time' : 'Width');
       }
       const repair = get<HTMLButtonElement>('city-repair');
-      const choiceKind = transport ? 'transport' : street && ['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) ? street.kind as EnvironmentChoiceKind : null;
+      const choiceKind = communication ? 'communication' : street && ['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) ? street.kind as EnvironmentChoiceKind : null;
       const choices = get('city-environment-choices'), signalChoices = get('city-signal-choices');
+      const focusedDoor = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.studioDoor : undefined;
       const focusedChoice = container.contains(document.activeElement) ? document.activeElement?.closest<HTMLButtonElement>('[data-environment-value]') : null;
       const focusedGroup = focusedChoice?.closest('div[id]')?.id;
       const focusedValue = focusedChoice?.dataset.environmentValue;
-      choices.hidden = !choiceKind;
-      choices.innerHTML = choiceKind ? environmentChoiceCards(choiceKind, repaired, !j.canEdit(selected!)) : '';
+      choices.hidden = !choiceKind && !studio;
+      choices.innerHTML = studio ? studioDoorChoiceCards(j.world.studioEntrance!.doorType, !j.canEdit('studio:type')) : choiceKind ? environmentChoiceCards(choiceKind, repaired, !j.canEdit(selected!)) : '';
+      if (focusedDoor) choices.querySelector<HTMLButtonElement>(`[data-studio-door="${focusedDoor}"]`)?.focus({ preventScroll: true });
       signalChoices.hidden = street?.kind !== 'crossing';
       signalChoices.innerHTML = street?.kind === 'crossing' ? `<h4>Crossing cues</h4>${environmentChoiceCards('signals', j.hasCrossingCues(street), !j.canEdit(`signals:${street.id}`))}` : '';
       if (focusedGroup && focusedValue) get(focusedGroup).querySelector<HTMLButtonElement>(`[data-environment-value="${focusedValue}"]`)?.focus({ preventScroll: true });
-      repair.hidden = !!dimension || !!choiceKind;
-      repair.textContent = repaired ? 'City changed ✓' : transport ? 'Add transport' : street ? streetActions[street.kind] : 'Choose a place';
+      repair.hidden = studio || !!dimension || !!choiceKind;
+      repair.textContent = bicycle ? repaired ? 'Bicycle stored ✓' : 'Move into bicycle garage' : repaired ? 'City changed ✓' : communication ? 'Add communication board' : street ? streetActions[street.kind] : 'Choose a place';
       repair.disabled = !selected || repaired || !!street && street.kind === 'clear' || !j.canEdit(selected);
       const cues = get<HTMLButtonElement>('city-crossing-cues');
       cues.hidden = true;
@@ -254,7 +262,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     get('city-signal-status').hidden = !crossing;
     if (crossing) setText('city-signal-status', `${j.signal(crossing).green ? 'GREEN · Cross when there is enough time' : 'RED · Wait at the kerb'}. ${j.hasRequestedCrossing(crossing) ? 'Button pressed · crossing requested.' : 'Press the button to request a crossing.'} ${j.hasCrossingCues(crossing) ? 'Beeper sounds and tactile cue activates on green.' : 'Visual light only. Add a beeper and tactile cues for robots without eyes.'}`);
     if (!j.ready && !j.complete && !j.paused && j.currentStreet?.kind === 'crossing' && j.hasCrossingCues(j.currentStreet) && j.signal(j.currentStreet).green) sounds.crossingBeep();
-    for (const event of j.machine.record.events.slice(eventCursor)) creation?.consume(event);
+    for (const event of j.machine.record.events.slice(eventCursor)) {
+      creation?.consume(event);
+      if (event.type === 'collision') sounds.collision(Number(event.data.speed), String(event.data.kind));
+    }
     eventCursor = j.machine.record.events.length;
     if (creation) {
       updateCityMusic();
@@ -307,13 +318,17 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     selected = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
     streetSelect.replaceChildren();
     const initial = document.createElement('option'); initial.value = ''; initial.textContent = 'Choose a street…'; streetSelect.append(initial);
-    const transport = document.createElement('option'); transport.value = 'transport'; transport.textContent = 'Workshop · transport'; streetSelect.append(transport);
+    const entrance = document.createElement('option'); entrance.value = 'studio-entrance'; entrance.textContent = 'Duet studio · Entrance door'; streetSelect.append(entrance);
+    const communication = document.createElement('option'); communication.value = 'communication'; communication.textContent = 'Workshop · communication board'; streetSelect.append(communication);
     for (const street of world.streets) {
       const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
       const option = document.createElement('option'); option.value = street.id; option.textContent = `${a.label} → ${b.label} · ${streetNames[street.kind]}`; streetSelect.append(option);
       if (street.kind === 'crossing') {
         const panel = document.createElement('option'); panel.value = `panel:${street.id}`; panel.textContent = `${a.label} → ${b.label} · Button panel height`; streetSelect.append(panel);
       }
+    }
+    for (const bike of world.bicycles ?? []) {
+      const option = document.createElement('option'); option.value = bike.id; option.textContent = `Bicycle ${bike.id.slice(8)} · ${bike.location}`; streetSelect.append(option);
     }
     for (const building of world.buildings) {
       for (const id of [`door:${building.name}`, ...sides.map(side => `wall:${building.name}:${side}`)]) {
@@ -334,6 +349,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
   get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
+  get('city-environment-choices').addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-studio-door]') : null;
+    if (button && !button.disabled && city?.journey.setStudioDoor(button.dataset.studioDoor as StudioDoorType)) { city.sync(); feedback('Studio door changed. Undo lets you try another door.'); refresh(); }
+  });
   for (const group of ['city-environment-choices', 'city-signal-choices']) get(group).addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-environment-value]') : null;
     if (!button || button.disabled || !selected || !city) return;
@@ -398,7 +417,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       const id = mode === 'edit' ? city.streetAt(p.x, p.y) : city.nodeAt(p.x, p.y);
       const street = city.journey.world.streets.find(s => s.id === id), node = city.journey.world.nodes.find(n => n.id === id);
       get('city-hover').hidden = !id;
-      if (id) setText('city-hover', street ? `${streetNames[street.kind]} · tap to change` : `${node!.label} · draw through this junction`);
+      if (id) setText('city-hover', city.journey.world.bicycles?.some(bike => bike.id === id) ? 'Bicycle · tap to move into garage' : id === 'studio-entrance' ? 'Studio entrance · tap to change' : street ? `${streetNames[street.kind]} · tap to change` : `${node!.label} · draw through this junction`);
       if (mode === 'edit') city.highlight(id ?? null); canvas.style.cursor = id ? 'pointer' : 'grab'; return;
     }
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });

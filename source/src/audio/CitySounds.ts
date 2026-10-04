@@ -125,6 +125,11 @@ export class CitySounds {
   interaction(name: InteractionSound) { this.play(interactionSound(name), `interaction:${name}`); }
   button(name: ButtonSound, active = true) { this.play(buttonSound(name, active), `button:${name}:${active ? 'active' : 'inactive'}`); }
   mood(mood: RobotMood) { this.play(robotMoodSound(mood), `mood:${mood}`); }
+  collision(speed = 1, kind = 'robot') {
+    this.play(new SoundEffect({ root: kind === 'robot' ? 60 : 48, intervals: [0, 7, 3], pattern: 'down',
+      waveform: 'triangle', stepBeats: .06, durationBeats: .12, attack: .003, release: .08,
+      gain: .08 + Math.min(3, Math.max(0, Number.isFinite(speed) ? speed : 1)) * .025, echoGain: 0 }), `collision:${kind}`);
+  }
   crossingBeep() {
     if (performance.now() - this.lastCrossingBeep < 500) return;
     this.lastCrossingBeep = performance.now();

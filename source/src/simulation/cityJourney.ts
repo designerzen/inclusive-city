@@ -92,13 +92,13 @@ export class CityJourney {
   }
 
   get complete() { return this.edge >= cityRoute.length - 1; }
-  get speed() { return this.bot.profile.enabledFunctions.includes('movement') ? 0.8 + this.bot.profile.effectiveAbilities.speed * 0.025 : 1.4; }
+  get speed() { return 0.8 + this.bot.profile.effectiveAbilities.speed * 0.025; }
   get footprint() { return (2 * (0.95 + this.bot.profile.abilities.reach * 0.004) + 0.35) * this.bot.appearance.width * 0.55; }
 
   private inaccessible(barrier: CityBarrier, value = this.city.get(barrier.id)): boolean {
     const functions = this.bot.profile.enabledFunctions;
     switch (barrier.id) {
-      case 'transport': return !value && !functions.includes('movement');
+      case 'communication': return !value && !functions.includes('communication');
       case 'crossing': return 6 / this.speed > Number(value);
       case 'guidance': return !value && (!functions.includes('vision') || this.bot.profile.effectiveAbilities.routeMemory < 25);
       case 'sidewalk': return this.footprint + 0.15 > Number(value);
@@ -219,7 +219,7 @@ export class CityJourney {
     if (buildingProperty(id) || doorBuilding(id)) return true;
     if (this.ready || this.complete) return true;
     // Editing a surface occupied by the robot must not strand it mid-segment.
-    if (id === 'transport' && (this.distanceOnEdge > 0 || this.excursion)) return false;
+    if (id === 'communication' && (this.distanceOnEdge > 0 || this.excursion)) return false;
     return !(cityBarriers.find(b => b.id === id)!.edge === this.edge && this.distanceOnEdge > 0);
   }
   edit(id: CityEditId, value: CityValue) {

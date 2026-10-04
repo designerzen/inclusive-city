@@ -16,7 +16,7 @@ test('icons follow changing playback, audio, camera and repair actions', () => {
 });
 
 test('module icons describe the module and remain decorative', () => {
-  for (const [id, expected] of [['vision', 'eye'], ['hearing', 'volume'], ['movement', 'follow'], ['memory', 'route'], ['balance', 'angled']]) {
+  for (const [id, expected] of [['vision', 'eye'], ['hearing', 'volume'], ['communication', 'message'], ['memory', 'route'], ['balance', 'angled']]) {
     const icon = buttonIcon('Enabled', `function-${id}`);
     assert.equal(icon, expected);
     assert.match(mapIcon(icon), /aria-hidden="true"/);

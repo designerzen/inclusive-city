@@ -87,6 +87,55 @@ test('the player waits for another robot and resumes when it moves away', async 
   } finally { scene.dispose(); engine.dispose(); }
 });
 
+test('a head-on bot retreats midway through a red crossing and lets the player finish', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  journey.world.nodes.push({ id: 'c', label: 'West', x: 0, y: .16, z: 0 }, { id: 'd', label: 'East', x: 8, y: .16, z: 0 });
+  journey.world.streets.push({ id: 'crossing', a: 'c', b: 'd', kind: 'crossing', width: 3, crossingSeconds: 1 });
+  const physics = createCityPhysics(scene, journey, [floor], await wasm);
+  const autonomous = createAutonomousBots(scene, journey.world, physics);
+  const bot = autonomous.bots[0]!;
+  Object.assign(bot, { node: journey.world.nodes[3]!, target: journey.world.nodes[2]!, wait: 0, heading: Math.PI / 2, crossingEntered: true });
+  bot.character.controller.setPosition(new Vector3(4, .075 + bot.character.height / 2, 0));
+  const other = autonomous.bots[1]!;
+  other.character.controller.setPosition(new Vector3(12, .075 + other.character.height / 2, 10));
+  other.wait = 1000;
+  scene.getPhysicsEngine()!._step(1 / 60);
+  try {
+    journey.start();
+    let reversedMidStreet = false;
+    for (let i = 0; i < 1800 && !journey.complete; i++) {
+      physics.update(1 / 60); autonomous.update(1 / 60, false, 0); journey.update(1 / 60);
+      scene.getPhysicsEngine()!._step(1 / 60);
+      if (bot.returning && bot.character.controller.getPosition().x > .2 && bot.character.controller.getPosition().x < 7.8) reversedMidStreet = true;
+    }
+    assert.ok(reversedMidStreet, 'reverse happens before reaching a junction');
+    assert.equal(journey.complete, true, JSON.stringify({ player: journey.position, bot: bot.model.robot.position.asArray(), blocked: journey.blocked, returning: bot.returning }));
+    const collisions = journey.machine.record.events.filter(e => e.type === 'collision');
+    assert.ok(collisions.some(e => e.data.actor === 'player' || e.data.other === 'player'));
+    assert.ok(collisions.every(e => Number(e.data.speed) > 0 && Number.isFinite(e.position.x)));
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('each new collision is recorded once, repeated contact is silent, and separating rearms it', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  const wall = MeshBuilder.CreateBox('impact-wall', { width: .2, height: 4, depth: 8 }, scene); wall.position.set(3, 2, 0);
+  const physics = createCityPhysics(scene, journey, [floor, wall], await wasm);
+  const bot = physics.addRobot('impact-bot', new Vector3(-3, 1, 0), .55, 1.8);
+  const impacts = () => journey.machine.record.events.filter(e => e.type === 'collision');
+  try {
+    physics.moveRobot(bot, new Vector3(8, 0, 0), 1);
+    for (let i = 0; i < 30; i++) physics.moveRobot(bot, new Vector3(1, 0, 0), 1 / 60);
+    assert.equal(impacts().length, 1);
+    assert.equal(impacts()[0]!.data.kind, 'robot');
+    physics.moveRobot(bot, new Vector3(-2, 0, 0), 1);
+    physics.moveRobot(bot, new Vector3(8, 0, 0), 1);
+    assert.equal(impacts().length, 2);
+    journey.start();
+    physics.moveRobot(physics.player, new Vector3(8, 0, 0), 1);
+    assert.ok(impacts().some(e => e.data.kind === 'world' && e.data.other === 'solid:impact-wall'));
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('Havok gravity grounds the robot, and swept travel stops at walls without false steps or repeated failures', async () => {
   const { engine, scene, journey, floor } = fixture();
   const wall = MeshBuilder.CreateBox('wall', { width: .2, height: 4, depth: 8 }, scene); wall.position.set(3, 2, 0);
@@ -142,6 +191,7 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
   for (const seed of [8, 42, 109]) {
     const bot = new BotHistory(['Curie', 'Einstein']).current;
     const world = generateCity(seed, [bot]), journey = new PlannedJourney(bot, world);
+    for (const bicycle of world.bicycles ?? []) journey.repair(bicycle.id);
     const engine = new NullEngine(), scene = new Scene(engine);
     const floor = MeshBuilder.CreateBox('floor', { width: 56, height: .15, depth: 44 }, scene); floor.position.y = -.12;
     const solids = [floor];
@@ -160,6 +210,8 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
       const mesh = MeshBuilder.CreateBox(building.name, { width: building.w, height: building.h, depth: building.d }, scene);
       mesh.position.set(building.x, building.h / 2, building.z); solids.push(mesh);
     }
+    for (const bike of world.bicycles ?? []) journey.repair(bike.id);
+    journey.repair('studio-entrance'); journey.repair('studio-entrance');
     const physics = createCityPhysics(scene, journey, solids, await wasm);
     try {
       journey.start();

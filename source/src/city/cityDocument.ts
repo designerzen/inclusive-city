@@ -9,12 +9,12 @@ export function cityEditName(id: CityEditId) {
 }
 
 export const featureNames: Record<BarrierId, string> = {
-  transport: 'Transport', curb: 'Curb', crossing: 'Crossing', guidance: 'Route cues',
+  communication: 'Communication board', curb: 'Curb', crossing: 'Crossing', guidance: 'Route cues',
   sidewalk: 'Pavement', bridge: 'Bridge', stairs: 'Stairs', elevator: 'Elevator',
 };
 export type CityValue = boolean | number;
 export const initialCity = {
-  transport: false, curb: false, crossing: 1.5, guidance: false,
+  communication: false, curb: false, crossing: 1.5, guidance: false,
   sidewalk: 1.2, bridge: false, stairs: false, elevator: false,
 };
 export type CityProperties = typeof initialCity & Record<BuildingKey | DoorKey | PavementKey, number>;
@@ -80,6 +80,6 @@ export function describeFeature(city: CityDocument, id: BarrierId): string {
     case 'stairs': return value ? 'Ramp added' : 'Steps only';
     case 'guidance': return value ? 'Route cues added' : 'No route cues';
     case 'elevator': return value ? 'Elevator enabled' : 'Elevator off';
-    case 'transport': return value ? 'Transport added' : 'No transport';
+    case 'communication': return value ? 'Communication board available' : 'No communication board';
   }
 }

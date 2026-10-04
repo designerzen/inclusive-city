@@ -1,7 +1,7 @@
 import { mapIcon } from './mapIcons';
 
 export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0] {
-  const modules: Record<string, Parameters<typeof mapIcon>[0]> = { vision: 'eye', movement: 'follow', memory: 'route', balance: 'angled', hearing: 'volume' };
+  const modules: Record<string, Parameters<typeof mapIcon>[0]> = { vision: 'eye', communication: 'message', memory: 'route', balance: 'angled', hearing: 'volume' };
   if (id.startsWith('function-')) return modules[id.slice(9)] ?? 'robot';
   if (/settings|options/i.test(label)) return 'settings';
   if (id === 'random-name') return 'reset';

@@ -92,7 +92,7 @@ export class CharacterAnimation {
         // React to the targeted module; the automatic swap stays atomic in the profile.
         const strength = change.enabled ? 1 : .55;
         switch (change.id) {
-          case 'movement': p.lean = -.12 * envelope * strength; p.arms = .6 * envelope; break;
+          case 'communication': p.lean = -.12 * envelope * strength; p.arms = .6 * envelope; break;
           case 'vision': p.eyeWidth = change.enabled ? 1.3 : .85; p.headYaw = spring * .25; break;
           case 'hearing': p.antenna = spring * .55 * strength; p.headTilt = .18 * envelope; break;
           case 'memory': p.headTilt = -.16 * envelope; p.brow = -.15; p.eyeHeight = .75; break;

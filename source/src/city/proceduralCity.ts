@@ -5,19 +5,34 @@ export type StreetKind = 'clear' | 'bridge' | 'curb' | 'stairs' | 'width' | 'cro
 export interface CityNode extends RoutePoint { id: string; label: string; discovery?: 'music' | 'art' | 'harmony' | 'colour' }
 export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number; buttonHeight?: number }
 export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number }
+export const studioDoorTypes = ['revolving', 'automatic', 'push'] as const;
+export type StudioDoorType = typeof studioDoorTypes[number];
+export interface StudioEntrance { width: number; doorType: StudioDoorType }
+export interface CityBicycle { id: string; street: string; location: 'pavement' | 'road' }
 export interface ProceduralCity {
   seed: number; nodes: CityNode[]; streets: CityStreet[]; buildings: CityBuilding[];
+  studioEntrance?: StudioEntrance;
+  bicycleGarage?: { x: number; z: number };
+  bicycles?: CityBicycle[];
   start: string; destination: string; riverX: number; rememberedRobots: number;
 }
 
 export function robotFootprint(bot: ArtBot) { return (2 * (.95 + bot.profile.abilities.reach * .004) + .35) * bot.appearance.width * .55; }
-export function robotSpeed(bot: ArtBot) { return bot.profile.enabledFunctions.includes('movement') ? .8 + bot.profile.effectiveAbilities.speed * .025 : 1.4; }
+export function robotSpeed(bot: ArtBot) { return .8 + bot.profile.effectiveAbilities.speed * .025; }
 /** Reach tuning determines the highest crossing button the arm can operate. */
 export function robotButtonReach(bot: ArtBot) { return .9 + bot.profile.effectiveAbilities.reach * .012; }
 export function crossingButtonHeight(street: CityStreet) { return street.buttonHeight ?? 1.5; }
 export function crossingReachProblem(street: CityStreet, bot: ArtBot) {
   return street.kind === 'crossing' && crossingButtonHeight(street) > robotButtonReach(bot) + 1e-8
     ? `The crossing button is ${crossingButtonHeight(street).toFixed(2)} m high. ${bot.name} can reach ${robotButtonReach(bot).toFixed(2)} m. Lower the button panel so the robot can request a green light.` : null;
+}
+export function studioEntranceProblem(entrance: StudioEntrance | undefined, bot: ArtBot): string | null {
+  if (!entrance) return null;
+  const needed = robotFootprint(bot) + .15;
+  if (entrance.width + 1e-8 < needed) return `The studio doorway is ${entrance.width.toFixed(2)} m wide. ${bot.name} needs ${needed.toFixed(2)} m. Widen the doorway so the robot can fit.`;
+  if (entrance.doorType === 'revolving' && bot.profile.effectiveAbilities.agility < 60) return `${bot.name} cannot turn quickly enough inside the revolving door. Choose an automatic door or a push door the robot can operate.`;
+  if (entrance.doorType === 'push' && (robotButtonReach(bot) < 1.2 || bot.profile.effectiveAbilities.burstPower < 40)) return `${bot.name} cannot operate the push door: its push bar is 1.20 m high and needs 40 burst power. Choose an automatic door.`;
+  return null;
 }
 export function streetBetween(city: ProceduralCity, a: string, b: string) { return city.streets.find(s => s.a === a && s.b === b || s.a === b && s.b === a); }
 export function neighbours(city: ProceduralCity, id: string) {
@@ -65,13 +80,21 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const kinds: StreetKind[] = ['clear', 'clear', 'curb', 'stairs', 'width', 'crossing', 'guidance'];
   const streets: CityStreet[] = chosen.map((edge, i) => ({ ...edge, id: `street-${i}`, kind: kinds[Math.floor(random() * kinds.length)]!, width: Math.max(.3, minWidth - .2), crossingSeconds: Math.max(.1, 4 / fastest - .2) }));
   bridgeRows.forEach(row => streets.push({ id: `bridge-${row}`, a: `2-${row}`, b: `3-${row}`, kind: 'bridge', width: 3.5, crossingSeconds: 20 }));
+  // The studio forecourt is clear; its doorway is the final obstacle after the road.
+  streets.filter(s => s.a === destination || s.b === destination).forEach(s => { if (s.kind === 'crossing') s.kind = 'clear'; });
   const places = shuffle(nodes.filter(n => n.id !== start && n.id !== destination));
   ['Library', 'Café', 'Market', 'Cinema', 'Museum', 'Studios'].forEach((name, i) => { places[i]!.label = name; places[i]!.discovery = (['art', 'music', 'colour', 'colour', 'harmony', 'art'] as const)[i]; });
   nodes.find(n => n.id === start)!.label = 'Workshop'; nodes.find(n => n.id === destination)!.label = 'Duet studio';
   const names = shuffle(['Library', 'Café', 'Studios', 'Market', 'Offices', 'Flats', 'Cinema', 'School', 'Museum', 'Hall', 'Tower', 'Workshop', 'Gallery']);
   const lots = shuffle(zs.slice(0, -1).flatMap((z, row) => xs.slice(0, -1).flatMap((x, col) => col === 2 ? [] : [{ x: (x + xs[col + 1]!) / 2, z: (z + zs[row + 1]!) / 2 }])));
   const buildings = names.map((name, i) => ({ name, ...lots[i]!, w: 3 + random(), d: 3 + random(), h: 1.8 + random() * 3 }));
-  return { seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
+  const bicycleStreets = [...new Set([
+    ...streets.filter(s => s.a === start || s.b === start),
+    ...streets.filter(s => s.kind === 'crossing').slice(0, 2),
+    ...streets.filter(s => s.kind !== 'bridge').slice(0, 3),
+  ])];
+  const bicycles: CityBicycle[] = bicycleStreets.map((street, i) => ({ id: `bicycle-${i + 1}`, street: street.id, location: street.kind === 'crossing' || i % 2 === 1 ? 'road' : 'pavement' }));
+  return { bicycleGarage: lots[names.length]!, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {

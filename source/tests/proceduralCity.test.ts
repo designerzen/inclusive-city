@@ -31,7 +31,7 @@ test('exclusive environment settings support either state, undo, and occupied-fe
   j.setRoute([world.start, j.nextStops[0]!.id]); j.start(); j.distanceOnEdge = .5;
   assert.equal(j.setFeature(`signals:${j.currentStreet!.id}`, true), false);
   j.metrics.distance = .5;
-  assert.equal(j.setFeature('transport', true), false);
+  assert.equal(j.setFeature('communication', true), false);
 });
 function path(world: ProceduralCity, from = world.start, to = world.destination, allowed = (_id: string) => true) {
   const queue = [[from]], visited = new Set([from]);
@@ -114,6 +114,8 @@ test('the robot stops before unedited streets and follows only the drawn line af
   const stopped = j.position; j.update(10000); assert.deepEqual(j.position, stopped);
   assert.equal(j.setRoute([world.start, world.destination]), false);
   assert.equal(j.clearRoute(), false);
+  for (const bike of world.bicycles ?? []) j.repair(bike.id);
+  j.repair('studio-entrance'); j.repair('studio-entrance');
   for (const street of world.streets) if (street.kind !== 'clear') j.repair(street.id);
   for (let i = 0; i < 6000 && !j.complete; i++) {
     j.update(.05);
@@ -131,6 +133,8 @@ test('discovery choices change the journey; there are no invisible automatic det
   const visit = world.nodes.find(n => n.discovery && n.x < world.riverX)!;
   const route = [...path(world, world.start, visit.id)!, ...path(world, visit.id, world.destination)!.slice(1)];
   const j = new PlannedJourney(bot, world); assert.equal(j.setRoute(route), true);
+  for (const bike of world.bicycles ?? []) j.repair(bike.id);
+  j.repair('studio-entrance'); j.repair('studio-entrance');
   for (const street of world.streets) if (street.kind !== 'clear') j.repair(street.id);
   j.start(); j.update(10000); assert.equal(j.complete, true);
   assert.ok(j.machine.run.pickups.some(p => p.id === visit.id));
@@ -141,6 +145,8 @@ test('discovery choices change the journey; there are no invisible automatic det
 test('pause, undo, occupied-street protection and retries preserve completed journey records', () => {
   const bot = memories()[0]!, world = generateCity(10, [bot]), j = new PlannedJourney(bot, world);
   const route = path(world)!; j.setRoute(route);
+  for (const bike of world.bicycles ?? []) j.repair(bike.id);
+  j.repair('studio-entrance'); j.repair('studio-entrance');
   for (const id of route.slice(1).map((n, i) => streetBetween(world, route[i]!, n)!)) if (id.kind !== 'clear') j.repair(id.id);
   j.start(); j.update(.2); j.setPaused(true);
   const position = j.position; j.update(50); assert.deepEqual(j.position, position);
@@ -156,7 +162,7 @@ test('travel and discoveries agree across simulation tick sizes', () => {
   const bots = memories(), world = generateCity(90, bots), a = new PlannedJourney(bots[0]!, world), b = new PlannedJourney(bots[1]!, world);
   // Use identical metadata with independent records.
   b.bot.profile = structuredClone(a.bot.profile); b.bot.appearance = structuredClone(a.bot.appearance);
-  for (const j of [a, b]) { j.setRoute(path(world)!); world.streets.filter(s => s.kind !== 'clear').forEach(s => j.repair(s.id)); j.repair('transport'); j.start(); }
+  for (const j of [a, b]) { for (const bike of world.bicycles ?? []) j.repair(bike.id); j.repair('studio-entrance'); j.repair('studio-entrance'); j.setRoute(path(world)!); world.streets.filter(s => s.kind !== 'clear').forEach(s => j.repair(s.id)); j.repair('communication'); j.start(); }
   a.update(300); for (let i = 0; i < 9000; i++) b.update(1 / 30);
   assert.equal(a.complete, true); assert.equal(b.complete, true);
   assert.ok(Math.abs(a.metrics.distance - b.metrics.distance) < 1e-6);
@@ -164,18 +170,20 @@ test('travel and discoveries agree across simulation tick sizes', () => {
   assert.deepEqual(a.machine.run.pickups.map(p => p.id), b.machine.run.pickups.map(p => p.id));
 });
 
-test('workshop transport and independent street repairs are reversible without changing robot abilities', () => {
+test('workshop communication and independent street repairs are reversible without changing robot abilities', () => {
   const bot = memories()[0]!;
-  bot.profile.enabledFunctions = bot.profile.enabledFunctions.filter(f => f !== 'movement');
+  bot.profile.enabledFunctions = bot.profile.enabledFunctions.filter(f => f !== 'communication');
   const original = structuredClone(bot.profile), world = generateCity(22, [bot]), j = new PlannedJourney(bot, world);
   const route = path(world)!; j.setRoute(route); j.start(); j.update(1);
-  assert.equal(j.blocked?.id, 'transport'); assert.equal(j.metrics.distance, 0);
-  assert.equal(j.repair('transport'), true);
-  assert.equal(j.undoRepair(), true); j.update(1); assert.equal(j.blocked?.id, 'transport');
-  j.repair('transport');
+  assert.equal(j.blocked?.id, 'communication'); assert.equal(j.metrics.distance, 0);
+  assert.equal(j.repair('communication'), true);
+  assert.equal(j.undoRepair(), true); j.update(1); assert.equal(j.blocked?.id, 'communication');
+  j.repair('communication');
   const crossings = world.streets.filter(s => s.kind === 'bridge');
   j.repair(crossings[0]!.id);
   assert.equal(j.problem(crossings[0]!), null); assert.ok(j.problem(crossings[1]!));
+  for (const bike of world.bicycles ?? []) j.repair(bike.id);
+  j.repair('studio-entrance'); j.repair('studio-entrance');
   for (const id of route.slice(1).map((n, i) => streetBetween(world, route[i]!, n)!)) if (id.kind !== 'clear') j.repair(id.id);
   j.update(10000); assert.equal(j.complete, true);
   assert.deepEqual(j.bot.profile, original); assert.deepEqual(bot.profile, original);

@@ -8,6 +8,24 @@ import { SoundEffect } from '../src/audio/SoundEffect';
 
 const bot = () => new BotHistory(['Curie', 'Einstein'], () => 0).current;
 
+test('every collision in one frame changes the saved soundtrack and survives replay', () => {
+  const original = bot(), journey = new CityJourney(original);
+  const a = new JourneyCreativity(original), b = new JourneyCreativity(original);
+  const events = [journey.machine.emit('collision', { actor: 'city-bot-1', other: 'player', kind: 'robot', speed: 1 }),
+    journey.machine.emit('collision', { actor: 'city-bot-2', other: 'solid:wall', kind: 'world', speed: 2 })];
+  for (const event of events) { a.consume(event); b.consume(JSON.parse(JSON.stringify(event))); }
+  const score = a.advance(0);
+  assert.deepEqual(score, b.advance(0));
+  const collisions = score.filter(entry => entry.label?.startsWith('journey:action:collision:'));
+  assert.equal(collisions.length, 2);
+  assert.notEqual(collisions[0]!.label, collisions[1]!.label);
+  assert.ok(collisions[1]!.at > collisions[0]!.at);
+  for (const event of events) a.consume(event);
+  assert.deepEqual(a.advance(.1), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(a.score)), score);
+  collisions.forEach(entry => assert.deepEqual(SoundEffect.fromScore(entry.score).toScore(), entry.score));
+});
+
 test('studio arrival provides a track without discoveries and preserves composed music', () => {
   const creation = new JourneyCreativity(bot());
   assert.equal(creation.score.length, 0);

@@ -27,29 +27,29 @@ test('every switch preserves exactly three selections for all possible ordered p
 
 test('swap replacements are predictable', () => {
   assert.deepEqual(toggleFunction(defaultFunctions(), 'hearing').selected, ['vision', 'memory', 'hearing']);
-  assert.deepEqual(toggleFunction(defaultFunctions(), 'vision').selected, ['movement', 'memory', 'hearing']);
+  assert.deepEqual(toggleFunction(defaultFunctions(), 'vision').selected, ['communication', 'memory', 'hearing']);
 });
 
 test('disabled functions override effective values and retain tuning for reactivation', () => {
   const allocation = { ...defaultAbilities(), speed: 85, visualDetail: 70 };
   const inactive = createRobotProfile(allocation, ['hearing', 'memory', 'balance']);
   assert.equal(inactive.abilities.speed, 85);
-  assert.equal(inactive.effectiveAbilities.speed, 0);
+  assert.equal(inactive.effectiveAbilities.speed, 85);
   assert.equal(inactive.effectiveAbilities.visualDetail, 0);
   assert.equal(inactive.effectiveAbilities.wideAwareness, 0);
   const restored = createRobotProfile(allocation, defaultFunctions());
   assert.equal(restored.effectiveAbilities.speed, 85);
   assert.equal(restored.effectiveAbilities.visualDetail, 70);
   assert.equal(restored.effectiveAbilities.balance, 0);
-  const noMemory = createRobotProfile(allocation, ['movement', 'vision', 'hearing']);
+  const noMemory = createRobotProfile(allocation, ['communication', 'vision', 'hearing']);
   assert.equal(noMemory.effectiveAbilities.routeMemory, 0);
   assert.equal(noMemory.effectiveAbilities.forgetfulness, 100);
 });
 
 test('invalid counts, duplicates and unknown functions are rejected', () => {
-  for (const invalid of [[], ['movement', 'vision'], ['movement', 'vision', 'hearing', 'memory'], ['vision', 'vision', 'memory'], ['unknown', 'vision', 'memory']]) {
+  for (const invalid of [[], ['communication', 'vision'], ['communication', 'vision', 'hearing', 'memory'], ['vision', 'vision', 'memory'], ['unknown', 'vision', 'memory']]) {
     assert.throws(() => createRobotProfile(defaultAbilities(), invalid as FunctionId[]));
-    assert.throws(() => toggleFunction(invalid as FunctionId[], 'movement'));
+    assert.throws(() => toggleFunction(invalid as FunctionId[], 'communication'));
   }
   assert.throws(() => toggleFunction(defaultFunctions(), 'unknown' as FunctionId));
 });
