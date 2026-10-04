@@ -102,7 +102,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const beeper = MeshBuilder.CreateTorus(`beeper-${street.id}-${i}`, { diameter: .85, thickness: .09, tessellation: 16 }, scene);
       beeper.position.set(x, 2.6, z); beeper.material = signalGreen; beeper.isPickable = false;
       const tactile = box(`tactile-${street.id}-${i}`, node.x, .095, node.z, .65, .025, .65, signalAmber);
-      return { node, pole, housing, red, green, mapLight, roadLight, beeper, tactile };
+      const panel = box(`button-panel-${street.id}-${i}`, x, 1.6, z - .22, .48, .6, .14, flagBlack);
+      panel.metadata = { street: street.id, dimension: `panel:${street.id}`, axis: 'y' }; panel.isPickable = true;
+      const button = MeshBuilder.CreateSphere(`crossing-button-${street.id}-${i}`, { diameter: .22, segments: 12 }, scene);
+      button.position.set(x, 1.6, z - .33); button.material = signalAmber;
+      button.metadata = panel.metadata; button.isPickable = true;
+      return { node, pole, housing, red, green, mapLight, roadLight, beeper, tactile, panel, button };
     });
     return { street, dx, stripes, heads };
   });
@@ -114,6 +119,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
         const x = head.node.x + (dx ? 0 : street.width / 2 + .5), z = head.node.z + (dx ? street.width / 2 + .5 : 0);
         for (const mesh of [head.pole, head.housing, head.red, head.green, head.mapLight, head.beeper]) { mesh.position.x = x; mesh.position.z = z - (mesh === head.red || mesh === head.green ? .23 : 0); }
         head.roadLight.position.x = x + .6; head.roadLight.position.z = z;
+        const panelHeight = resizer.value(`panel:${street.id}`) + .1;
+        head.panel.position.set(x, panelHeight, z - .22);
+        head.button.position.set(x, panelHeight, z - .33);
+        head.button.material = journey.hasRequestedCrossing(street) ? signalGreen : signalAmber;
         head.red.material = signal.green ? signalOff : signalRed;
         head.green.material = signal.green ? signalGreen : signalOff;
         head.mapLight.material = signal.green ? signalGreen : signalRed;
@@ -174,6 +183,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale;
     }
+    syncSignals();
     physics?.sync();
   }
   const nodeModels = world.nodes.map(node => {
@@ -191,8 +201,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 5.1 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
   }
   const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
-  const instruments = createStudioInstruments(scene); instruments.root.setEnabled(false);
-  instruments.root.scaling.set(bot.appearance.width * .5, bot.appearance.height * .5, .5);
+  const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);
+  instruments.root.scaling.set(bot.appearance.width * .5, .5, .5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
   const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }));
   let dance: JourneyDance | null = null, musicClock: (() => number) | null = null;

@@ -7,6 +7,32 @@ import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { robotPresets } from '../src/robot/presets';
 
 function memories() { const history = new BotHistory(['Curie', 'Einstein']); for (const preset of robotPresets) history.selectPreset(preset.id); return history.all; }
+
+test('exclusive environment settings support either state, undo, and occupied-feature protection', () => {
+  const bot = memories()[0]!, world = generateCity(42, [bot]), j = new PlannedJourney(bot, world);
+  const curb = world.streets.find(s => s.kind === 'curb')!;
+  assert.ok(curb);
+  assert.equal(j.setFeature(curb.id, true), true);
+  assert.equal(j.problem(curb), null);
+  assert.equal(j.setFeature(curb.id, true), false);
+  assert.equal(j.setFeature(curb.id, false), true);
+  assert.ok(j.problem(curb));
+  assert.equal(j.undoRepair(), true);
+  assert.equal(j.repaired.has(curb.id), true);
+  assert.equal(j.undoRepair(), true);
+  assert.equal(j.repaired.has(curb.id), false);
+  const crossing = world.streets.find(s => s.kind === 'crossing')!;
+  assert.equal(j.setFeature(`signals:${crossing.id}`, true), true);
+  assert.equal(j.hasCrossingCues(crossing), true);
+  assert.equal(j.setFeature(`signals:${crossing.id}`, false), true);
+  assert.equal(j.hasCrossingCues(crossing), false);
+  assert.equal(j.setFeature(`width:${curb.id}`, true), false);
+  assert.equal(j.setFeature('missing', true), false);
+  j.setRoute([world.start, j.nextStops[0]!.id]); j.start(); j.distanceOnEdge = .5;
+  assert.equal(j.setFeature(`signals:${j.currentStreet!.id}`, true), false);
+  j.metrics.distance = .5;
+  assert.equal(j.setFeature('transport', true), false);
+});
 function path(world: ProceduralCity, from = world.start, to = world.destination, allowed = (_id: string) => true) {
   const queue = [[from]], visited = new Set([from]);
   while (queue.length) {

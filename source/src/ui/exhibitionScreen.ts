@@ -11,7 +11,7 @@ const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Mat
 
 export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds) {
   container.innerHTML = `
-    <header class="performance-caption"><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution"></p></header>
+    <header class="performance-caption"><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution" class="sr-only"></p></header>
     <div class="performance-artwork"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot's finished journey painting"></canvas></div>
     <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span><canvas id="exhibition-robot" role="img" aria-label="The robot plays a piano-style synth beside a microphone on a stand, in front of its artwork"></canvas></div>
     <aside class="performance-hud" aria-label="Performance controls">

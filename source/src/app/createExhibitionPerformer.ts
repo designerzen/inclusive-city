@@ -22,8 +22,8 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const bot = createRobot(scene);
   bot.setAppearance(journey.robot.appearance); bot.setProfile(journey.robot.profile);
   bot.robot.metadata = { ...bot.robot.metadata, name: journey.name, id: journey.robotId };
-  const instruments = createStudioInstruments(scene); instruments.setScore(journey.score);
-  instruments.root.scaling.set(journey.robot.appearance.width, journey.robot.appearance.height, 1);
+  const instruments = createStudioInstruments(scene, journey.robot.appearance.height); instruments.setScore(journey.score);
+  instruments.root.scaling.set(journey.robot.appearance.width, 1, 1);
   bot.characterAnimation.react('celebrate'); bot.animateTravel(0, .1, true);
   const rig = scene.getTransformNodeByName('character-rig')!;
   const head = scene.getTransformNodeByName('head-rig')!;

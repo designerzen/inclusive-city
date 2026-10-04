@@ -36,6 +36,8 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
 export function mountButtonIcons(root: HTMLElement) {
   const update = () => {
     for (const button of root.querySelectorAll<HTMLButtonElement>('button')) {
+      // Illustrated environment choices already have a full explanatory drawing.
+      if (button.classList.contains('environment-choice')) continue;
       const icon = buttonIcon(button.getAttribute('aria-label') ?? button.textContent ?? '', button.id);
       if (button.dataset.buttonIcon === icon) continue;
       button.dataset.buttonIcon = icon;

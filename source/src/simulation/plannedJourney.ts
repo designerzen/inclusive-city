@@ -1,6 +1,6 @@
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
-import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal } from '../city/proceduralCity';
+import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal, crossingReachProblem, robotButtonReach } from '../city/proceduralCity';
 import type { CityStreet, ProceduralCity } from '../city/proceduralCity';
 import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
@@ -24,6 +24,7 @@ export class PlannedJourney {
   paused = false;
   blocked: { id: string; reason: string } | null = null;
   private encountered: string | null = null;
+  private crossingRequestEdge = -1;
   constructor(bot: ArtBot, readonly world: ProceduralCity) {
     this.dimensions = new CityDimensions(world);
     this.bot = { ...robotMetadata(bot), record: bot.record };
@@ -79,6 +80,11 @@ export class PlannedJourney {
   signal(street: CityStreet) { return crossingSignal(this.signalTime, street.crossingSeconds); }
   crossingLength(street: CityStreet) { const a = this.node(street.a), b = this.node(street.b); return Math.hypot(b.x - a.x, b.z - a.z); }
   hasCrossingCues(street: CityStreet) { return this.repaired.has(`signals:${street.id}`); }
+  reachProblem(street: CityStreet) { return crossingReachProblem(street, this.bot); }
+  hasRequestedCrossing(street: CityStreet) { return this.currentStreet?.id === street.id && this.crossingRequestEdge === this.edge; }
+  lowerCrossingPanel(street: CityStreet) {
+    return street.kind === 'crossing' && this.editDimension(`panel:${street.id}`, Math.min(.8, robotButtonReach(this.bot)));
+  }
   crossingCue(street: CityStreet): 'visual' | 'audible' | 'tactile' | null {
     if (this.bot.profile.enabledFunctions.includes('vision')) return 'visual';
     if (!this.hasCrossingCues(street)) return null;
@@ -90,7 +96,7 @@ export class PlannedJourney {
     return street.kind === 'crossing' && !this.crossingCue(street)
       ? `${this.bot.name} cannot see the green light. Add an audible beeper and tactile crossing cues.` : null;
   }
-  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
+  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals|panel):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
   editDimension(id: string, value: number) {
     if (!this.canEdit(id)) return false;
     const before = this.dimensions.get(id);
@@ -99,7 +105,7 @@ export class PlannedJourney {
   }
   private dimensionChanged(id: string, before: number, value: number, action = 'resize') {
     this.dimensionRevision++;
-    const street = this.world.streets.find(s => `width:${s.id}` === id || `crossing:${s.id}` === id);
+    const street = this.world.streets.find(s => `width:${s.id}` === id || `crossing:${s.id}` === id || `panel:${s.id}` === id);
     if (street && (street.kind === 'width' || street.kind === 'crossing')) {
       if (this.problem(street)) this.repaired.delete(street.id); else this.repaired.add(street.id);
       if (!this.problem(street)) {
@@ -122,10 +128,20 @@ export class PlannedJourney {
     if ((!street && id !== 'transport') || street?.kind === 'clear' || this.repaired.has(id) || !this.canEdit(id)) return false;
     if (street?.kind === 'width') return this.editDimension(`width:${id}`, Math.min(6, Math.max(3.8, street.width)));
     if (street?.kind === 'crossing') {
+      if (this.reachProblem(street)) return this.lowerCrossingPanel(street);
       if (!this.bot.profile.enabledFunctions.includes('vision') && !this.hasCrossingCues(street)) return this.repair(`signals:${id}`);
       return this.editDimension(`crossing:${id}`, Math.min(20, Math.max(street.crossingSeconds, this.crossingLength(street) / this.speed + 1)));
     }
     this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
+  }
+  /** Set either exclusive state directly, keeping every change in undo history. */
+  setFeature(id: string, enabled: boolean): boolean {
+    const street = this.world.streets.find(s => s.id === id);
+    const signal = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
+    if (id !== 'transport' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind))) return false;
+    const before = this.repaired.has(id);
+    if (before === enabled || !this.canEdit(id)) return false;
+    this.history.push({ id, before }); this.applyRepair(id, enabled); return true;
   }
   undoRepair() {
     if (!this.undoAvailable) return false;
@@ -195,6 +211,10 @@ export class PlannedJourney {
       // Admit only at the kerb, with enough green remaining for the whole crossing.
       // Once admitted, finish the crossing rather than stopping in the road.
       if (street.kind === 'crossing' && this.distanceOnEdge === 0) {
+        if (this.crossingRequestEdge !== this.edge) {
+          this.crossingRequestEdge = this.edge;
+          this.machine.emit('crossing_requested', { street: street.id, buttonHeight: this.dimensions.get(`panel:${street.id}`)!, reach: robotButtonReach(this.bot) }, street.id);
+        }
         const signal = this.signal(street);
         if (!signal.green || signal.remaining + 1e-8 < length / this.speed) {
           this.machine.transition('waiting');
@@ -248,7 +268,7 @@ export class PlannedJourney {
   }
   restart() {
     this.machine.end('interrupted'); this.machine.transition('designer');
-    this.edge = 0; this.distanceOnEdge = 0; this.paused = false; this.blocked = null; this.encountered = null;
+    this.edge = 0; this.distanceOnEdge = 0; this.paused = false; this.blocked = null; this.encountered = null; this.crossingRequestEdge = -1;
     this.machine.start(robotMetadata(this.bot), [...this.repaired], true);
     this.machine.run.environment.routeId = `procedural-${this.world.seed}`; this.savePlan(); this.telemetry();
   }

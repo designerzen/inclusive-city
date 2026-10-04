@@ -62,6 +62,6 @@ export class JourneyDance {
     const pose = this.pose(seconds, playing, reducedMotion);
     const beat = Number.isFinite(seconds) ? seconds * this.bpm / 60 * Math.PI * 2 : 0;
     return { ...pose, x: 0, yaw: 0, lift: 0, stretch: 1, sway: pose.sway * .2,
-      leftArm: -.12, rightArm: .12, armSwing: 1.12 + Math.sin(beat) * .06 * pose.energy };
+      leftArm: -.12, rightArm: .12, armSwing: 1.25 + Math.sin(beat) * .06 * pose.energy };
   }
 }

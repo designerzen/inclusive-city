@@ -2,8 +2,7 @@
 .workshop.exhibition-mode { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; margin: 0; padding: 0; }
 #exhibition-screen { position: relative; width: 100%; height: 100%; min-height: 0; background: radial-gradient(ellipse at 50% 70%, #34514a, #102629 85%); }
 .performance-caption { position: absolute; top: max(16px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left)); right: 20px; z-index: 3; pointer-events: none; }
-.performance-caption h1 { margin: 0; font-size: clamp(1rem, 2.3vw, 1.75rem); font-weight: 500; max-width: 70%; }
-.performance-caption p { margin: 4px 0 0; font-size: .8125rem; color: #d3e3d8; }
+#exhibition-screen .performance-caption h1 { margin: 0; color: #eff5ea; font-size: clamp(16px, 2.3vw, 28px); line-height: 1.4; font-weight: 500; max-width: 70%; }
 .performance-artwork { position: absolute; inset: 12% 8% 28%; display: grid; place-items: center; }
 #exhibition-screen #exhibition-art { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 12px 24px #0005); box-shadow: none; }
 #exhibition-screen .exhibition-performer { position: absolute; left: 12%; right: 12%; top: 23%; bottom: 12%; width: auto; aspect-ratio: auto; transform: none; pointer-events: none; z-index: 2; }
@@ -19,7 +18,7 @@
 #exhibition-screen #exhibition-playback-status { margin: 0; min-height: 0; }
 @media (max-width: 600px) {
   .performance-caption { left: 16px; right: 16px; }
-  .performance-caption h1 { max-width: 100%; }
+  #exhibition-screen .performance-caption h1 { max-width: 100%; }
   .performance-caption p { display: none; }
   .performance-artwork { inset: 12% 5% 38%; }
   #exhibition-screen .exhibition-performer { left: 0; right: 0; top: 24%; bottom: 18%; }

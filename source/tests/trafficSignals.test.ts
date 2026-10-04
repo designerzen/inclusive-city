@@ -7,6 +7,7 @@ import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { crossingSignal } from '../src/city/trafficSignals';
 import type { FunctionId } from '../src/robot/functions';
 import type { ProceduralCity } from '../src/city/proceduralCity';
+import { robotButtonReach } from '../src/city/proceduralCity';
 
 function crossing(functions: FunctionId[] = ['movement', 'vision', 'memory'], green = 12) {
   const bot = new BotHistory(['Curie', 'Einstein']).current;
@@ -68,4 +69,50 @@ test('late arrivals wait for the next full green; pauses, restarts and tick size
   assert.ok(Math.abs(a.metrics.waitingSeconds - b.metrics.waitingSeconds) < 1e-6);
   a.restart(); a.start(); a.update(1); assert.equal(a.waiting, true);
   assert.equal(a.metrics.distance, 0);
+});
+
+test('short reach blocks a crossing even on green until its button panel is lowered', () => {
+  const j = crossing();
+  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 0 }, ['movement', 'vision', 'memory']);
+  const original = structuredClone(j.bot.profile), street = j.world.streets[0]!;
+  j.start(); j.setPaused(true); j.update(4); j.setPaused(false); j.update(.1);
+  assert.equal(j.signal(street).green, true);
+  assert.equal(j.metrics.distance, 0); assert.match(j.blocked!.reason, /Lower the button panel/);
+  assert.equal(j.hasRequestedCrossing(street), false);
+  assert.equal(j.machine.record.events.filter(e => e.type === 'crossing_requested').length, 0);
+  assert.equal(j.repair(street.id), true);
+  assert.ok(street.buttonHeight! <= robotButtonReach(j.bot));
+  assert.equal(j.undoRepair(), true); assert.equal(street.buttonHeight, 1.5);
+  j.update(.1); assert.ok(j.blocked);
+  j.repair(street.id); j.update(.1);
+  assert.equal(j.hasRequestedCrossing(street), true);
+  assert.equal(j.machine.record.events.filter(e => e.type === 'crossing_requested').length, 1);
+  assert.deepEqual(j.bot.profile, original);
+  j.update(30); assert.equal(j.complete, true);
+  const saved = structuredClone(j.machine.run);
+  j.restart(); assert.equal(j.dimensions.get('panel:cross'), .8);
+  assert.equal(saved.citySnapshot!['panel:cross'], .8);
+  j.start(); assert.equal(j.hasRequestedCrossing(street), false);
+});
+
+test('long reach operates the high panel once per crossing and panel edits respect occupancy', () => {
+  const j = crossing();
+  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 100 }, ['movement', 'vision', 'memory']);
+  const street = j.world.streets[0]!;
+  j.start(); j.update(2);
+  assert.equal(j.waiting, true); assert.equal(j.blocked, null);
+  assert.equal(j.hasRequestedCrossing(street), true);
+  j.update(1); assert.equal(j.machine.record.events.filter(e => e.type === 'crossing_requested').length, 1);
+  j.update(1.1); assert.ok(j.distanceOnEdge > 0);
+  assert.equal(j.editDimension('panel:cross', 2.2), false);
+});
+
+test('lowering a panel does not bypass crossing timing or sensory barriers', () => {
+  const j = crossing(['movement', 'hearing', 'memory'], 2);
+  j.bot.profile = createRobotProfile({ ...defaultAbilities(), speed: 0, reach: 0 }, ['movement', 'hearing', 'memory']);
+  j.start(); j.update(1); assert.ok(j.reachProblem(j.world.streets[0]!));
+  j.repair('cross'); j.update(1); assert.match(j.blocked!.reason, /green light gives/);
+  j.repair('cross'); j.update(1); j.repair('cross'); j.update(30);
+  assert.equal(j.complete, true);
+  assert.equal(j.machine.record.events.filter(e => e.type === 'crossing_requested').length, 1);
 });

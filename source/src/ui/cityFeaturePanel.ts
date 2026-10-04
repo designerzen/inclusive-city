@@ -7,6 +7,8 @@ import { mapIcon } from './mapIcons';
 import type { ScreenSpeech } from '../audio/ScreenSpeech';
 import { mountRobotGuide } from './robotGuide';
 import { robotGuidance } from './robotGuidance';
+import { environmentChoiceCards } from './environmentChoices';
+import type { EnvironmentChoiceKind } from './environmentChoices';
 
 const actions: Record<BarrierId, [string, string]> = {
   transport: ['Add transport', 'Remove transport'], curb: ['Lower curb', 'Raise curb'],
@@ -34,6 +36,7 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
       <h3 id="feature-heading">Choose a feature</h3><p id="feature-property">Choose any feature above to reveal its controls. You can edit before your robot moves.</p>
       <section id="city-robot-guide" class="robot-guide" aria-label="Your robot’s explanation" hidden></section>
       <div id="feature-edit-controls" hidden>
+        <div id="feature-environment-choices" hidden></div>
         <div class="feature-actions"><button id="feature-primary" type="button"></button><button id="feature-secondary" type="button" hidden></button></div>
         <p id="feature-occupied" hidden>The robot is using this feature. You can change it when the robot has moved clear.</p>
         <button id="feature-help" class="feature-help" type="button" aria-expanded="false" aria-controls="feature-hint">${mapIcon('eye')} Help me decide</button>
@@ -69,7 +72,7 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
       step = 2; title = 'Try another version of your city'; copy = 'Change any feature, then choose Try again. Your city changes are kept.';
     } else if (contextual) {
       step = 1; title = `Your robot is waiting at ${featureNames[id!].toLowerCase()}`;
-      copy = 'Use the main button below to help it pass. You can also change other features ahead of it.';
+      copy = 'Choose a setting below to help it pass. You can also change other features ahead of it.';
     } else if (autoPaused) {
       title = 'Paused so you can edit'; copy = 'Use the buttons below to change this feature. Choose Continue journey when you are ready.';
     } else if (current.paused) {
@@ -99,6 +102,12 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     else guide.hide();
     if (id) {
       const value = current.city.get(id), numeric = typeof value === 'number';
+      const choices = get('feature-environment-choices');
+      const focused = choices.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.environmentValue : undefined;
+      choices.hidden = numeric;
+      choices.innerHTML = numeric ? '' : environmentChoiceCards(id as EnvironmentChoiceKind, Boolean(value), !current.canEdit(id));
+      if (focused) choices.querySelector<HTMLButtonElement>(`[data-environment-value="${focused}"]`)?.focus({ preventScroll: true });
+      primary.hidden = !numeric;
       const contextual = current.blocked?.id === id;
       primary.textContent = contextual ? cityBarriers.find(b => b.id === id)!.action : actions[id][numeric || !value ? 0 : 1];
       secondary.textContent = actions[id][1]; secondary.hidden = !numeric;
@@ -144,6 +153,10 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     callbacks.edit(selected, typeof next === 'number' ? Math.max(selected === 'sidewalk' ? 0.8 : 1.5, Math.min(selected === 'sidewalk' ? 6 : 20, next)) : next);
   }
   primary.addEventListener('click', () => adjust(1)); secondary.addEventListener('click', () => adjust(-1));
+  get('feature-environment-choices').addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-environment-value]') : null;
+    if (button && !button.disabled && journey && selected && journey.canEdit(selected)) callbacks.edit(selected, button.dataset.environmentValue === 'true');
+  });
   help.addEventListener('click', () => { showHelp = !showHelp; if (journey) { lastKey = ''; render(journey, selected, get('city-edit-done').dataset.autoPaused === 'true'); } });
   get('feature-suggestion').addEventListener('click', () => { if (journey && selected) callbacks.edit(selected, journey.suggestedValue(selected)); });
   get('city-undo').addEventListener('click', callbacks.undo); get('city-redo').addEventListener('click', callbacks.redo);

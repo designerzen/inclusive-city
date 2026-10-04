@@ -1,4 +1,5 @@
 import type { ProceduralCity } from './proceduralCity';
+import { crossingButtonHeight } from './proceduralCity';
 
 export const sides = ['front', 'back', 'left', 'right'] as const;
 export type BuildingSide = typeof sides[number];
@@ -18,7 +19,10 @@ export class CityDimensions {
     for (const street of world.streets) {
       if (street.kind !== 'width') street.width = 2.6;
       this.values[`width:${street.id}`] = street.width;
-      if (street.kind === 'crossing') this.values[`crossing:${street.id}`] = street.crossingSeconds;
+      if (street.kind === 'crossing') {
+        this.values[`crossing:${street.id}`] = street.crossingSeconds;
+        this.values[`panel:${street.id}`] = crossingButtonHeight(street);
+      }
     }
     this.originals = { ...this.values };
   }
@@ -26,13 +30,14 @@ export class CityDimensions {
   snapshot() { return { ...this.values }; }
   name(id: string) {
     const [kind, name, side] = id.split(':');
-    return kind === 'wall' ? `${name} ${side} wall` : kind === 'door' ? `${name} doorway` : kind === 'crossing' ? 'Crossing time' : 'Street width';
+    return kind === 'wall' ? `${name} ${side} wall` : kind === 'door' ? `${name} doorway` : kind === 'crossing' ? 'Crossing time' : kind === 'panel' ? 'Crossing button panel height' : 'Street width';
   }
   limits(id: string) {
     if (!(id in this.values)) return null;
     const [kind, name, side] = id.split(':');
     if (kind === 'door') return { min: .65, max: 2, step: .05 };
     if (kind === 'crossing') return { min: Math.min(.1, this.originals[id]!), max: 20, step: .1 };
+    if (kind === 'panel') return { min: .5, max: 2.2, step: .05 };
     if (kind === 'width') return { min: Math.min(.3, this.originals[id]!), max: 6, step: .1 };
     const opposite = side === 'front' ? 'back' : side === 'back' ? 'front' : side === 'left' ? 'right' : 'left';
     const low = side === 'front' || side === 'left';
@@ -50,9 +55,9 @@ export class CityDimensions {
       const left = this.values[`wall:${name}:left`]!, right = this.values[`wall:${name}:right`]!;
       const front = this.values[`wall:${name}:front`]!, back = this.values[`wall:${name}:back`]!;
       b.x = (left + right) / 2; b.z = (front + back) / 2; b.w = right - left; b.d = back - front;
-    } else if (kind === 'width' || kind === 'crossing') {
+    } else if (kind === 'width' || kind === 'crossing' || kind === 'panel') {
       const street = this.world.streets.find(s => s.id === name)!;
-      if (kind === 'width') street.width = value; else street.crossingSeconds = value;
+      if (kind === 'width') street.width = value; else if (kind === 'panel') street.buttonHeight = value; else street.crossingSeconds = value;
     }
     return true;
   }

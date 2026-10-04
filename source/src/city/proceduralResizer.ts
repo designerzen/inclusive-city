@@ -38,8 +38,9 @@ export function createProceduralResizer(scene: Scene, engine: Engine, journey: P
         if (side === 'front' || side === 'back') axis = new Vector3(0, 0, 1);
       } else {
         if (meta.axis === 'z') axis = new Vector3(0, 0, 1);
+        if (meta.axis === 'y') axis = new Vector3(0, 1, 0);
         const centre = pick.pickedMesh.getAbsolutePosition();
-        multiplier = (axis.x ? pick.pickedPoint.x >= centre.x : pick.pickedPoint.z >= centre.z) ? 2 : -2;
+        multiplier = meta.axis === 'y' ? 1 : (axis.x ? pick.pickedPoint.x >= centre.x : pick.pickedPoint.z >= centre.z) ? 2 : -2;
       }
       const a = project(pick.pickedPoint), b = project(pick.pickedPoint.add(axis));
       const dx = b.x - a.x, dy = b.y - a.y;

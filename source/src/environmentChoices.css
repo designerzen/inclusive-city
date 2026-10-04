@@ -1,0 +1,10 @@
+.environment-choice-prompt { font-size: .875rem; line-height: 1.5; }
+.environment-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+button.environment-choice { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 44px; min-height: 44px; padding: 10px; white-space: normal; text-align: left; }
+button.environment-choice::before { display: none; }
+.environment-illustration { display: block; flex: none; width: 100%; height: auto; background: #f1f5f9; border-radius: 6px; }
+.environment-choice strong { font-size: .875rem; line-height: 1.4; }
+.environment-choice span { font-size: .75rem; line-height: 1.5; }
+.environment-choice-state { margin-top: auto; font-weight: 700; }
+button.environment-choice[aria-pressed='true'] { outline: 2px solid currentColor; outline-offset: -4px; }
+@media (max-width: 360px) { .environment-choice-grid { grid-template-columns: minmax(0, 1fr); } }

@@ -3,7 +3,7 @@ import type { RoutePoint } from './cityLayout';
 
 export type StreetKind = 'clear' | 'bridge' | 'curb' | 'stairs' | 'width' | 'crossing' | 'guidance';
 export interface CityNode extends RoutePoint { id: string; label: string; discovery?: 'music' | 'art' | 'harmony' | 'colour' }
-export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number }
+export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number; buttonHeight?: number }
 export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number }
 export interface ProceduralCity {
   seed: number; nodes: CityNode[]; streets: CityStreet[]; buildings: CityBuilding[];
@@ -12,6 +12,13 @@ export interface ProceduralCity {
 
 export function robotFootprint(bot: ArtBot) { return (2 * (.95 + bot.profile.abilities.reach * .004) + .35) * bot.appearance.width * .55; }
 export function robotSpeed(bot: ArtBot) { return bot.profile.enabledFunctions.includes('movement') ? .8 + bot.profile.effectiveAbilities.speed * .025 : 1.4; }
+/** Reach tuning determines the highest crossing button the arm can operate. */
+export function robotButtonReach(bot: ArtBot) { return .9 + bot.profile.effectiveAbilities.reach * .012; }
+export function crossingButtonHeight(street: CityStreet) { return street.buttonHeight ?? 1.5; }
+export function crossingReachProblem(street: CityStreet, bot: ArtBot) {
+  return street.kind === 'crossing' && crossingButtonHeight(street) > robotButtonReach(bot) + 1e-8
+    ? `The crossing button is ${crossingButtonHeight(street).toFixed(2)} m high. ${bot.name} can reach ${robotButtonReach(bot).toFixed(2)} m. Lower the button panel so the robot can request a green light.` : null;
+}
 export function streetBetween(city: ProceduralCity, a: string, b: string) { return city.streets.find(s => s.a === a && s.b === b || s.a === b && s.b === a); }
 export function neighbours(city: ProceduralCity, id: string) {
   return city.streets.filter(s => s.a === id || s.b === id).map(s => city.nodes.find(n => n.id === (s.a === id ? s.b : s.a))!);
@@ -69,6 +76,8 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {
   if (repaired || street.kind === 'clear') return null;
+  const reachProblem = crossingReachProblem(street, bot);
+  if (reachProblem) return reachProblem;
   if (street.kind === 'width') return street.width < robotFootprint(bot) + .15 ? `This passage is ${street.width.toFixed(1)} m wide. ${bot.name} needs ${(robotFootprint(bot) + .15).toFixed(1)} m.` : null;
   if (street.kind === 'crossing') return street.crossingSeconds + 1e-8 < crossingLength / robotSpeed(bot) ? `The green light gives ${street.crossingSeconds.toFixed(1)} seconds. ${bot.name} needs ${(crossingLength / robotSpeed(bot)).toFixed(1)} seconds to cross. Extend the green phase for slower robots.` : null;
   if (street.kind === 'guidance') return !bot.profile.enabledFunctions.includes('vision') || bot.profile.effectiveAbilities.routeMemory < 40 ? `${bot.name} needs repeated route cues at this junction.` : null;
