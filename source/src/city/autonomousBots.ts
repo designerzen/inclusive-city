@@ -2,7 +2,8 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import { bodyColours, bodyShapes, defaultAppearance } from '../robot/appearance';
 import { createRobot } from '../robot/createRobot';
-import { neighbours } from './proceduralCity';
+import { neighbours, streetBetween } from './proceduralCity';
+import { crossingSignal } from './trafficSignals';
 import type { ProceduralCity } from './proceduralCity';
 import type { createCityPhysics } from './cityPhysics';
 
@@ -20,9 +21,9 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
     model.robot.getChildMeshes().forEach(mesh => { mesh.isPickable = false; mesh.metadata = { autonomousBot: i + 1 }; });
     const radius = .55, height = 1.725;
     const character = physics.addRobot(`city-bot-${i + 1}`, new Vector3(node.x, .075 + height / 2, node.z), radius, height);
-    return { model, character, node, target: node, previous: '', heading: 0, wait: .3 + random(), stuck: 0, speed: .8 + random() * .6, verticalVelocity: 0, distance: 0, turns: 0 };
+    return { model, character, node, target: node, previous: '', heading: 0, wait: .3 + random(), stuck: 0, speed: .8 + random() * .6, verticalVelocity: 0, distance: 0, turns: 0, crossingEntered: false };
   });
-  function update(seconds: number, reducedMotion = false) {
+  function update(seconds: number, reducedMotion = false, signalTime = 0) {
     let remaining = Math.min(.1, Math.max(0, seconds));
     while (remaining > 1e-9) {
       const dt = Math.min(1 / 60, remaining);
@@ -35,6 +36,7 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
           const forward = options.filter(n => n.id !== bot.previous);
           const choices = forward.length ? forward : options;
           bot.target = choices[Math.floor(random() * choices.length)] ?? bot.node;
+          bot.crossingEntered = false;
           bot.wait = .3 + random() * .7;
         }
         const dx = bot.target.x - before.x, dz = bot.target.z - before.z;
@@ -44,7 +46,15 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
         const delta = Math.sign(turn) * Math.min(Math.abs(turn), dt * 2.5);
         bot.heading += delta;
         bot.wait = Math.max(0, bot.wait - dt);
-        const speed = bot.wait > 0 || Math.abs(turn) > .1 ? 0 : Math.min(bot.speed, distance / dt);
+        const street = streetBetween(world, bot.node.id, bot.target.id);
+        let waitForGreen = false;
+        if (street?.kind === 'crossing' && !bot.crossingEntered) {
+          const signal = crossingSignal(signalTime, street.crossingSeconds);
+          const length = Math.hypot(bot.target.x - bot.node.x, bot.target.z - bot.node.z);
+          waitForGreen = !signal.green || signal.remaining < length / bot.speed;
+          if (!waitForGreen && bot.wait === 0 && Math.abs(turn) <= .1) bot.crossingEntered = true;
+        }
+        const speed = bot.wait > 0 || waitForGreen || Math.abs(turn) > .1 ? 0 : Math.min(bot.speed, distance / dt);
         bot.verticalVelocity = Math.max(-10, bot.verticalVelocity - 9.81 * dt);
         physics.moveRobot(bot.character, new Vector3(distance ? dx / distance * speed : 0, bot.verticalVelocity, distance ? dz / distance * speed : 0), dt, new Vector3(0, -9.81, 0));
         bot.verticalVelocity = bot.character.controller.getVelocity().y;
@@ -55,6 +65,7 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
         if (bot.stuck > .65 + bots.indexOf(bot) * .1) {
           // Reverse toward the last junction without teleporting out of contact.
           const target = bot.target; bot.target = bot.node; bot.node = target;
+          bot.crossingEntered = false;
           bot.wait = .2 + random() * .4; bot.stuck = 0; bot.turns++;
         }
         bot.model.robot.position.set(p.x, p.y - bot.character.height / 2 - .04, p.z);

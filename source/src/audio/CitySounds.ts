@@ -18,6 +18,7 @@ export class CitySounds {
   private disposed = false;
   private active = new Set<ReturnType<SoundEffect['schedule']>>();
   private lastTune = -Infinity;
+  private lastCrossingBeep = -Infinity;
 
   get supported() { return typeof AudioContext !== 'undefined'; }
   get isMuted() { return this.muted; }
@@ -124,6 +125,11 @@ export class CitySounds {
   interaction(name: InteractionSound) { this.play(interactionSound(name), `interaction:${name}`); }
   button(name: ButtonSound, active = true) { this.play(buttonSound(name, active), `button:${name}:${active ? 'active' : 'inactive'}`); }
   mood(mood: RobotMood) { this.play(robotMoodSound(mood), `mood:${mood}`); }
+  crossingBeep() {
+    if (performance.now() - this.lastCrossingBeep < 500) return;
+    this.lastCrossingBeep = performance.now();
+    this.play(new SoundEffect({ root: 84, intervals: [0], waveform: 'sine', gain: .13, durationBeats: .12, release: .03, echoGain: 0 }), 'crossing:green-beeper');
+  }
   tune(value: number) {
     if (performance.now() - this.lastTune < 85) return;
     this.lastTune = performance.now();

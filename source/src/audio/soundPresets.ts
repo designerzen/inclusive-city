@@ -38,6 +38,7 @@ const buttonSignatures = {
   'city-route-undo': { root: 64, intervals: [0, 2, 9, 17], pattern: 'down', stepBeats: .09 },
   'city-route-clear': { root: 62, intervals: [0, 5, 11, 18], pattern: 'down', stepBeats: .09 },
   'city-repair': { root: 59, intervals: [0, 4, 10, 17], pattern: 'up', stepBeats: .11 },
+  'city-crossing-cues': { root: 84, intervals: [0, 7], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'city-undo': { root: 58, intervals: [0, 4, 10, 17], pattern: 'down', stepBeats: .11 },
   'city-new': { root: 70, intervals: [0, 5, 10, 17], pattern: 'up-down', stepBeats: .1 },
   'city-view-toggle': { root: 73, intervals: [0, 5, 10, 17], pattern: 'up', stepBeats: .1 },

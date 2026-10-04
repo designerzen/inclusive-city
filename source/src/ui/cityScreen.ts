@@ -60,6 +60,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       <section id="city-change-controls" aria-label="Change the city" hidden>
         <label for="city-street">Place to change</label><select id="city-street" aria-label="Place to change"></select>
         <h3 id="city-feature-name"></h3><p id="city-feature-reason"></p>
+        <p id="city-signal-status" role="status" aria-live="polite" hidden></p>
         <div id="city-size-controls" hidden>
           <label id="city-size-label" for="city-size">Size</label>
           <input id="city-size" type="range" aria-describedby="city-size-value" />
@@ -67,6 +68,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
           <p>Drag a wall, doorway or street edge on the map, or use this slider. Undo lets you try again.</p>
         </div>
         <button id="city-repair" type="button" disabled>Choose a place</button>
+        <button id="city-crossing-cues" type="button" hidden>Add beeper and tactile cues</button>
         <button id="city-undo" type="button" disabled>Undo city change</button>
       </section>
       <p id="city-feedback" role="status" aria-live="polite"></p>
@@ -149,7 +151,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   function refresh() {
     if (!city) return;
     const j = city.journey;
-    container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : 'travelling';
+    container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const goal = city.projectNode(j.world.destination), marker = get('city-goal');
     const onMap = goal.z >= 0 && goal.z <= 1 && goal.x >= 0 && goal.x <= canvas.clientWidth && goal.y >= 0 && goal.y <= canvas.clientHeight;
     marker.classList.toggle('is-offscreen', !onMap);
@@ -184,7 +186,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     const discoveries = new Set(stops.filter(n => n.discovery).map(n => n.id)).size;
     get('city-route-stats').hidden = j.ready && mode !== 'route';
     setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
-    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
+    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
     setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Help your robot through' : j.paused ? 'Journey paused' : 'Your robot is travelling');
     setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : 'GOAL / DUET STUDIO');
     if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
@@ -224,9 +226,18 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       repair.hidden = !!dimension;
       repair.textContent = repaired ? 'City changed ✓' : transport ? 'Add transport' : street ? streetActions[street.kind] : 'Choose a place';
       repair.disabled = !selected || repaired || !!street && street.kind === 'clear' || !j.canEdit(selected);
+      const cues = get<HTMLButtonElement>('city-crossing-cues');
+      cues.hidden = street?.kind !== 'crossing';
+      cues.disabled = !street || j.hasCrossingCues(street) || !j.canEdit(`signals:${street.id}`);
+      cues.textContent = street && j.hasCrossingCues(street) ? 'Beeper and tactile cues added ✓' : 'Add beeper and tactile cues';
+      if (street?.kind === 'crossing' && !j.bot.profile.enabledFunctions.includes('vision') && !j.hasCrossingCues(street)) repair.textContent = 'Add beeper and tactile cues';
       get<HTMLButtonElement>('city-undo').disabled = !j.undoAvailable;
     }
     if (sizeId) setText('city-size-value', `${city.resizer.value(sizeId).toFixed(2)} ${sizeId.startsWith('crossing:') ? 'seconds' : 'm'}`);
+    const crossing = j.world.streets.find(s => s.id === selected && s.kind === 'crossing');
+    get('city-signal-status').hidden = !crossing;
+    if (crossing) setText('city-signal-status', `${j.signal(crossing).green ? 'GREEN · Cross when there is enough time' : 'RED · Wait at the kerb'}. ${j.hasCrossingCues(crossing) ? 'Beeper sounds and tactile cue activates on green.' : 'Visual light only. Add a beeper and tactile cues for robots without eyes.'}`);
+    if (!j.ready && !j.complete && !j.paused && j.currentStreet?.kind === 'crossing' && j.hasCrossingCues(j.currentStreet) && j.signal(j.currentStreet).green) sounds.crossingBeep();
     for (const event of j.machine.record.events.slice(eventCursor)) creation?.consume(event);
     eventCursor = j.machine.record.events.length;
     if (creation) {
@@ -303,6 +314,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
   get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
+  get('city-crossing-cues').addEventListener('click', () => { if (selected && city?.journey.repair(`signals:${selected}`)) { city.sync(); feedback('Beeper and tactile cues added. They signal when the pedestrian light is green.'); refresh(); } });
   get('city-undo').addEventListener('click', () => { if (city?.journey.undoRepair()) { city.sync(); feedback('City change undone.'); refresh(); } });
   get('city-restart').addEventListener('click', () => { if (!city) return; sounds.stop(); city.journey.restart(); city.journey.clearRoute(); beginCreation(); plan.scrollTop = 0; selected = null; mode = 'route'; routeKey = ''; panelKey = ''; lastBlock = null; city.sync(); feedback('City changes kept. Draw a different line.'); refresh(); });
   get('city-new').addEventListener('click', newCity);

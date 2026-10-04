@@ -5,8 +5,8 @@ import type { ArtistPreferences } from '../art/artistStyles';
 
 export const robotFunctions = [
   { id: 'movement', label: 'Movement', description: 'Powered movement along city routes.', support: 'Without a drive, accessible transport and assisted movement will help.' },
-  { id: 'vision', label: 'Vision', description: 'Visual signs, landmarks and surroundings.', support: 'Without vision, audio and tactile route cues will help.' },
-  { id: 'hearing', label: 'Hearing', description: 'Spoken directions and sound signals.', support: 'Without hearing, visual and tactile information will help.' },
+  { id: 'vision', label: 'Robot eyes', description: 'Vision reads green crossing lights, visual signs and landmarks.', support: 'Without robot eyes, audible beepers and tactile crossing cues will help.' },
+  { id: 'hearing', label: 'Robot ears', description: 'Hearing detects crossing beepers, spoken directions and sound signals.', support: 'Without robot ears, visual lights and tactile crossing cues will help.' },
   { id: 'memory', label: 'Memory', description: 'Remembering directions between landmarks.', support: 'Without route memory, repeated signs and reminders will help.' },
   { id: 'balance', label: 'Balance', description: 'Active stabilisation on uneven surfaces.', support: 'Without stabilisation, smooth paving and level routes will help.' },
 ] as const;

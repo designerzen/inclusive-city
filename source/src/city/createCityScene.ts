@@ -50,6 +50,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const goalMaterial = material('goal-green', '#d4f5a3', '#285d36', true);
   const flagWhite = material('finish-white', '#ffffff', '#ffffff', true);
   const flagBlack = material('finish-black', '#17261e', '#17261e', true);
+  const signalRed = material('signal-red', '#ff554f', '#d82020', true);
+  const signalGreen = material('signal-green', '#62f795', '#00803c', true);
+  const signalAmber = material('signal-amber', '#ffc45b', '#c27b00', true);
+  const signalOff = material('signal-off', '#353c3c', '#353c3c', true);
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, mat: StandardMaterial) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene); mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
   }
@@ -63,7 +67,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     solids.push(surface);
     surface.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' }; surface.isPickable = true;
     const parts: ReturnType<typeof box>[] = [];
-    if (street.kind !== 'clear' && street.kind !== 'width') {
+    if (street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
       const mark = box(`issue-${street.id}`, x, .34, z, dx ? .28 : 2.6, .55, dx ? 2.6 : .28, obstruction);
       mark.metadata = { street: street.id }; mark.isPickable = true; parts.push(mark);
       if (street.kind === 'stairs') for (let i = -1; i <= 1; i++) { const step = box(`step-${street.id}-${i}`, x + (dx ? i * .45 : 0), .16 + (i + 1) * .07, z + (dz ? i * .45 : 0), dx ? .4 : 2.6, .12 + (i + 1) * .14, dx ? 2.6 : .4, obstruction); step.metadata = { street: street.id }; step.isPickable = true; parts.push(step); }
@@ -74,6 +78,49 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (street.kind === 'curb' || street.kind === 'stairs' || street.kind === 'bridge') solids.push(...parts);
     return { street, surface, parts, bridge, dx, dz, originalWidth: width };
   });
+  const crossings = streetModels.filter(m => m.street.kind === 'crossing').map(({ street, dx }) => {
+    const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
+    const length = journey.crossingLength(street);
+    const stripes = Array.from({ length: Math.ceil(length / .8) }, (_, i) => {
+      const t = (i + .5) / Math.ceil(length / .8);
+      return box(`crosswalk-${street.id}-${i}`, a.x + (b.x - a.x) * t, .084, a.z + (b.z - a.z) * t, dx ? .3 : street.width, .018, dx ? street.width : .3, flagWhite);
+    });
+    const heads = [a, b].map((node, i) => {
+      const x = node.x + (dx ? 0 : street.width / 2 + .5), z = node.z + (dx ? street.width / 2 + .5 : 0);
+      const pole = box(`signal-pole-${street.id}-${i}`, x, .9, z, .12, 1.8, .12, flagBlack);
+      const housing = box(`signal-head-${street.id}-${i}`, x, 2.05, z, .6, .9, .4, flagBlack);
+      housing.metadata = { street: street.id }; housing.isPickable = true;
+      const lamp = (name: string, y: number) => {
+        const mesh = MeshBuilder.CreateSphere(`${name}-${street.id}-${i}`, { diameter: .28, segments: 12 }, scene);
+        mesh.position.set(x, y, z - .23); mesh.material = signalOff; mesh.isPickable = false; return mesh;
+      };
+      const red = lamp('pedestrian-stop', 2.28), green = lamp('pedestrian-go', 1.84);
+      // Top-facing indicator keeps the signal legible in map view.
+      const mapLight = box(`signal-map-${street.id}-${i}`, x, 2.52, z, .48, .06, .36, signalRed);
+      const roadLight = box(`traffic-light-${street.id}-${i}`, x + .6, 2.1, z, .26, .7, .26, signalGreen);
+      const beeper = MeshBuilder.CreateTorus(`beeper-${street.id}-${i}`, { diameter: .85, thickness: .09, tessellation: 16 }, scene);
+      beeper.position.set(x, 2.6, z); beeper.material = signalGreen; beeper.isPickable = false;
+      const tactile = box(`tactile-${street.id}-${i}`, node.x, .095, node.z, .65, .025, .65, signalAmber);
+      return { node, pole, housing, red, green, mapLight, roadLight, beeper, tactile };
+    });
+    return { street, dx, stripes, heads };
+  });
+  function syncSignals() {
+    for (const { street, dx, stripes, heads } of crossings) {
+      const signal = journey.signal(street), cues = journey.hasCrossingCues(street);
+      stripes.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = street.width / 2.6; });
+      for (const head of heads) {
+        const x = head.node.x + (dx ? 0 : street.width / 2 + .5), z = head.node.z + (dx ? street.width / 2 + .5 : 0);
+        for (const mesh of [head.pole, head.housing, head.red, head.green, head.mapLight, head.beeper]) { mesh.position.x = x; mesh.position.z = z - (mesh === head.red || mesh === head.green ? .23 : 0); }
+        head.roadLight.position.x = x + .6; head.roadLight.position.z = z;
+        head.red.material = signal.green ? signalOff : signalRed;
+        head.green.material = signal.green ? signalGreen : signalOff;
+        head.mapLight.material = signal.green ? signalGreen : signalRed;
+        head.roadLight.material = signal.green || signal.clearance ? signalRed : signalGreen;
+        head.beeper.setEnabled(cues && signal.green); head.tactile.setEnabled(cues);
+      }
+    }
+  }
   const labelMaterials: { mat: StandardMaterial; texture: DynamicTexture; text: string }[] = [];
   function label(text: string, x: number, y: number, z: number, width = 3) {
     const texture = new DynamicTexture(`label-${text}`, { width: 512, height: 128 }, scene, false); texture.hasAlpha = true;
@@ -177,16 +224,16 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function update(seconds: number) {
     const before = journey.position, heading = journey.heading;
     sync(); physics?.update(seconds);
-    autonomousBots?.update(seconds, reducedMotionPreference().matches);
+    autonomousBots?.update(seconds, reducedMotionPreference().matches, journey.signalTime);
     if (physicsStatus !== 'loading') journey.update(seconds);
-    sync(); const p = journey.position;
+    sync(); syncSignals(); const p = journey.position;
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;
     if (physics) robot.robot.position.copyFrom(physics.position);
     const moved = Math.hypot(p.x - before.x, p.z - before.z);
     const delta = Math.atan2(Math.sin(journey.heading - heading), Math.cos(journey.heading - heading));
-    robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready || !!journey.blocked, delta);
+    robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready || journey.waiting || !!journey.blocked, delta);
     if (journey.complete && dance && musicClock) {
       const elapsed = musicClock(), motion = reducedMotionPreference().matches;
       const pose = dance.studioPose(elapsed, true, motion);

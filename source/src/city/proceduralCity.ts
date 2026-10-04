@@ -31,7 +31,7 @@ export function routeToGoal(city: ProceduralCity, from = city.start) {
   return null;
 }
 
-export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Raised bridge', curb: 'Raised curb', stairs: 'Steps', width: 'Narrow passage', crossing: 'Short crossing signal', guidance: 'Missing route cues' };
+export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Raised bridge', curb: 'Raised curb', stairs: 'Steps', width: 'Narrow passage', crossing: 'Pelican crossing', guidance: 'Missing route cues' };
 export const streetActions: Record<StreetKind, string> = { clear: 'Street already open', bridge: 'Lower bridge', curb: 'Lower curb', stairs: 'Add ramp', width: 'Widen passage', crossing: 'Give more crossing time', guidance: 'Add route cues' };
 
 /** Both banks are connected; every route between them crosses an initially raised bridge. */
@@ -67,10 +67,10 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   return { seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
-export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false): string | null {
+export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {
   if (repaired || street.kind === 'clear') return null;
   if (street.kind === 'width') return street.width < robotFootprint(bot) + .15 ? `This passage is ${street.width.toFixed(1)} m wide. ${bot.name} needs ${(robotFootprint(bot) + .15).toFixed(1)} m.` : null;
-  if (street.kind === 'crossing') return street.crossingSeconds < 4 / robotSpeed(bot) ? `The signal gives ${street.crossingSeconds.toFixed(1)} seconds. ${bot.name} needs ${(4 / robotSpeed(bot)).toFixed(1)} seconds to cross.` : null;
+  if (street.kind === 'crossing') return street.crossingSeconds + 1e-8 < crossingLength / robotSpeed(bot) ? `The green light gives ${street.crossingSeconds.toFixed(1)} seconds. ${bot.name} needs ${(crossingLength / robotSpeed(bot)).toFixed(1)} seconds to cross. Extend the green phase for slower robots.` : null;
   if (street.kind === 'guidance') return !bot.profile.enabledFunctions.includes('vision') || bot.profile.effectiveAbilities.routeMemory < 40 ? `${bot.name} needs repeated route cues at this junction.` : null;
   return street.kind === 'bridge' ? 'The bridge is raised. The drawn line cannot carry the robot over the gap.' : street.kind === 'stairs' ? 'The robot’s wheels cannot climb these steps.' : 'The raised curb blocks the robot’s wheels.';
 }

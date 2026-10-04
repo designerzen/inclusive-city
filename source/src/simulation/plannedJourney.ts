@@ -5,6 +5,7 @@ import type { CityStreet, ProceduralCity } from '../city/proceduralCity';
 import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
 import { CityDimensions } from '../city/cityDimensions';
+import { crossingSignal } from '../city/trafficSignals';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
@@ -73,8 +74,23 @@ export class PlannedJourney {
     const t = this.distanceOnEdge / Math.hypot(b.x - a.x, b.z - a.z);
     return { x: a.x + (b.x - a.x) * t, y: a.y, z: a.z + (b.z - a.z) * t };
   }
-  problem(street: CityStreet) { return streetProblem(street, this.bot, street.kind !== 'width' && street.kind !== 'crossing' && this.repaired.has(street.id)); }
-  canEdit(id: string) { const street = id.replace(/^(width|crossing):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
+  get signalTime() { return this.machine.record.clock - this.machine.run.startedAt; }
+  get waiting() { return this.machine.state === 'waiting'; }
+  signal(street: CityStreet) { return crossingSignal(this.signalTime, street.crossingSeconds); }
+  crossingLength(street: CityStreet) { const a = this.node(street.a), b = this.node(street.b); return Math.hypot(b.x - a.x, b.z - a.z); }
+  hasCrossingCues(street: CityStreet) { return this.repaired.has(`signals:${street.id}`); }
+  crossingCue(street: CityStreet): 'visual' | 'audible' | 'tactile' | null {
+    if (this.bot.profile.enabledFunctions.includes('vision')) return 'visual';
+    if (!this.hasCrossingCues(street)) return null;
+    return this.bot.profile.enabledFunctions.includes('hearing') ? 'audible' : 'tactile';
+  }
+  problem(street: CityStreet) {
+    const problem = streetProblem(street, this.bot, street.kind !== 'width' && street.kind !== 'crossing' && this.repaired.has(street.id), this.crossingLength(street));
+    if (problem) return problem;
+    return street.kind === 'crossing' && !this.crossingCue(street)
+      ? `${this.bot.name} cannot see the green light. Add an audible beeper and tactile crossing cues.` : null;
+  }
+  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'transport' || this.ready || this.metrics.distance === 0); }
   editDimension(id: string, value: number) {
     if (!this.canEdit(id)) return false;
     const before = this.dimensions.get(id);
@@ -96,11 +112,19 @@ export class PlannedJourney {
     if (action === 'resize') { this.machine.add('interventions', 1); this.machine.emit('intervention', { action }, id); }
     this.savePlan();
   }
-  repair(id: string) {
+  repair(id: string): boolean {
+    if (id.startsWith('signals:')) {
+      const crossing = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
+      if (!crossing || this.hasCrossingCues(crossing) || !this.canEdit(id)) return false;
+      this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
+    }
     const street = this.world.streets.find(s => s.id === id);
     if ((!street && id !== 'transport') || street?.kind === 'clear' || this.repaired.has(id) || !this.canEdit(id)) return false;
     if (street?.kind === 'width') return this.editDimension(`width:${id}`, Math.min(6, Math.max(3.8, street.width)));
-    if (street?.kind === 'crossing') return this.editDimension(`crossing:${id}`, 20);
+    if (street?.kind === 'crossing') {
+      if (!this.bot.profile.enabledFunctions.includes('vision') && !this.hasCrossingCues(street)) return this.repair(`signals:${id}`);
+      return this.editDimension(`crossing:${id}`, Math.min(20, Math.max(street.crossingSeconds, this.crossingLength(street) / this.speed + 1)));
+    }
     this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
   }
   undoRepair() {
@@ -116,9 +140,10 @@ export class PlannedJourney {
     if (value) this.repaired.add(id); else this.repaired.delete(id);
     this.machine.emit('city_edit', { feature: id, before: !value, after: value, action: value ? 'repair' : 'undo' });
     if (value) { this.machine.add('interventions', 1); this.machine.emit('intervention', { action: 'repair' }, id); }
-    const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === id && f.resolvedAt === null);
-    if (value && failure) failure.resolvedAt = this.machine.record.clock;
-    if (this.blocked?.id === id && value) { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
+    const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === id.replace(/^signals:/, '') && f.resolvedAt === null);
+    const crossing = this.world.streets.find(s => `signals:${s.id}` === id);
+    if (value && failure && (!crossing || !this.problem(crossing))) failure.resolvedAt = this.machine.record.clock;
+    if ((this.blocked?.id === id || this.blocked?.id === id.replace(/^signals:/, '')) && value) { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
     this.savePlan();
   }
   setPaused(value: boolean) {
@@ -157,7 +182,7 @@ export class PlannedJourney {
         this.machine.advance(remaining, 'blockedSeconds'); this.telemetry(); return;
       }
       this.blocked = null;
-      if (!this.constrainTravel || this.machine.state !== 'blocked') this.machine.transition('following');
+      if ((!this.constrainTravel || this.machine.state !== 'blocked') && !this.waiting) this.machine.transition('following');
       const a = this.node(this.path[this.edge]!), b = this.node(this.path[this.edge + 1]!);
       const target = Math.atan2(a.x - b.x, a.z - b.z);
       const delta = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
@@ -167,6 +192,18 @@ export class PlannedJourney {
         this.machine.advance(time, 'movingSeconds'); remaining -= time; continue;
       }
       const length = Math.hypot(b.x - a.x, b.z - a.z);
+      // Admit only at the kerb, with enough green remaining for the whole crossing.
+      // Once admitted, finish the crossing rather than stopping in the road.
+      if (street.kind === 'crossing' && this.distanceOnEdge === 0) {
+        const signal = this.signal(street);
+        if (!signal.green || signal.remaining + 1e-8 < length / this.speed) {
+          this.machine.transition('waiting');
+          const duration = Math.min(remaining, signal.untilGreen);
+          this.machine.advance(duration, 'waitingSeconds'); remaining = Math.max(0, remaining - duration);
+          this.telemetry(); continue;
+        }
+        this.machine.transition('following');
+      }
       let distance = Math.min(length - this.distanceOnEdge, remaining * this.speed, this.metrics.stepsTaken + 1 - this.metrics.distance);
       const requestedDuration = distance / this.speed;
       let collision: { id: string; reason: string } | undefined;

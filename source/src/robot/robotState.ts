@@ -7,7 +7,7 @@ import type { CreativePreferences } from './creativePreferences';
 import type { ArtistPreferences } from '../art/artistStyles';
 import type { ProceduralCity } from '../city/proceduralCity';
 
-export type RobotState = 'designer' | 'ready' | 'following' | 'blocked' | 'paused' | 'collecting' | 'arrived';
+export type RobotState = 'designer' | 'ready' | 'following' | 'waiting' | 'blocked' | 'paused' | 'collecting' | 'arrived';
 export interface RobotMetadata {
   id: number; name: string; appearance: RobotAppearance; profile: RobotProfile;
   locomotion: 'wheels'; wheelCount: 4;
@@ -16,7 +16,7 @@ export interface RobotMetadata {
 export interface RobotMetrics {
   // stepsTaken is the counter of whole travel units, not animation frames or leg movements.
   distance: number; stepsTaken: number; segmentsCompleted: number;
-  movingSeconds: number; blockedSeconds: number; pausedSeconds: number;
+  movingSeconds: number; blockedSeconds: number; pausedSeconds: number; waitingSeconds: number;
   failures: number; interventions: number; pickups: number; pickupValue: number;
   journeysStarted: number; journeysCompleted: number;
 }
@@ -44,7 +44,7 @@ export interface RobotRecord {
   failures: { kind: 'environment-barrier'; barrier: string; runId: number; time: number; resolvedAt: number | null }[];
 }
 
-export const emptyMetrics = (): RobotMetrics => ({ distance: 0, stepsTaken: 0, segmentsCompleted: 0, movingSeconds: 0, blockedSeconds: 0, pausedSeconds: 0, failures: 0, interventions: 0, pickups: 0, pickupValue: 0, journeysStarted: 0, journeysCompleted: 0 });
+export const emptyMetrics = (): RobotMetrics => ({ distance: 0, stepsTaken: 0, segmentsCompleted: 0, movingSeconds: 0, blockedSeconds: 0, pausedSeconds: 0, waitingSeconds: 0, failures: 0, interventions: 0, pickups: 0, pickupValue: 0, journeysStarted: 0, journeysCompleted: 0 });
 export function robotMetadata(bot: { id: number; name: string; appearance: RobotAppearance; profile: RobotProfile; presetId?: string; creative?: CreativePreferences }): RobotMetadata {
   return structuredClone({ id: bot.id, name: bot.name, appearance: bot.appearance, profile: bot.profile, locomotion: 'wheels', wheelCount: 4,
     ...(bot.presetId ? { presetId: bot.presetId } : {}), ...(bot.creative ? { creative: bot.creative } : {}) });
@@ -54,7 +54,8 @@ export function createRobotRecord(bot: Parameters<typeof robotMetadata>[0]): Rob
 }
 
 const transitions: Record<RobotState, readonly RobotState[]> = {
-  designer: ['ready', 'following'], ready: ['following', 'designer'], following: ['blocked', 'paused', 'collecting', 'arrived', 'designer'],
+  designer: ['ready', 'following'], ready: ['following', 'designer'], following: ['waiting', 'blocked', 'paused', 'collecting', 'arrived', 'designer'],
+  waiting: ['following', 'blocked', 'paused', 'designer'],
   blocked: ['following', 'paused', 'designer'], paused: ['following', 'blocked', 'designer'],
   collecting: ['following', 'arrived', 'designer'], arrived: ['following', 'designer'],
 };
@@ -85,7 +86,7 @@ export class RobotStateMachine {
     this.emit('journey_started');
   }
   add(key: keyof RobotMetrics, amount: number) { this.record.metrics[key] += amount; this.run.metrics[key] += amount; }
-  advance(seconds: number, mode: 'movingSeconds' | 'blockedSeconds' | 'pausedSeconds') {
+  advance(seconds: number, mode: 'movingSeconds' | 'blockedSeconds' | 'pausedSeconds' | 'waitingSeconds') {
     this.record.clock += seconds; this.add(mode, seconds);
   }
   emit(type: RobotEventType, data: RobotEvent['data'] = {}, barrier?: string): RobotEvent {
