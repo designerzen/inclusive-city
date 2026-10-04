@@ -1,0 +1,33 @@
+/* A single viewport stage: artwork behind the performer, controls on the HUD. */
+.workshop.exhibition-mode { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; margin: 0; padding: 0; }
+#exhibition-screen { position: relative; width: 100%; height: 100%; min-height: 0; background: radial-gradient(ellipse at 50% 70%, #34514a, #102629 85%); }
+.performance-caption { position: absolute; top: max(16px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left)); right: 20px; z-index: 3; pointer-events: none; }
+.performance-caption h1 { margin: 0; font-size: clamp(1rem, 2.3vw, 1.75rem); font-weight: 500; max-width: 70%; }
+.performance-caption p { margin: 4px 0 0; font-size: .8125rem; color: #d3e3d8; }
+.performance-artwork { position: absolute; inset: 12% 8% 28%; display: grid; place-items: center; }
+#exhibition-screen #exhibition-art { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 12px 24px #0005); box-shadow: none; }
+#exhibition-screen .exhibition-performer { position: absolute; left: 12%; right: 12%; top: 23%; bottom: 12%; width: auto; aspect-ratio: auto; transform: none; pointer-events: none; z-index: 2; }
+#exhibition-screen .exhibition-performer-shadow { bottom: 10%; left: 28%; right: 28%; }
+.performance-hud { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 4; padding: 12px; border: 1px solid #78988d; border-radius: 16px; background: #112729ed; color: #eff5ea; }
+.performance-buttons { display: flex; gap: 6px; }
+#exhibition-screen .performance-buttons button { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; padding: 12px; font-size: 0; border: 1px solid #78988d; border-radius: 10px; color: #eff5ea; background: #233f3f; }
+#exhibition-screen .performance-buttons button::before { margin: 0; }
+#exhibition-screen .performance-buttons button:disabled { opacity: .55; }
+#exhibition-screen #exhibition-play { background: #b7ef87; color: #182c21; }
+#exhibition-screen #exhibition-progress { width: 100%; margin: 0 0 6px; height: 4px; accent-color: #b7ef87; }
+#exhibition-screen #exhibition-time { display: block; margin: 0 0 8px; text-align: right; color: #d3e3d8; font-size: .75rem; }
+#exhibition-screen #exhibition-playback-status { margin: 0; min-height: 0; }
+@media (max-width: 600px) {
+  .performance-caption { left: 16px; right: 16px; }
+  .performance-caption h1 { max-width: 100%; }
+  .performance-caption p { display: none; }
+  .performance-artwork { inset: 12% 5% 38%; }
+  #exhibition-screen .exhibition-performer { left: 0; right: 0; top: 24%; bottom: 18%; }
+  .performance-hud { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); padding: 10px; }
+}
+@media (max-height: 440px) {
+  .performance-caption p { display: none; }
+  .performance-artwork { inset: 8% 20% 12% 4%; }
+  #exhibition-screen .exhibition-performer { top: 12%; bottom: 4%; right: 25%; left: 0; }
+  #exhibition-screen #exhibition-progress, #exhibition-screen #exhibition-time { display: none; }
+}

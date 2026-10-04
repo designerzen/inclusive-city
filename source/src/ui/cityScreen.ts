@@ -14,6 +14,7 @@ import type { MusicPlayback } from '../audio/CitySounds';
 import { musicDuration } from '../art/finishedJourney';
 import { captureFinishedJourney } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
+import { pianoSynthScore } from '../audio/pianoSynth';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
@@ -255,6 +256,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       void currentCreation.extendStudioMusic().then(() => {
         if (creation !== currentCreation || city !== currentCity) return;
         Object.assign(j.machine.run.creative!, { music: true, harmony: true });
+        j.machine.run.creative!.score = pianoSynthScore(currentCreation.score);
         finished = captureFinishedJourney(j.machine.run);
         refresh();
       });

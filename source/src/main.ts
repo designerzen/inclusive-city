@@ -32,6 +32,7 @@ import { mountButtonIcons } from './ui/buttonIcons';
 import { applyAccessibility, savedAccessibility, reducedMotionPreference } from './app/accessibilityPreferences';
 import { mountAccessibilityControls } from './ui/accessibilityControls';
 import './readingPreferences.css';
+import './performance.css';
 
 let theme = savedTheme();
 applyTheme(theme);

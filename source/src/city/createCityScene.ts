@@ -21,6 +21,7 @@ import { createProceduralResizer } from './proceduralResizer';
 import { createCityPhysics } from './cityPhysics';
 import { loadCityPhysics } from './loadCityPhysics';
 import { createAutonomousBots } from './autonomousBots';
+import { createStudioInstruments } from '../app/createStudioInstruments';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -190,6 +191,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 5.1 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
   }
   const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
+  const instruments = createStudioInstruments(scene); instruments.root.setEnabled(false);
+  instruments.root.scaling.set(bot.appearance.width * .5, bot.appearance.height * .5, .5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
   const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }));
   let dance: JourneyDance | null = null, musicClock: (() => number) | null = null;
@@ -231,18 +234,21 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;
     if (physics) robot.robot.position.copyFrom(physics.position);
+    instruments.root.setEnabled(journey.complete);
+    if (journey.complete) { instruments.root.position.copyFrom(robot.robot.position); instruments.root.rotation.y = journey.heading; }
     const moved = Math.hypot(p.x - before.x, p.z - before.z);
     const delta = Math.atan2(Math.sin(journey.heading - heading), Math.cos(journey.heading - heading));
     robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready || journey.waiting || !!journey.blocked, delta);
-    if (journey.complete && dance && musicClock) {
-      const elapsed = musicClock(), motion = reducedMotionPreference().matches;
-      const pose = dance.studioPose(elapsed, true, motion);
+    if (journey.complete && dance) {
+      const elapsed = musicClock?.() ?? 0, motion = reducedMotionPreference().matches;
+      const pose = dance.pianoPose(elapsed, !!musicClock, motion);
+      instruments.update(elapsed, !!musicClock, motion);
       robot.robot.position.x += pose.x * .5;
       robot.robot.rotation.y = journey.heading + pose.yaw;
       rig.position.y = pose.lift; rig.rotation.set(0, 0, pose.sway);
       rig.scaling.set(1 / Math.sqrt(pose.stretch), pose.stretch, 1 / Math.sqrt(pose.stretch));
       head.rotation.x += pose.headNod; head.rotation.y = pose.headYaw;
-      arms[0]!.rotation.set(pose.armSwing, 0, pose.leftArm); arms[1]!.rotation.set(-pose.armSwing, 0, pose.rightArm);
+      arms[0]!.rotation.set(pose.armSwing, 0, pose.leftArm); arms[1]!.rotation.set(pose.armSwing - .04 * pose.energy, 0, pose.rightArm);
       antenna.rotation.z = pose.antenna;
       camera.setPerformanceTime(motion ? 4 : elapsed);
     }
@@ -291,8 +297,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },
     resize: () => camera.update(), setZoom: camera.setZoom, pan: camera.pan, fit: camera.fit,
     setSinging(value: boolean) { robot.setSpeaking(value); },
-    danceToMusic(value: FinishedJourney, clock: () => number) { dance = new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4); musicClock = clock; },
-    stopDancing() { musicClock = null; },
+    danceToMusic(value: FinishedJourney, clock: () => number) { dance = new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4); instruments.setScore(value.score); musicClock = clock; },
+    stopDancing() { musicClock = null; instruments.update(0, false, true); },
     get arrivalComplete() { return camera.arrivalComplete; },
     setView: camera.setView,
     get view() { return camera.view; } };
