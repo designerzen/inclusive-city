@@ -68,6 +68,7 @@ export class CityJourney {
     this.syncTelemetry();
   }
   private syncTelemetry() {
+    this.machine.record.condition.direction = this.heading;
     this.machine.record.telemetry = { edge: this.edge, position: this.position, speed: this.speed, progress: this.complete ? 1 : (this.edge + this.distanceOnEdge / Math.hypot(cityRoute[this.edge + 1]!.x - cityRoute[this.edge]!.x, cityRoute[this.edge + 1]!.y - cityRoute[this.edge]!.y, cityRoute[this.edge + 1]!.z - cityRoute[this.edge]!.z)) / (cityRoute.length - 1) };
   }
   get state() { return this.machine.state; }
@@ -122,6 +123,16 @@ export class CityJourney {
   }
 
   update(seconds: number) {
+    const before = this.position;
+    try { this.updateJourney(seconds); } finally {
+      const condition = this.machine.record.condition;
+      condition.direction = this.heading;
+      condition.speed = Number.isFinite(seconds) && seconds > 0 ? Math.hypot(this.position.x - before.x, this.position.y - before.y, this.position.z - before.z) / seconds : 0;
+      if (this.complete) condition.mood = 'happy';
+    }
+  }
+
+  private updateJourney(seconds: number) {
     if (this.ready || this.complete || this.machine.run.status !== 'active' || seconds <= 0 || !Number.isFinite(seconds)) return;
     if (this.paused) { this.machine.advance(seconds, 'pausedSeconds'); return; }
     let remaining = seconds;

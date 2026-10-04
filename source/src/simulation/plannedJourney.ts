@@ -66,6 +66,7 @@ export class PlannedJourney {
     const a = this.node(this.path[0]!), b = this.node(this.path[1]!);
     this.heading = Math.atan2(a.x - b.x, a.z - b.z);
     this.savePlan();
+    this.machine.record.condition.direction = this.heading;
     this.machine.depart(); this.collectAt(this.path[0]!); return true;
   }
   get position(): RoutePoint {
@@ -185,7 +186,7 @@ export class PlannedJourney {
     this.machine.run.cityPlan = { world: structuredClone(this.world), route: [...this.path], improvements: [...this.repaired] };
     this.machine.run.citySnapshot = { ...this.dimensions.snapshot(), ...Object.fromEntries([...this.repaired].map(id => [id, true])) };
   }
-  private telemetry() { this.machine.record.telemetry = { edge: this.edge, position: this.position, speed: this.speed, progress: this.path.length < 2 ? 0 : this.complete ? 1 : (this.edge + this.distanceOnEdge / Math.max(1, this.currentStreet ? Math.hypot(this.node(this.currentStreet.a).x - this.node(this.currentStreet.b).x, this.node(this.currentStreet.a).z - this.node(this.currentStreet.b).z) : 1)) / (this.path.length - 1) }; }
+  private telemetry() { this.machine.record.condition.direction = this.heading; this.machine.record.telemetry = { edge: this.edge, position: this.position, speed: this.speed, progress: this.path.length < 2 ? 0 : this.complete ? 1 : (this.edge + this.distanceOnEdge / Math.max(1, this.currentStreet ? Math.hypot(this.node(this.currentStreet.a).x - this.node(this.currentStreet.b).x, this.node(this.currentStreet.a).z - this.node(this.currentStreet.b).z) : 1)) / (this.path.length - 1) }; }
   private collectAt(id: string) {
     const node = this.node(id);
     if (!node.discovery || this.machine.run.pickups.some(p => p.id === id)) return;
@@ -195,6 +196,16 @@ export class PlannedJourney {
     this.machine.emit('pickup', { id, kind: node.discovery, value: 1 }); this.machine.transition('following');
   }
   update(seconds: number) {
+    const before = this.position;
+    try { this.updateJourney(seconds); } finally {
+      const condition = this.machine.record.condition;
+      condition.direction = this.heading;
+      condition.speed = Number.isFinite(seconds) && seconds > 0 ? Math.hypot(this.position.x - before.x, this.position.y - before.y, this.position.z - before.z) / seconds : 0;
+      if (this.complete) condition.mood = 'happy';
+    }
+  }
+
+  private updateJourney(seconds: number) {
     if (!Number.isFinite(seconds) || seconds <= 0 || this.ready || this.machine.run.status !== 'active') return;
     if (this.paused) { this.machine.advance(seconds, 'pausedSeconds'); return; }
     let remaining = seconds;

@@ -17,7 +17,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `
     <div class="designer-heading">
-      <h2>Robot settings</h2>
+      <h2>Robot Capabilities</h2>
       <button hidden type="button" id="reset-abilities">Reset abilities</button>
     </div>
     <section class="function-designer" aria-labelledby="functions-heading">
@@ -31,7 +31,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
               aria-labelledby="function-label-${item.id}" aria-describedby="function-description-${item.id} function-swap-${item.id}">
               <span class="switch-track" aria-hidden="true"><span></span></span><span class="switch-state" aria-hidden="true">Disabled</span>
             </button></div>
-          <p class="function-swap control-hint" id="function-swap-${item.id}"></p>
+          <p class="sr-only" id="function-swap-${item.id}"></p>
         </div>`).join('')}</div>
       <p id="function-announcement" class="function-announcement" role="status" aria-live="polite"></p>
     </section>

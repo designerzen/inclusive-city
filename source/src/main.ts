@@ -34,6 +34,7 @@ import { applyAccessibility, savedAccessibility, reducedMotionPreference } from 
 import { mountAccessibilityControls } from './ui/accessibilityControls';
 import './readingPreferences.css';
 import './performance.css';
+import './cityCompactHud.css';
 
 let theme = savedTheme();
 applyTheme(theme);

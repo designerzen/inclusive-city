@@ -1,3 +1,4 @@
+import { freshCondition, advanceCondition } from '../robot/robotCondition';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import { bodyColours, bodyShapes, defaultAppearance } from '../robot/appearance';
@@ -21,7 +22,7 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
     model.robot.getChildMeshes().forEach(mesh => { mesh.isPickable = false; mesh.metadata = { autonomousBot: i + 1 }; });
     const radius = .55, height = 1.725;
     const character = physics.addRobot(`city-bot-${i + 1}`, new Vector3(node.x, .075 + height / 2, node.z), radius, height);
-    return { model, character, node, target: node, previous: '', avoid: '', returning: false, yielding: false,
+    return { condition: freshCondition(), model, character, node, target: node, previous: '', avoid: '', returning: false, yielding: false,
       escape: null as { x: number; z: number } | null, escapeSide: i % 2 ? -1 : 1,
       heading: 0, wait: .3 + random(), stuck: 0, speed: .8 + random() * .6, verticalVelocity: 0, distance: 0, turns: 0, crossingEntered: false };
   });
@@ -100,7 +101,10 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
         }
         bot.model.robot.position.set(p.x, p.y - bot.character.height / 2 - .04, p.z);
         bot.model.robot.rotation.y = bot.heading;
-        bot.model.animateTravel(moved, dt, reducedMotion, speed === 0, delta);
+        advanceCondition(bot.condition, dt, movement.contact || bot.stuck > 0 ? 'blocked' : moved > .0001 ? 'moving' : waitForGreen ? 'waiting' : 'resting');
+        bot.condition.direction = bot.heading; bot.condition.speed = moved / dt;
+        bot.model.setCondition(bot.condition);
+        bot.model.animateTravel(moved, dt, reducedMotion, false, delta);
       }
       remaining -= dt;
     }

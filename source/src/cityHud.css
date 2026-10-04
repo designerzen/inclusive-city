@@ -1,4 +1,10 @@
 body:has(.city-mode) { overflow: hidden; }
+.city-robot-states { border-top: 1px solid #777; border-bottom: 1px solid #777; margin: 8px 0; }
+.city-robot-states > summary { display: flex; align-items: center; padding: 10px 0; cursor: pointer; }
+.city-robot-states section { padding: 12px 0; }
+.city-robot-states section + section { border-top: 1px solid #777; }
+.city-robot-states dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 6px 12px; margin: 8px 0 0; font-size: .8125rem; }
+.city-robot-states dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
 .studio-track { position: absolute; bottom: 16px; left: 16px; right: 16px; max-width: 520px; margin: auto; padding: 18px; border: 1px solid #888888; border-radius: 14px; background: #252525f2; z-index: 5; }
 .studio-track h2 { margin: 6px 0; font-size: 1.25rem; }
 .studio-track progress { width: 100%; margin: 12px 0; }

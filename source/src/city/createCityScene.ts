@@ -293,7 +293,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (journey.complete) { instruments.root.position.copyFrom(robot.robot.position); instruments.root.rotation.y = journey.heading; }
     const moved = Math.hypot(p.x - before.x, p.z - before.z);
     const delta = Math.atan2(Math.sin(journey.heading - heading), Math.cos(journey.heading - heading));
-    robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready || journey.waiting || !!journey.blocked, delta);
+    robot.setCondition(journey.machine.record.condition);
+    robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready, delta);
     if (journey.complete && dance) {
       const elapsed = musicClock?.() ?? 0, motion = reducedMotionPreference().matches;
       const pose = dance.pianoPose(elapsed, !!musicClock, motion);
@@ -307,13 +308,26 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       antenna.rotation.z = pose.antenna;
       camera.setPerformanceTime(motion ? 4 : elapsed);
     }
-    robot.characterAnimation.mood = journey.complete ? 'happy' : journey.blocked ? 'sad' : 'curious'; camera.update(seconds, reducedMotionPreference().matches);
+    camera.update(seconds, reducedMotionPreference().matches);
   }
   function projectNode(id: string) {
     const node = world.nodes.find(n => n.id === id)!;
     scene.updateTransformMatrix();
     const p = Vector3.Project(new Vector3(node.x, .17, node.z), Matrix.Identity(), scene.getTransformMatrix(), scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()));
     return { x: p.x * engine.getHardwareScalingLevel(), y: p.y * engine.getHardwareScalingLevel(), z: p.z };
+  }
+  function projectRobotBounds() {
+    if (camera.view === 'robot-eye' && !journey.complete) return null;
+    scene.updateTransformMatrix();
+    const viewport = camera.camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    const scale = engine.getHardwareScalingLevel();
+    const points = robot.robot.getChildMeshes().filter(mesh => mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0).flatMap(mesh => {
+      mesh.computeWorldMatrix(true);
+      return mesh.getBoundingInfo().boundingBox.vectorsWorld.map(corner => Vector3.Project(corner, Matrix.Identity(), scene.getTransformMatrix(), viewport));
+    });
+    if (!points.length || points.some(p => p.z < 0 || p.z > 1)) return null;
+    return { left: Math.min(...points.map(p => p.x)) * scale, right: Math.max(...points.map(p => p.x)) * scale,
+      top: Math.min(...points.map(p => p.y)) * scale, bottom: Math.max(...points.map(p => p.y)) * scale };
   }
   function nodeAt(x: number, y: number) {
     let best: string | null = null, distance = 24;
@@ -346,7 +360,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     physicsStatus = 'unavailable';
     console.warn('City physics could not be loaded; using route movement.', error);
   });
-  return { scene, journey, update, sync, setTheme, nodeAt, streetAt, projectNode, highlight,
+  return { scene, journey, update, sync, setTheme,
+    get robotConditions() { return [{ name: journey.bot.name, state: journey.machine.state, condition: journey.machine.record.condition }, ...(autonomousBots?.bots.map((bot, i) => ({ name: `City robot ${i + 1}`, state: bot.stuck > 0 ? 'blocked' : bot.condition.speed > .01 ? 'following' : 'waiting', condition: bot.condition })) ?? [])]; }, nodeAt, streetAt, projectNode, projectRobotBounds, highlight,
     get musicPosition() { const p = physics?.position ?? journey.position; return { x: p.x, y: p.y, z: p.z }; },
     physicsReady, get physicsStatus() { return physicsStatus; },
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },

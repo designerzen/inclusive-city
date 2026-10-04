@@ -6,6 +6,8 @@ import type { ArtworkTitle } from '../art/ArtworkTitleGenerator';
 import type { CreativePreferences } from './creativePreferences';
 import type { ArtistPreferences } from '../art/artistStyles';
 import type { ProceduralCity } from '../city/proceduralCity';
+import { freshCondition, advanceCondition } from './robotCondition';
+import type { RobotCondition } from './robotCondition';
 
 export type RobotState = 'designer' | 'ready' | 'following' | 'waiting' | 'blocked' | 'paused' | 'collecting' | 'arrived';
 export interface RobotMetadata {
@@ -37,6 +39,7 @@ export interface RobotRun {
   creative?: { seed: number; bpm: number; music: boolean; art: boolean; harmony: boolean; colour: boolean; score: SoundSequenceEntry[]; marks: ArtMark[]; title?: ArtworkTitle; artist?: ArtistPreferences };
 }
 export interface RobotRecord {
+  condition: RobotCondition;
   schemaVersion: 1; metadata: RobotMetadata; state: RobotState; clock: number;
   telemetry: { edge: number; position: RobotEvent['position']; speed: number; progress: number } | null;
   metrics: RobotMetrics; runs: RobotRun[]; events: RobotEvent[];
@@ -50,7 +53,7 @@ export function robotMetadata(bot: { id: number; name: string; appearance: Robot
     ...(bot.presetId ? { presetId: bot.presetId } : {}), ...(bot.creative ? { creative: bot.creative } : {}) });
 }
 export function createRobotRecord(bot: Parameters<typeof robotMetadata>[0]): RobotRecord {
-  return { schemaVersion: 1, metadata: robotMetadata(bot), state: 'designer', clock: 0, telemetry: null, metrics: emptyMetrics(), runs: [], events: [], achievements: [], failures: [] };
+  return { condition: freshCondition(), schemaVersion: 1, metadata: robotMetadata(bot), state: 'designer', clock: 0, telemetry: null, metrics: emptyMetrics(), runs: [], events: [], achievements: [], failures: [] };
 }
 
 const transitions: Record<RobotState, readonly RobotState[]> = {
@@ -70,12 +73,15 @@ export class RobotStateMachine {
     if (previous === next) return;
     if (!transitions[previous].includes(next)) throw new Error(`Invalid robot transition: ${previous} → ${next}`);
     this.record.state = next;
+    if (next !== 'following') this.record.condition.speed = 0;
+    if (next === 'arrived') this.record.condition.mood = 'happy';
     this.emit('state_changed', { from: previous, to: next });
   }
   start(metadata: RobotMetadata, accessibleFeatures: string[] = [], planning = false) {
     if (this.record.runs.at(-1)?.status === 'active') this.end('interrupted');
     if (this.state !== 'designer') this.transition('designer');
     this.record.metadata = structuredClone(metadata);
+    this.record.condition = freshCondition();
     this.record.runs.push({ id: this.record.runs.length + 1, metadata: structuredClone(metadata), environment: { routeId: 'city-v1', accessibleFeatures: [...accessibleFeatures] }, status: 'active', metrics: emptyMetrics(), startedAt: this.record.clock, endedAt: null, pickups: [] });
     if (planning) this.transition('ready');
     else this.depart();
@@ -88,6 +94,7 @@ export class RobotStateMachine {
   add(key: keyof RobotMetrics, amount: number) { this.record.metrics[key] += amount; this.run.metrics[key] += amount; }
   advance(seconds: number, mode: 'movingSeconds' | 'blockedSeconds' | 'pausedSeconds' | 'waitingSeconds') {
     this.record.clock += seconds; this.add(mode, seconds);
+    advanceCondition(this.record.condition, seconds, mode === 'movingSeconds' ? 'moving' : mode === 'blockedSeconds' ? 'blocked' : mode === 'waitingSeconds' ? 'waiting' : 'resting');
   }
   emit(type: RobotEventType, data: RobotEvent['data'] = {}, barrier?: string): RobotEvent {
     const event: RobotEvent = { sequence: this.record.events.length + 1, botId: this.record.metadata.id, runId: this.run.id, time: this.record.clock, runTime: this.record.clock - this.run.startedAt, type, state: this.state, ...structuredClone(this.context()), data: { ...data }, ...(barrier ? { barrier } : {}) };

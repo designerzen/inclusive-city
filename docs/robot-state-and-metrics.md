@@ -33,6 +33,7 @@ The controller validates transitions and records state changes. Collecting is an
 | --- | --- |
 | `metadata` | Current ID, name, appearance and colour, size and shape, allocated and effective abilities, enabled functions, four-wheel locomotion |
 | `state`, `clock` | Current logical state and cumulative simulation seconds |
+| `condition` | Live mood, facing direction in radians, actual speed in city units/second, frustration and fatigue from 0 to 100 |
 | `telemetry` | Latest route segment, XYZ position, nominal travel speed, progress from 0 to 1; null before the first journey |
 | `metrics` | Lifetime distance, steps, segments, moving/blocked/paused time, failures, interventions, pickup count/value, journeys started/completed |
 | `runs` | Immutable configuration snapshot at entry, route ID, initially accessible features, start/end times, active/completed/interrupted status, run metrics, collected items |
@@ -70,3 +71,11 @@ const json = JSON.stringify(scoreInput);
 Snapshots and event batches are detached copies. Stage 3 can therefore process them without changing simulation state. Use run-relative event times to replay a run, retain blocked intervals to express the journey's waiting, and choose explicitly whether paused intervals should become silence or be removed during composition. Existing mood audio only reacts to barrier stops, interventions, pickups, and arrival; distance and state events do not trigger the arrival sound.
 
 Tests verify transitions, timing and frame independence, single encounter/pickup counting, resolved barriers, run archives, lifetime aggregation, independent cached bots, metadata snapshots after rename, achievements, and JSON roundtrips.
+
+## Robot condition and expression
+
+The Robot states disclosure in the city HUD shows the active ArtBot and each autonomous city robot. Each has independent mood, direction, actual speed, frustration and fatigue. Facing uses the model’s local -Z forward axis (0 radians is map north). Speed measures actual displacement; stopped robots show zero even when their configured travel speed is higher.
+
+Travel adds 0.65 fatigue per simulation second. Obstacles add 5 frustration and 0.12 fatigue per second. Rest removes 0.9 fatigue and 3 frustration per second; crossing waits remove fatigue but add only 0.25 frustration per second. Values stay between 0 and 100. Frustration at 30 selects a frustrated mood; otherwise fatigue at 55 selects tired. Arrival selects happy. Restart begins fresh, and pausing gives the robot time to recover.
+
+Fatigue produces heavy eyelids, a drooping head and antenna, and smaller travel bob and arm swing. Frustration produces angled brows, narrowed eyes, a frown and restless head movement. Blocked robots continue expressive idle animation; explicit pauses freeze their rig. Reduced motion retains readable facial expressions and removes restless motion. Wheel rotation and travel bob follow actual distance and direction without changing navigation speed or crossing safety.

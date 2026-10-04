@@ -11,6 +11,7 @@ import type { RobotAppearance } from './appearance';
 import { CharacterAnimation } from './characterAnimation';
 import type { PointerAttention } from './pointerAttention';
 import { createEyeLens } from './expressiveEyes';
+import type { RobotCondition } from './robotCondition';
 
 export function createRobot(scene: Scene) {
   function material(name: string, hex: string, emissive = false) {
@@ -209,8 +210,9 @@ export function createRobot(scene: Scene) {
       part.rotation.x = (part.rotation.x - wheelTurn - pivotTurn) % (Math.PI * 2);
     }
     const blend = 1 - Math.exp(-seconds * 14);
-    const bob = moving && !reducedMotion ? Math.sin(travelPhase) * 0.075 : 0;
-    const tilt = moving && !reducedMotion ? Math.cos(travelPhase) * 0.025 : 0;
+    const energy = 1 - (characterAnimation.condition?.fatigue ?? 0) / 100 * .75;
+    const bob = moving && !reducedMotion ? Math.sin(travelPhase) * 0.075 * energy : 0;
+    const tilt = moving && !reducedMotion ? Math.cos(travelPhase) * 0.025 * energy : 0;
     const pose = characterAnimation.tick(seconds, moving, reducedMotion);
     if (speaking && !reducedMotion) {
       speechPhase += seconds;
@@ -235,7 +237,7 @@ export function createRobot(scene: Scene) {
     headRig.scaling.set(1 / Math.sqrt(pose.headStretch), pose.headStretch, 1 / Math.sqrt(pose.headStretch));
     shoulders.forEach((shoulder, i) => {
       const side = i ? 1 : -1;
-      const swing = moving && !reducedMotion ? Math.sin(travelPhase + i * Math.PI) * .12 : 0;
+      const swing = moving && !reducedMotion ? Math.sin(travelPhase + i * Math.PI) * .12 * energy : 0;
       shoulder.rotation.z += (side * (pose.arms + pose.armWave * side) - shoulder.rotation.z) * blend;
       shoulder.rotation.x += (swing - shoulder.rotation.x) * blend;
     });
@@ -268,5 +270,7 @@ export function createRobot(scene: Scene) {
       star.rotation.z = pose.accent * (i % 2 ? -.6 : .6);
     });
   }
-  return { robot, setProfile, setAppearance, animateTravel, characterAnimation, setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
+  return { robot, setProfile, setAppearance, animateTravel, characterAnimation,
+    setCondition(value: RobotCondition) { characterAnimation.condition = value; characterAnimation.mood = value.mood; robot.metadata = { ...robot.metadata, condition: value }; },
+    setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
 }

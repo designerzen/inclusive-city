@@ -1,4 +1,5 @@
-export type CharacterMood = 'curious' | 'sad' | 'happy' | 'celebrating';
+import type { RobotCondition, RobotMood } from './robotCondition';
+export type CharacterMood = RobotMood;
 export type CharacterReaction = 'launch' | 'surprise' | 'relief' | 'pickup' | 'celebrate' | 'turn';
 export interface CharacterPose {
   stretch: number; lift: number; lean: number; twist: number;
@@ -16,6 +17,7 @@ const pulse = (t: number, start: number, duration: number) => Math.sin(clamp((t 
 // This controller is cosmetic: it never changes the robot's navigation or metrics.
 export class CharacterAnimation {
   mood: CharacterMood = 'curious';
+  condition: RobotCondition | null = null;
   private clock = 0;
   private reaction: { type: CharacterReaction; time: number; direction: number } | null = null;
   private feedback: { change: EditorFeedback; time: number } | null = null;
@@ -31,17 +33,29 @@ export class CharacterAnimation {
     this.feedback = null;
     this.reaction = { type, time: 0, direction: Math.sign(direction) || 1 };
   }
-  reset() { this.clock = 0; this.reaction = null; this.feedback = null; this.mood = 'curious'; }
+  reset() { this.clock = 0; this.reaction = null; this.feedback = null; this.mood = 'curious'; this.condition = null; }
   tick(seconds: number, moving: boolean, reducedMotion = false): CharacterPose {
     this.clock += seconds;
     const p: CharacterPose = { stretch: 1, lift: 0, lean: 0, twist: 0, headYaw: 0, headTilt: 0, headLift: 0, headStretch: 1, arms: 0, armWave: 0, antenna: 0, eyeWidth: 1, eyeHeight: 1, brow: 0, smile: 0, mouthOpen: 0, eyeTilt: -.08, eyeLid: 0, eyeCurve: 0, eyeAsymmetry: .1, accent: 0 };
-    if (this.mood === 'sad') {
+    const fatigue = (this.condition?.fatigue ?? (this.mood === 'tired' ? 80 : 0)) / 100;
+    const frustration = (this.condition?.frustration ?? (this.mood === 'frustrated' ? 80 : 0)) / 100;
+    if (this.mood === 'sad' || this.mood === 'tired' || this.mood === 'frustrated') {
       p.stretch = .96; p.lean = .07; p.headTilt = .12; p.headLift = -.12;
       p.brow = -.28; p.smile = -1; p.eyeHeight = .7; p.arms = -.15;
       p.eyeTilt = -.26; p.eyeLid = .45; p.eyeAsymmetry = 0;
     } else if (this.mood === 'happy' || this.mood === 'celebrating') {
       p.smile = 1; p.brow = .1; p.arms = .3; p.eyeHeight = .8;
       p.eyeTilt = .1; p.eyeCurve = 1.1; p.eyeAsymmetry = 0;
+    }
+    // Heavy lids, a drooping head and antenna, and less energetic motion.
+    p.eyeHeight *= 1 - fatigue * .55; p.eyeLid = Math.max(p.eyeLid, fatigue * .75);
+    p.headLift -= fatigue * .18; p.headTilt += fatigue * .15;
+    p.lean += fatigue * .09; p.antenna += fatigue * .4; p.arms -= fatigue * .2;
+    if (frustration > .05) {
+      p.brow = .45 * frustration; p.smile = -frustration;
+      p.eyeTilt = .3 * frustration; p.eyeLid = Math.max(p.eyeLid, frustration * .65);
+      p.eyeCurve = 0; p.eyeAsymmetry = 0;
+      if (!reducedMotion) { p.headYaw += Math.sin(this.clock * 5) * frustration * .12; p.twist += Math.sin(this.clock * 7) * frustration * .025; }
     }
     if (this.feedback) {
       const feedback = this.feedback;
