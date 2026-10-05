@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { JourneyMusicComposer } from '../src/art/JourneyMusicComposer';
 import { JourneyCreativity } from '../src/art/JourneyCreativity';
 import { musicianStyles } from '../src/art/artistStyles';
+import { worldMusicStyles, worldArrangements } from '../src/art/worldMusicStyles';
+import { normaliseArtist } from '../src/art/artistStyles';
 import type { MusicianStyle } from '../src/art/artistStyles';
 import { SoundEffect } from '../src/audio/SoundEffect';
 import { BotHistory } from '../src/robot/botHistory';
@@ -69,6 +71,29 @@ test('robot motifs recur across steps, differ between identities, and develop at
   }
 });
 
+test('world styles retain modal palettes and dance meters with and without AI accompaniment', () => {
+  for (const { id } of worldMusicStyles) {
+    assert.equal(normaliseArtist({ musician: id }).musician, id, `${id} survives saved preferences`);
+    const grammar = worldArrangements[id];
+    const provider = { get: () => [{ pitch: 67, quantizedStartStep: 16, quantizedEndStep: 20 }] };
+    const composer = new JourneyMusicComposer(id, 42661, 50, { get: () => undefined });
+    const enhanced = new JourneyMusicComposer(id, 42661, 50, provider);
+    const original = composer.compose(phrase);
+    const root = grammar.roots[0] + ((42661 >>> 5) % 12) - 5;
+    assert.ok(original[0]!.score.notes.every(note => grammar.scale.includes(((note.midi - root) % 12 + 12) % 12)), id);
+    const later = { ...phrase, phrase: 1 };
+    const groove = (entries: ReturnType<JourneyMusicComposer['compose']>) => entries.filter(entry => !entry.label?.includes(':melody:'));
+    assert.deepEqual(groove(enhanced.compose(later)), groove(composer.compose(later)), `${id}: AI preserves accompaniment`);
+  }
+  for (const id of ['turkish', 'balkan'] as const) {
+    assert.equal(new JourneyMusicComposer(id, 42661).beats, 7);
+    assert.deepEqual(part(id, 'pulse').starts, [0, 2, 4]);
+    assert.deepEqual(part(id, 'harmony').starts, [1, 3, 5, 6]);
+  }
+  assert.equal(new JourneyMusicComposer('irish', 42661).beats, 3);
+  assert.equal(new JourneyMusicComposer('korean', 42661).beats, 3);
+});
+
 test('four-bar auditions are valid replayable scores at the selected tempo and meter', () => {
   for (const style of musicianStyles) {
     const composer = new JourneyMusicComposer(style.id, 42661);
@@ -99,7 +124,7 @@ test('all genres have an uninterrupted bed and distinct, valid chord-matched act
     const data = { ...phrase, expression: { moving: false, turning: 0, slope: 0, paused: true, speed: 0 } };
     const idle = composer.compose(data);
     const bed = idle.find(entry => entry.label?.includes('city-bed'))!;
-    assert.equal(bed.score.notes[0]!.duration, composer.beats * 60 / composer.bpm);
+    assert.ok(Math.abs(bed.score.notes[0]!.duration - composer.beats * 60 / composer.bpm) < 1e-10);
     const moving = composer.compose({ ...data, expression: { ...data.expression, moving: true, paused: false, speed: 2 } });
     assert.ok(moving.some(entry => entry.label?.includes('travel-pulse')));
     assert.ok(moving[0]!.score.voice.gain > idle[0]!.score.voice.gain);

@@ -7,6 +7,8 @@ import { magentaBackingNotes, magentaPhraseNotes, magentaPrimer } from '../audio
 import { robotMusicalIdentity } from '../audio/robotMusicalIdentity';
 import { robotHarmonies } from '../audio/robotHarmony';
 import type { RobotMood } from '../audio/robotHarmony';
+import { worldArrangements } from './worldMusicStyles';
+import type { WorldMusicStyle } from './worldMusicStyles';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
 interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; expression?: JourneyExpression; cadence?: boolean }
@@ -37,6 +39,7 @@ const recipes: Record<MusicianStyle, { bpm: number; voice: Voice }> = {
   disco: { bpm: 120, voice: { waveform: 'sawtooth', layers: 2, spread: 7, attack: .008, release: .09, cutoff: 2300 } },
   synthwave: { bpm: 98, voice: { waveform: 'sawtooth', layers: 2, spread: 12, attack: .01, release: .22, cutoff: 1700, echoGain: .18 } },
   dnb: { bpm: 168, voice: { waveform: 'sine', attack: .015, release: .5, echoGain: .2 } },
+  ...worldArrangements,
 };
 const regular = (degrees: readonly number[], beats = 4, length = .32): Figure => degrees.map((degree, i) => [degree, i * beats / degrees.length, length]);
 const hooks: Partial<Record<MusicianStyle, Figure>> = {
@@ -68,7 +71,7 @@ export class JourneyMusicComposer {
   constructor(readonly style: MusicianStyle, private readonly seed: number, speed = 50,
     private readonly accompaniment: AccompanimentProvider = magentaAccompaniment) {
     this.bpm = style === 'melodic' ? 92 + Math.round(speed * .2) + (seed >>> 0) % 9 : recipes[style].bpm;
-    this.beats = style === 'waltz' ? 3 : 4;
+    this.beats = style === 'waltz' ? 3 : worldArrangements[style as WorldMusicStyle]?.beats ?? 4;
     this.identity = robotMusicalIdentity(seed);
   }
 
@@ -165,6 +168,7 @@ export class JourneyMusicComposer {
 
   compose(data: Phrase, studio = false, enhance = true): SoundSequenceEntry[] {
     const style = this.style, beat = 60 / this.bpm, slot = data.phrase % 4;
+    const world = worldArrangements[style as WorldMusicStyle];
     // Functional progressions survive changing steps; incidents change their emotional mode.
     let root = [60, 67, 57, 65][slot]!, minor = slot === 2, seventh = 10;
     if (['classical', 'baroque', 'romantic', 'ragtime', 'folk', 'waltz'].includes(style)) {
@@ -178,6 +182,7 @@ export class JourneyMusicComposer {
     }
     if (style === 'blues') { root = [60, 60, 60, 60, 65, 65, 60, 60, 67, 65, 60, 67][data.phrase % 12]!; minor = false; }
     if (style === 'funk') { root = slot < 3 ? 60 : 65; minor = false; }
+    if (world) { root = world.roots[slot]!; minor = world.minor ?? false; }
     // Different robots choose different keys while retaining each genre's harmonic grammar.
     const transpose = ((this.seed >>> 5) % 12) - 5;
     if (data.cadence) { root = 60; minor = false; }
@@ -186,15 +191,15 @@ export class JourneyMusicComposer {
     if (data.blocked) { root = 57 + transpose; minor = true; }
     const mood = data.mood ?? (data.expression?.paused ? 'calm' : undefined);
     const colour = mood ? robotHarmonies[mood] : undefined;
-    const third = colour?.scale[2] ?? (minor ? 3 : 4);
+    const third = colour?.scale[2] ?? (data.blocked || minor ? 3 : world && !world.scale.includes(4) ? 5 : 4);
     const fifth = colour?.intervals.some(interval => interval === 6) ? 6 : 7;
-    const scale = colour?.scale ?? (style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
+    const scale = colour?.scale ?? (world && !data.blocked && !data.cadence ? world.scale : style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
       : style === 'folk' ? [0, minor ? 3 : 2, minor ? 5 : 4, 7, minor ? 10 : 9, 12, 14]
       : [0, 2, third, tonicRoot === 65 && !data.blocked ? 6 : 5, 7,
         minor && (data.blocked || tonicRoot !== 62) ? 8 : 9,
         ['jazz', 'latin', 'lofi', 'funk'].includes(style) ? seventh : minor || tonicRoot === 67 ? 10 : 11]);
     const pitch = (degree: number) => scale[((degree % scale.length) + scale.length) % scale.length]! + Math.floor(degree / scale.length) * 12;
-    const figure = hooks[style] ?? (style === 'minimalist' ? regular([0, 4, 2, 4, 0, 4, 2, 4])
+    const figure = world?.hook ?? hooks[style] ?? (style === 'minimalist' ? regular([0, 4, 2, 4, 0, 4, 2, 4])
       : style === 'baroque' ? regular([0, 1, 2, 4, 3, 2, 1, 0])
       : style === 'waltz' ? regular([4, 2, 1, 0, 1, 2], 3)
       : style === 'chimes' ? regular([0, 4, 2, 6, 4, 2], 4, .75)
@@ -218,6 +223,10 @@ export class JourneyMusicComposer {
       result.push({ at: data.at, score, label: `journey:${part}:${data.phrase}` });
     };
     const notes = (figure: Figure, base: number) => figure.map(([interval, start, duration]) => ({ midi: base + interval, start: start * beat, duration: duration * beat }));
+    if (world?.drums.length) add('pulse', { waveform: 'sine', gain: .2, pitchBend: -20,
+      attack: .001, decay: .06, sustain: 0, release: .05, echoGain: 0 }, notes(world.drums.map(at => [0, at, .16]), 36));
+    if (world?.ticks.length) add('percussion', { waveform: 'square', gain: .075,
+      attack: .001, decay: .015, sustain: 0, release: .015, cutoff: 6500, echoGain: 0 }, notes(world.ticks.map(at => [0, at, .04]), 94));
     if (['techno', 'electronic', 'lofi', 'funk', 'reggae', 'disco', 'synthwave', 'dnb'].includes(style)) {
       const kick = style === 'lofi' ? [0, 2.5] : style === 'funk' ? [0, 1.75, 2.5] : style === 'reggae' ? [2]
         : style === 'dnb' ? [0, 1.5, 2.75] : style === 'synthwave' ? [0, 2] : [0, 1, 2, 3];
@@ -247,6 +256,7 @@ export class JourneyMusicComposer {
     if (style === 'disco') bass = regular([0, 12, 0, 7, 0, 12, 10, 12], 4, .3);
     if (style === 'synthwave') bass = regular([0, 0, 0, 12, 0, 0, 7, 0], 4, .35);
     if (style === 'dnb') bass = [[0, 0, 1.2], [0, 1.5, .5], [7, 2.75, .7]];
+    if (world) bass = world.bass;
     if (!['ambient', 'chimes', 'cinematic', 'melodic', 'minimalist'].includes(style)) {
       const bassNotes = notes(bass, root - 24);
       if (colour) for (const note of bassNotes) {
@@ -272,6 +282,7 @@ export class JourneyMusicComposer {
       if (style === 'funk') { offsets = [.75, 1.75, 2.5, 3.75]; length = .12; }
       if (style === 'disco' || style === 'electronic') { offsets = [.5, 1.5, 2.5, 3.5]; length = .3; }
       if (['ambient', 'cinematic', 'synthwave'].includes(style)) length = 3.5;
+      if (world) { offsets = [...world.chords]; length = world.chordLength; }
       add('harmony', { ...this.identity.voice({ waveform: style === 'synthwave' ? 'sawtooth' : 'sine', attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300 }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
         offsets.flatMap(at => notes(intervals.map(interval => [interval, at, length]), root - 12)));
     }

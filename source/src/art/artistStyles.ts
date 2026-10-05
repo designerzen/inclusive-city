@@ -1,3 +1,5 @@
+import { worldMusicStyles } from './worldMusicStyles';
+
 export const painterStyles = [
   { id: 'impressionist', label: 'Impressionist', description: 'Soft, broken colour and expressive pigment washes.', colours: ['#245b80', '#d17a51', '#d8ad60', '#668f85'] },
   { id: 'watercolour', label: 'Watercolourist', description: 'Transparent washes, watery blooms and delicate pools of colour.', colours: ['#678b9c', '#c8969d', '#c9af75', '#8ba99b'] },
@@ -36,6 +38,7 @@ export const musicianStyles = [
   { id: 'disco', label: 'Disco / house', description: 'Four-on-the-floor drums, offbeat hi-hats and an octave-jumping dance bass.' },
   { id: 'synthwave', label: 'Synthwave', description: 'Wide nostalgic synth chords, a pulsing minor-key arpeggio and an eighties backbeat.' },
   { id: 'dnb', label: 'Drum & bass', description: 'Fast broken beats, a deep bass pulse and spacious melodic answers.' },
+  ...worldMusicStyles,
 ] as const;
 
 export type PainterStyle = typeof painterStyles[number]['id'];
