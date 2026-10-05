@@ -3,6 +3,7 @@
 #city-screen .city-toolbar { position: static; display: flex; flex-wrap: wrap; justify-self: start; max-width: calc(100% - 60px); gap: 6px; padding: 0; border: 0; background: transparent; }
 #city-screen .city-tools { display: flex; flex-wrap: wrap; gap: 6px; width: auto; }
 #city-screen .city-tools button { flex: 0 1 auto; }
+#city-screen .city-new-actions button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
 #city-screen button { padding: 8px 10px; border-radius: 8px; font-size: .8125rem; }
 #city-screen .city-map { position: relative; inset: auto; grid-column: 1; grid-row: 2; width: 100%; min-height: 0; }
 .city-mode > .sound-controls { top: 12px; right: 12px; }

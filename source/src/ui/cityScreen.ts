@@ -86,7 +86,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         </div>
       </details>
       <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p></details>
-      <div class="city-new-actions"><button id="city-restart" type="button" disabled>Redraw route</button><button id="city-new" type="button">New city</button></div>
+      <div class="city-new-actions">
+        <button id="city-restart" type="button" aria-label="Reset city" title="Reset city: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
+        <button id="city-new" type="button" aria-label="Remix city" title="Remix city: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
+      </div>
+      <p id="city-reset-description" class="sr-only">Restores this layout, removes city changes and returns to the start.</p>
+      <p id="city-remix-description" class="sr-only">Creates a different layout and returns to the start.</p>
       <p class="city-rule">You change the city. Your ArtBot makes the journey. Together, you make a duet at the studio.</p>
     </aside></details>`;
   const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
@@ -225,7 +230,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     pause.disabled = j.ready ? !j.canStart : j.complete;
     pause.textContent = j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Resume robot' : 'Pause robot';
     if (pause.getAttribute('aria-label') !== pause.textContent) { pause.setAttribute('aria-label', pause.textContent!); pause.title = pause.textContent!; }
-    get<HTMLButtonElement>('city-restart').disabled = j.ready;
     get('city-route-controls').hidden = mode !== 'route' || !j.ready;
     get('city-change-controls').hidden = mode !== 'edit' || j.complete;
     get('city-finished').hidden = !j.complete;
@@ -243,7 +247,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('journey-status').hidden = !!alert;
     setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Change the city' : j.paused ? 'Journey paused' : 'Your robot is travelling');
     setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : 'GOAL / DUET STUDIO');
-    if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
+    if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes.`);
     const nextKey = j.route.join('|') + j.ready;
     if (routeKey !== nextKey) {
       routeKey = nextKey;
@@ -340,12 +344,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
     if (mood !== lastMood) lastMood = mood;
   }
-  function newCity() {
+  function newCity(reset = false) {
     voicePanel.stop();
     speech?.stop(); lastAlert = null;
     if (!bot || !engine) return;
+    const previousSeed = city?.journey.world.seed;
+    let seed = reset && previousSeed !== undefined ? previousSeed : crypto.getRandomValues(new Uint32Array(1))[0]!;
+    if (!reset && seed === previousSeed) seed = (seed + 1) >>> 0;
+    city?.resizer.finish(false);
     pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
     const world = generateCity(seed, robots.length ? robots : [bot]);
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
@@ -402,8 +409,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   });
   get('city-crossing-cues').addEventListener('click', () => { if (selected && city?.journey.repair(`signals:${selected}`)) { city.sync(); feedback('Beeper and tactile cues added. They signal when the pedestrian light is green.'); refresh(); } });
   get('city-undo').addEventListener('click', () => { if (city?.journey.undoRepair()) { city.sync(); feedback('City change undone.'); refresh(); } });
-  get('city-restart').addEventListener('click', () => { if (!city) return; sounds.stop(); city.journey.restart(); city.journey.clearRoute(); beginCreation(); plan.scrollTop = 0; selected = null; mode = 'route'; routeKey = ''; panelKey = ''; lastBlock = null; city.sync(); feedback('City changes kept. Draw a different line.'); refresh(); });
-  get('city-new').addEventListener('click', newCity);
+  get('city-restart').addEventListener('click', () => { newCity(true); feedback('City reset. Original layout restored.'); });
+  get('city-new').addEventListener('click', () => { newCity(); feedback('City remixed. A different layout is ready.'); });
   container.querySelector('.city-view-tools')!.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-view]') : null;
     if (!button || button.disabled || !city) return;
