@@ -87,8 +87,8 @@ export class JourneyMusicComposer {
     if (existing) return existing;
     const measure = this.beats * 60 / this.bpm;
     const templates = Array.from({ length: 4 }, (_, i) => this.compose({ ...data, mood,
-      at: data.at + (start + i - data.phrase) * measure, phrase: start + i, harmony: true, cadence: false }, studio, false)).flat();
-    const primer = magentaPrimer(this.heard.length ? this.heard : templates.filter(entry => entry.at === templates[0]!.at), this.bpm, this.beats);
+      at: data.at + (start + i - data.phrase) * measure, phrase: start + i, harmony: true, cadence: false }, studio, false));
+    const primer = magentaPrimer(this.heard.length ? this.heard : templates[0]!, this.bpm, this.beats);
     const chordFor = (score: readonly SoundSequenceEntry[], at: number) => {
       const chord = score.find(entry => entry.at === at && entry.label?.includes(':harmony:'))
         ?? score.find(entry => entry.at === at && entry.label?.includes(':city-bed:'));
@@ -102,7 +102,7 @@ export class JourneyMusicComposer {
         : intervals.includes(11) ? 'maj7' : intervals.includes(10) ? '7' : intervals.includes(9) ? '6' : '';
       return name + suffix;
     };
-    const chords = Array.from({ length: 4 }, (_, i) => chordFor(templates, templates[0]!.at + i * measure));
+    const chords = templates.map(bar => chordFor(bar, bar[0]!.at));
     // ChordEncoder spreads chords evenly across primer + continuation. Include primer bars too.
     const historyChords = primer.bars.map(at => chordFor(this.heard, at));
     const primerChords = this.heard.length ? historyChords : [chords[0]!];
@@ -123,10 +123,12 @@ export class JourneyMusicComposer {
   }
 
   private async waitForSections(requests: readonly AccompanimentRequest[]) {
-    if (this.accompaniment.waitFor) { await this.accompaniment.waitFor(requests, 8000); return; }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    try { await Promise.race([this.accompaniment.whenIdle?.() ?? Promise.resolve(),
+    try {
+      if (this.accompaniment.waitFor) { await this.accompaniment.waitFor(requests, 8000); return; }
+      await Promise.race([this.accompaniment.whenIdle?.() ?? Promise.resolve(),
       new Promise<void>(resolve => { timer = setTimeout(resolve, 8000); })]); }
+    catch { /* A failed model must leave the procedural score playable. */ }
     finally { clearTimeout(timer); }
   }
 

@@ -87,7 +87,7 @@ export class MagentaAccompaniment implements AccompanimentProvider {
   waitFor(requests: readonly AccompanimentRequest[], timeoutMs = 8000): Promise<void> {
     requests.forEach(request => this.get(request, 4));
     const keys = requests.map(request => JSON.stringify(request));
-    if (this.unavailable || keys.every(key => this.cache.has(key))) return Promise.resolve();
+    if (!this.ready || this.unavailable || keys.every(key => this.cache.has(key))) return Promise.resolve();
     return new Promise(resolve => {
       const finish = () => { clearTimeout(timer); this.waiting.delete(check); resolve(); };
       const check = () => { if (this.unavailable || keys.every(key => this.cache.has(key))) finish(); };

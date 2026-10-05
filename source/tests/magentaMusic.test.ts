@@ -141,7 +141,70 @@ test('ready sections develop the lead without replacing the motif or changing th
   assert.deepEqual(answer.score.voice, procedural.score.voice);
   const saved = structuredClone(answer);
   response[3]!.pitch = 1;
+  assert.deepEqual(answer, saved, 'later model output cannot mutate recorded notes');
   assert.deepEqual(saved.score, JSON.parse(JSON.stringify(saved.score)), 'resolved scores can replay without inference');
+});
+
+test('urgent requests displace speculative work and section waits ignore unrelated inference', async () => {
+  const original = globalThis.Worker;
+  const workers: FakeWorker[] = [];
+  class FakeWorker {
+    onmessage?: (event: { data: unknown }) => void;
+    messages: { type: string; chord?: string }[] = [];
+    constructor() { workers.push(this); }
+    postMessage(value: { type: string; chord?: string }) { this.messages.push(value); }
+    terminate() {}
+    reply() { this.onmessage!({ data: { type: 'notes', notes: generated, inferenceMs: 123 } }); }
+  }
+  globalThis.Worker = FakeWorker as unknown as typeof Worker;
+  const service = new MagentaAccompaniment();
+  const request = (chord: string) => ({ chord, notes: generated });
+  try {
+    await service.waitFor([request('uninitialized')]);
+    assert.equal(workers.length, 0);
+    const loading = service.initialize(), worker = workers[0]!;
+    worker.onmessage!({ data: { type: 'ready' } }); await loading;
+    service.get(request('active'));
+    for (let i = 0; i < 8; i++) service.get(request(`speculative${i}`), 1);
+    service.get(request('speculative7'), 3); // Upgrade in place, no duplicate.
+    service.get(request('discarded'), 1);
+    const waiting = service.waitFor([request('audition')]);
+    assert.equal(service.diagnostics.queued, 8);
+    assert.equal(service.diagnostics.dropped, 2);
+    worker.reply();
+    assert.equal(worker.messages.at(-1)!.chord, 'audition');
+    worker.reply(); await waiting;
+    assert.equal(worker.messages.at(-1)!.chord, 'speculative7');
+    assert.equal(service.diagnostics.active, true, 'requested wait completes while unrelated work continues');
+    assert.equal(service.diagnostics.inferenceMs, 123);
+    await service.waitFor([request('deadline')], 1);
+    const cancelled = service.waitFor([request('cancelled')]);
+    service.dispose(); await cancelled;
+    assert.equal(workers.length, 1, 'every request shares the initialized worker');
+  } finally { service.dispose(); globalThis.Worker = original; }
+});
+
+test('studio uses recorded themes, keeps three-beat bars and ends on the robot tonic', async () => {
+  const requests: AccompanimentRequest[] = [];
+  const composer = new JourneyMusicComposer('waltz', 42661, 50, { get: request => {
+    requests.push(request);
+    return Array.from({ length: 4 }, (_, i) => ({ pitch: 62, quantizedStartStep: i * 12, quantizedEndStep: i * 12 + 12 }));
+  } });
+  const history = composer.preview(2), primer = magentaPrimer(history, composer.bpm, 3);
+  requests.length = 0;
+  const studio = await composer.studioVerses(13.123, 5, 20, 2, history);
+  assert.deepEqual(requests[0]!.notes, primer.notes);
+  assert.equal(requests[0]!.primerSteps, 24);
+  assert.ok(requests.every(request => request.steps === 48 && request.chords!.length === 6));
+  const leads = studio.filter(entry => entry.label?.includes(':melody:'));
+  assert.equal(leads.length, 8);
+  assert.ok(leads.every(entry => entry.score.notes.every(note => note.start + note.duration <= 3 * 60 / composer.bpm + 1e-8)));
+  const final = leads.at(-1)!;
+  const harmony = studio.find(entry => entry.at === final.at && entry.label?.includes(':harmony:'))!;
+  assert.equal(final.score.notes.at(-1)!.midi % 12, harmony.score.notes[0]!.midi % 12);
+  const before = requests.length;
+  for (const entry of studio) assert.deepEqual(SoundEffect.fromScore(JSON.parse(JSON.stringify(entry.score))).toScore(), entry.score);
+  assert.equal(requests.length, before, 'score replay requires no inference');
 });
 
 test('future sections use played themes and mood controls; waltz requests use twelve steps per bar', () => {
