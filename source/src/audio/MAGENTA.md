@@ -9,21 +9,23 @@ other styles retain their defining procedural arrangements. Designer auditions
 wait for enhanced responses before playback. Journey creation warms the four-chord
 cycle in advance, so music and harmony discoveries can use prepared accompaniment.
 
-Before the start screen, `requireMusicModel` checks actual saved files. First
-launch asks the user to download the model, shows file progress, and waits until
-both storage and worker initialization succeed. Failure keeps the setup screen
-open with Retry. Later launches load the saved model automatically.
+Before the start screen, `requireModels` checks actual saved files for Magenta
+and Moonshine Tiny Streaming. First launch automatically downloads missing
+models with one progress bar: music, speech, then initialization. The setup
+screen explains on-device processing, browser caching, and microphone privacy.
+Failure keeps the setup screen open with Retry. When both models are saved,
+later launches skip the setup screen entirely.
 
 Config, manifest and every weight shard are retained in the versioned Cache API
 store `inclusive-city-magenta-improv-v1`. Downloads save each successful file and
 resume missing files after interruption. Web Locks serialize downloads across
 tabs. Saved files never trigger HTTP revalidation; the worker's fetch function
 reads exclusively from that store and rejects missing files instead of quietly
-redownloading. The download gesture requests `navigator.storage.persist()`.
+redownloading. Startup requests `navigator.storage.persist()`.
 Storage belongs to this browser profile and site origin. Browsers can deny
 persistence, users can clear site data, and private sessions can erase it; no
 website can guarantee permanent storage under those conditions. A missing
-model returns to the explicit download prompt. Changing origins or profiles
+model returns to the setup screen. Changing origins or profiles
 also requires a separate download.
 
 Inference runs on the CPU in a background worker so it cannot block the city

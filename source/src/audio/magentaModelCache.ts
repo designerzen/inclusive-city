@@ -19,7 +19,7 @@ function shardUrls(manifest: unknown): string[] {
 }
 
 /** Checks actual files, never a localStorage flag or the browser's expiring HTTP cache. */
-export async function hasSavedMagentaModel(storage: CacheStorage = caches): Promise<boolean> {
+export async function hasSavedMagentaModel(storage: CacheStorage = globalThis.caches): Promise<boolean> {
   try {
     const cache = await storage.open(magentaCacheName);
     const config = await cache.match(configUrl), manifest = await cache.match(manifestUrl);

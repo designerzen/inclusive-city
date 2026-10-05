@@ -1,6 +1,6 @@
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { mountRobotConditionHud } from './robotConditionHud';
-import { Engine } from '@babylonjs/core/Engines/engine';
+import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
 import type { CityView } from '../city/cityCamera';
 import { sides } from '../city/cityDimensions';
@@ -20,7 +20,7 @@ import type { EnvironmentChoiceKind } from './environmentChoices';
 import { mountCityVoicePanel } from './cityVoicePanel';
 import { interpretCityReply, applyCityReply } from './cityReply';
 
-export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
+export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
     <header class="city-toolbar">
@@ -33,7 +33,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       <button id="back-to-designer" type="button">Edit robot</button>
     </header>
     <div class="city-map">
-      <canvas id="city-canvas" role="img" aria-label="Your robot starts at the Workshop. Its goal is the Duet studio, marked by a large finish flag. Start the robot and change the city when a barrier blocks its journey."></canvas>
       <div id="city-robot-name" class="city-robot-name" hidden></div>
       <div id="city-goal" class="city-goal-marker"><strong>⚑ GOAL</strong><span>Duet studio</span><small>Use Show goal</small></div>
       <p id="city-hover" class="city-hover" hidden></p>
@@ -90,7 +89,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       <p class="city-rule">You change the city. Your ArtBot makes the journey. Together, you make a duet at the studio.</p>
     </aside></details>`;
   const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
-  const canvas = get<HTMLCanvasElement>('city-canvas'), painting = get<HTMLCanvasElement>('journey-art');
+  const painting = get<HTMLCanvasElement>('journey-art');
   const plan = container.querySelector<HTMLElement>('.city-plan')!;
   const updateRobotConditions = mountRobotConditionHud(plan);
   plan.querySelector('.city-route-stats')!.after(plan.querySelector('.city-robot-states')!);
@@ -105,7 +104,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   const pause = get<HTMLButtonElement>('city-pause'), streetSelect = get<HTMLSelectElement>('city-street');
   const sizeInput = get<HTMLInputElement>('city-size');
   let sizeId: string | null = null;
-  let engine: Engine | null = null, city: ReturnType<typeof createCityScene> | null = null;
+  let city: ReturnType<typeof createCityScene> | null = null;
+  let renderLoopStarted = false;
   let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
   let mode: 'route' | 'edit' = 'edit', selected: string | null = null, lastBlock: string | null = null;
   let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
@@ -413,7 +413,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     city.sync(); feedback(''); refresh();
   }
   canvas.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || !city || city.journey.complete) return;
+    if (!active || event.button !== 0 || !city || city.journey.complete) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.setPointerCapture(event.pointerId);
     if (pointers.size > 1) { city.resizer.finish(false); if (drawing) city.journey.setRoute(savedRoute); drawing = false; city.sync(); pinch = 0; moved = true; refresh(); return; }
     origin = { x: event.clientX, y: event.clientY }; moved = false; savedRoute = [...city.journey.route];
@@ -423,7 +423,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     if (drawing) drawAt(event.clientX, event.clientY);
   });
   canvas.addEventListener('pointermove', event => {
-    if (!city || !engine || city.journey.complete) return;
+    if (!active || !city || !engine || city.journey.complete) return;
     const previous = pointers.get(event.pointerId), p = local(event.clientX, event.clientY);
     if (!previous) {
       const target = mode === 'edit' ? city.resizer.inspect(p.x, p.y) : null;
@@ -454,7 +454,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   }
   canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release); canvas.addEventListener('lostpointercapture', release);
   canvas.addEventListener('pointerleave', () => { if (!drawing) { city?.highlight(selected); get('city-hover').hidden = true; } });
-  canvas.addEventListener('wheel', event => { event.preventDefault(); city?.setZoom(event.deltaY > 0 ? 1.1 : .9); }, { passive: false });
+  canvas.addEventListener('wheel', event => { if (!active) return; event.preventDefault(); city?.setZoom(event.deltaY > 0 ? 1.1 : .9); }, { passive: false });
   function escape(event: KeyboardEvent) {
     if (event.key !== 'Escape') return;
     if (city?.resizer.active) { city.resizer.finish(false); pointers.clear(); feedback('Resize cancelled.'); refresh(); }
@@ -468,16 +468,22 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   }
   document.addEventListener('visibilitychange', visibilityChanged);
   const observer = new ResizeObserver(() => { if (active) { engine?.resize(); city?.resize(); } }); observer.observe(canvas);
+  function showCanvas() {
+    map.prepend(canvas); canvas.id = 'city-canvas';
+    canvas.setAttribute('aria-label', 'Your robot travels from the Workshop to the flagged Duet studio.');
+  }
+  const renderCity = () => { if (!active || !city || !engine || document.hidden) return; city.update(Math.min(.1, engine.getDeltaTime() / 1000)); refresh(); city.scene.render(); };
   return {
+    exhibitionPerformer(value: FinishedJourney) { return city?.exhibitionPerformer(canvas, value) ?? null; },
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
     suspend() { voicePanel.stop(); stopArrivalMusic(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
-    resume() { active = true; lastMusicFrame = performance.now(); engine?.resize(); city?.resize(); refresh(); },
+    resume() { showCanvas(); active = true; lastMusicFrame = performance.now(); engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
-      bot = value; robots = remembered; active = true; sounds.unlock();
-      if (!engine) { engine = new Engine(canvas, true); engine.runRenderLoop(() => { if (!active || !city || document.hidden) return; city.update(Math.min(.1, engine!.getDeltaTime() / 1000)); refresh(); city.scene.render(); }); }
+      showCanvas(); bot = value; robots = remembered; active = true; sounds.unlock();
+      if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { voicePanel.dispose(); stopArrivalMusic(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
+    dispose() { voicePanel.dispose(); stopArrivalMusic(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }

@@ -61,3 +61,39 @@ test('playback exposes the audio output clock and freezes on suspension and stop
   playback.stop(); context.currentTime = 13;
   assert.ok(Math.abs(playback.elapsed() - 1.85) < .001);
 });
+
+
+test('long replay schedules only nearby phrases, shares the audio context and cancels future playback', t => {
+  const sounds = new CitySounds();
+  const context = { currentTime: 10, state: 'running' };
+  (sounds as any).context = context; (sounds as any).master = {};
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { hidden: false } });
+  let pump: () => void = () => {}, stopped = 0, cleared = 0;
+  t.mock.method(globalThis, 'setInterval', ((callback: () => void) => { pump = callback; return 1; }) as any);
+  t.mock.method(globalThis, 'clearInterval', () => { cleared++; });
+  const starts: number[] = [];
+  t.mock.method(SoundEffect, 'scheduleSequence', (usedContext, _destination, entries, when) => {
+    assert.equal(usedContext, context);
+    starts.push(...entries.map(entry => when! + entry.at));
+    return { stop() { stopped++; } };
+  });
+  t.mock.method(sounds.midi, 'schedule', () => ({ stop() {} }));
+  t.after(() => { (sounds as any).context = null; sounds.dispose(); if (descriptor) Object.defineProperty(globalThis, 'document', descriptor); else Reflect.deleteProperty(globalThis, 'document'); });
+  const phrase = new SoundEffect({ intervals: [0] }).toScore();
+  const sequence = Array.from({ length: 1000 }, (_, i) => ({ at: i, score: phrase }));
+  const playback = sounds.perform(sequence)!;
+  assert.deepEqual(starts, [10.05]);
+  context.currentTime = 10.95; pump();
+  assert.deepEqual(starts, [10.05, 11.05]);
+  context.state = 'suspended'; context.currentTime = 20; pump();
+  assert.equal(starts.length, 2);
+  context.state = 'running'; context.currentTime = 11.95; pump();
+  assert.deepEqual(starts, [10.05, 11.05, 12.05]);
+  sounds.stop();
+  assert.equal(stopped, 1, 'only the still audible batch needs stopping');
+  assert.equal(cleared, 1);
+  context.currentTime = 30; pump();
+  assert.equal(starts.length, 3, 'Stop cancels every unscheduled phrase');
+  assert.equal(playback.elapsed(), playback.elapsed());
+});

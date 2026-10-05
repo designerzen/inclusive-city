@@ -81,9 +81,35 @@ export class CitySounds {
     if (this.disposed || !sequence.length || !this.context || !this.master || this.muted || document.hidden) return;
     const context = this.context;
     const when = context.currentTime + 0.05;
-    const audio = this.schedule(sequence.map(entry => ({ ...entry, at: Math.max(0, entry.at - origin) })), when);
-    const duration = Math.max(...sequence.map(entry => entry.at - origin + SoundEffect.fromScore(entry.score).duration));
-    let stopped = false, elapsed = 0;
+    // Keep future song entries as score data, just as live city music does.
+    // Creating every oscillator up front overwhelms the audio graph on long journeys.
+    const entries = sequence.map(entry => {
+      const effect = SoundEffect.fromScore(entry.score);
+      return { ...entry, score: effect.toScore(), at: Math.max(0, entry.at - origin), duration: effect.duration };
+    }).sort((a, b) => a.at - b.at);
+    const duration = Math.max(...entries.map(entry => entry.at + entry.duration));
+    const pending = new Map<ReturnType<CitySounds['schedule']>, number>();
+    let stopped = false, elapsed = 0, cursor = 0;
+    const pump = () => {
+      if (stopped || context.state !== 'running' || document.hidden) return;
+      const now = context.currentTime, base = Math.max(when, now);
+      for (const [audio, end] of pending) if (end <= now) pending.delete(audio);
+      const batch: SoundSequenceEntry[] = [];
+      let batchEnd = base;
+      while (cursor < entries.length && when + entries[cursor]!.at <= now + .15) {
+        const entry = entries[cursor++]!;
+        const start = when + entry.at;
+        const end = start + entry.duration;
+        // A stalled main thread must not start a burst of expired notes.
+        if (end <= now) continue;
+        batch.push({ ...entry, at: Math.max(0, start - base) });
+        batchEnd = Math.max(batchEnd, Math.max(base, start) + end - start);
+      }
+      if (batch.length) pending.set(this.schedule(batch, base), batchEnd);
+      if (now >= when + duration) { clearInterval(timer); this.active.delete(handle); }
+    };
+    const timer = setInterval(pump, 25);
+    if (context.state === 'suspended') void context.resume().catch(() => {});
     const handle: MusicPlayback = {
       elapsed: () => {
         if (!stopped && context.state === 'running') {
@@ -95,10 +121,10 @@ export class CitySounds {
         }
         return elapsed;
       },
-      stop: () => { handle.elapsed(); stopped = true; audio.stop(); this.active.delete(handle); },
+      stop: () => { handle.elapsed(); stopped = true; clearInterval(timer); pending.forEach((_, audio) => audio.stop()); pending.clear(); this.active.delete(handle); },
     };
     this.active.add(handle);
-    setTimeout(() => this.active.delete(handle), (duration + 0.1) * 1000);
+    pump();
     return handle;
   }
   /** Look ahead on the audio clock; keep the loop separate from recorded journey events. */

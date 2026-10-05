@@ -3,17 +3,16 @@ import { ProceduralPainting } from '../art/ProceduralPainting';
 import { musicDuration } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
 import type { CitySounds } from '../audio/CitySounds';
-import { Engine } from '@babylonjs/core/Engines/engine';
-import { createExhibitionPerformer } from '../app/createExhibitionPerformer';
+import type { createExhibitionPerformer } from '../app/createExhibitionPerformer';
 import type { MusicPlayback } from '../audio/CitySounds';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds) {
+export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds, borrowPerformer: (journey: FinishedJourney) => ReturnType<typeof createExhibitionPerformer> | null) {
   container.innerHTML = `
     <header class="performance-caption"><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution" class="sr-only"></p></header>
     <div class="performance-artwork"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot's finished journey painting"></canvas></div>
-    <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span><canvas id="exhibition-robot" role="img" aria-label="The robot plays its own synth voices on a keyboard beside a microphone on a stand, in front of its artwork"></canvas></div>
+    <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span></div>
     <aside class="performance-hud" aria-label="Performance controls">
       <progress id="exhibition-progress" max="1" value="0" aria-label="Music playback progress"></progress>
       <span id="exhibition-time">0:00 / 0:00</span>
@@ -35,7 +34,6 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   const progress = container.querySelector<HTMLProgressElement>('#exhibition-progress')!;
   const time = container.querySelector('#exhibition-time')!;
   const status = container.querySelector('#exhibition-playback-status')!;
-  const performerCanvas = container.querySelector<HTMLCanvasElement>('#exhibition-robot')!;
   const performerContainer = container.querySelector<HTMLElement>('.exhibition-performer')!;
   let journey: FinishedJourney | null = null;
   let renderer: AsyncPaintingRenderer | null = null;
@@ -135,15 +133,10 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       const painting = new ProceduralPainting(journey.seed); painting.marks.push(...journey.marks);
       renderer = new AsyncPaintingRenderer(painting);
       await renderer.snapshot(canvas);
-      if (Engine.IsSupported) {
-        try {
-          performerContainer.hidden = false;
-          performer = createExhibitionPerformer(performerCanvas, journey);
-          performerCanvas.setAttribute('aria-label', `${journey.name}, the robot that created this painting, plays its own synth voices on a keyboard beside a microphone on a stand in time to its recorded music. Reduced motion uses a still presentation pose.`);
-        } catch (error) { performerContainer.hidden = true; console.error('Exhibition robot unavailable:', error); }
-      }
+      performer = borrowPerformer(journey);
+      performerContainer.hidden = !performer;
     },
-    enter() { active = true; mp3Download.disabled = !canExportSong(); performer?.enter(); playMusic(); },
+    enter() { active = true; mp3Download.disabled = !canExportSong(); performer?.enter(performerContainer); playMusic(); },
     leave() { active = false; cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
     dispose() { active = false; cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
   };

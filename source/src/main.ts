@@ -29,7 +29,7 @@ import './environmentChoices.css';
 import './cityVoice.css';
 import { applyTheme, savedTheme } from './app/theme';
 import type { Theme } from './app/theme';
-import { requireMusicModel } from './ui/musicSetup';
+import { requireModels } from './ui/musicSetup';
 import { mountButtonIcons } from './ui/buttonIcons';
 import { applyAccessibility, savedAccessibility, reducedMotionPreference } from './app/accessibilityPreferences';
 import { mountAccessibilityControls } from './ui/accessibilityControls';
@@ -46,7 +46,7 @@ let updateWorkshopTheme: (theme: Theme) => void = () => {};
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const stopButtonIcons = mountButtonIcons(app);
 import.meta.hot?.dispose(stopButtonIcons);
-await requireMusicModel(app);
+await requireModels(app);
 
 app.innerHTML = `
   <main class="workshop attract-mode">
@@ -108,6 +108,11 @@ app.innerHTML = `
 mountAccessibilityControls(document.querySelector<HTMLElement>('#accessibility-controls')!);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#render-canvas')!;
+// One WebGL engine and canvas are shared by every screen.
+let sharedEngine: Engine | null = null;
+try {
+  if (Engine.IsSupported) sharedEngine = new Engine(canvas, true, { alpha: true, premultipliedAlpha: false });
+} catch (error) { console.error('Shared renderer unavailable:', error); }
 const status = document.querySelector<HTMLParagraphElement>('#engine-status')!;
 const toggle = document.querySelector<HTMLButtonElement>('#rotation-toggle')!;
 let inCity = false;
@@ -162,7 +167,7 @@ optionsDialog.addEventListener('click', event => {
 });
 import.meta.hot?.dispose(() => optionsDialog.close());
 const attractContainer = document.querySelector<HTMLElement>('#attract-screen')!;
-const attract = mountAttractScreen(attractContainer, sounds, () => {
+const attract = mountAttractScreen(attractContainer, sounds, sharedEngine, canvas, () => {
   void screenTransition.run(attractContainer, designerScreen, () => {
     inAttract = false;
     optionsDialog.close();
@@ -174,7 +179,7 @@ const attract = mountAttractScreen(attractContainer, sounds, () => {
     resizeWorkshop();
   }, document.querySelector<HTMLElement>('#designer-title')!);
 });
-import.meta.hot?.dispose(() => attract.leave());
+import.meta.hot?.dispose(() => attract.dispose());
 const muteButton = document.querySelector<HTMLButtonElement>('#sound-mute')!;
 const volumeInput = document.querySelector<HTMLInputElement>('#sound-volume')!;
 if (!sounds.supported && !screenSpeech.supported) {
@@ -227,10 +232,10 @@ import.meta.hot?.dispose(() => {
   document.removeEventListener('visibilitychange', onVisibility);
   sounds.dispose();
 });
-const exhibition = mountExhibitionScreen(exhibitionContainer, sounds);
+const exhibition = mountExhibitionScreen(exhibitionContainer, sounds, journey => cityScreen.exhibitionPerformer(journey));
 import.meta.hot?.dispose(() => exhibition.dispose());
 let openingExhibition = false;
-const cityScreen = mountCityScreen(cityContainer, sounds, journey => {
+const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, journey => {
   if (openingExhibition) return;
   openingExhibition = true;
   cityScreen.suspend();
@@ -467,12 +472,12 @@ document.querySelector('#random-name')!.addEventListener('click', () => {
 });
 showCurrentBot();
 
-if (!Engine.IsSupported) {
+if (!sharedEngine) {
   status.className = 'error-status';
   status.textContent = 'This browser cannot start the 3D preview. Please enable WebGL or try another browser.';
 } else {
   try {
-    const engine = new Engine(canvas, true);
+    const engine = sharedEngine;
     const { scene, setName, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine);
     updateWorkshopTheme = setTheme; setTheme(theme);
     applyProfile = setProfile;
@@ -517,7 +522,11 @@ if (!Engine.IsSupported) {
     observer.observe(document.querySelector('#ability-designer')!);
     designerScreen.addEventListener('designer-layout-change', resize);
     resize();
-    resizeWorkshop = () => { engine.resize(); resize(); };
+    resizeWorkshop = () => {
+      canvas.id = 'render-canvas'; canvas.classList.remove('exhibition-robot-canvas'); canvas.style.cursor = '';
+      if (!presetsScreen.hidden) presetStage.append(canvas); else editorStage.prepend(canvas);
+      describeRobot(); engine.resize(); resize();
+    };
     scene.onAfterRenderObservable.addOnce(() => {
       status.textContent = 'Preview ready.';
     });
@@ -528,7 +537,7 @@ if (!Engine.IsSupported) {
       designerScreen.removeEventListener('designer-layout-change', resize);
       motionPreference.removeEventListener('change', onMotionChange);
       scene.dispose();
-      engine.dispose();
+
     });
   } catch (error) {
     status.className = 'error-status';
@@ -536,3 +545,5 @@ if (!Engine.IsSupported) {
     console.error('Babylon.js initialization failed:', error);
   }
 }
+
+import.meta.hot?.dispose(() => sharedEngine?.dispose());

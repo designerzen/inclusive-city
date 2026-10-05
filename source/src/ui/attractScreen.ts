@@ -1,10 +1,10 @@
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
-import { Engine } from '@babylonjs/core/Engines/engine';
+import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createAttractScene } from '../app/createAttractScene';
 import { createAttractScore, attractLoopSeconds } from '../audio/attractMusic';
 import type { CitySounds } from '../audio/CitySounds';
 
-export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, enter: () => void) {
+export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, enter: () => void) {
   container.innerHTML = `
     <div class="attract-cloud attract-cloud-pink" aria-hidden="true"></div>
     <div class="attract-cloud attract-cloud-mint" aria-hidden="true"></div>
@@ -22,7 +22,6 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <div class="attract-disc" aria-hidden="true"></div>
         <div class="attract-sparks" aria-hidden="true">${Array.from({ length: 16 }, (_, i) => `<i style="--i:${i};--x:${(i * 37 + 13) % 100}%;--y:${(i * 23 + 7) % 86}%"></i>`).join('')}</div>
         <span class="attract-sticker attract-sticker-music" aria-hidden="true">♫</span>
-        <canvas id="attract-canvas" role="img" aria-label="A funky mint artbot dances, bobs its head and waves its arms on a glowing dance floor."></canvas>
         <div class="attract-fallback" aria-hidden="true"><span>▰</span><span>● ●</span><span>▰</span><span>◉ ◉</span></div>
       </div>
     </div>
@@ -44,11 +43,16 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
   const pause = container.querySelector<HTMLButtonElement>('#attract-motion')!;
   const music = container.querySelector<HTMLButtonElement>('#attract-music')!;
   const musicLabel = music.querySelector('.attract-music-label')!;
-  const canvas = container.querySelector<HTMLCanvasElement>('#attract-canvas')!;
+  const stage = container.querySelector<HTMLElement>('.attract-stage')!;
+  const showCanvas = () => {
+    stage.append(canvas); canvas.id = 'attract-canvas'; canvas.style.cursor = '';
+    canvas.setAttribute('aria-label', 'A mint artbot dances, bobs its head and waves its arms on a glowing dance floor.');
+  };
+  showCanvas();
   const options = document.querySelector<HTMLElement>('#attract-options');
   options?.append(container.querySelector<HTMLElement>('.attract-controls')!);
   let paused = motion.matches;
-  let leaveScene = () => {};
+  let scene: ReturnType<typeof createAttractScene> | null = null;
   let stopMusic: (() => void) | null = null;
   let left = false;
   function updateMotion() {
@@ -72,13 +76,14 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
     container.classList.toggle('has-music', !!stopMusic);
   });
   container.querySelector('#attract-enter')!.addEventListener('click', enter);
-  if (Engine.IsSupported) {
+  if (engine) {
     try {
-      leaveScene = createAttractScene(canvas, () => paused);
+      scene = createAttractScene(engine, canvas, () => paused);
       container.classList.add('has-robot');
     } catch (error) { console.error('Attract preview unavailable:', error); }
   }
   return {
+    dispose() { stopMusic?.(); scene?.dispose(); motion.removeEventListener('change', onMotion); },
     enter() {
       if (!left) return;
       left = false;
@@ -89,19 +94,15 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
       music.setAttribute('aria-pressed', 'false');
       musicLabel.textContent = sounds.supported ? 'Play soundtrack' : 'Sound unavailable';
       container.classList.remove('has-music', 'has-robot');
-      if (Engine.IsSupported) {
-        try {
-          leaveScene = createAttractScene(canvas, () => paused);
-          container.classList.add('has-robot');
-        } catch (error) { console.error('Attract preview unavailable:', error); }
-      }
+      showCanvas(); scene?.enter();
+      container.classList.toggle('has-robot', !!scene);
     },
     leave() {
       if (left) return;
       left = true;
       if (options) options.hidden = true;
       stopMusic?.(); stopMusic = null;
-      leaveScene();
+      scene?.leave();
       motion.removeEventListener('change', onMotion);
     },
   };

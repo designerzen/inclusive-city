@@ -128,6 +128,6 @@ test('robot cues and replay translate the same audio start into the performance 
   assert.ok(Math.abs(midiStarts[1]! - 1070) < .001);
   sounds.perform([{ ...phrase()[0]!, at: 5.1 }, { ...phrase()[0]!, at: 5.4 }], 5);
   assert.ok(Math.abs(offsets[2]![0]! - .1) < 1e-8);
-  assert.ok(Math.abs(offsets[2]![1]! - .4) < 1e-8);
+  assert.equal(offsets[2]!.length, 1, 'later phrases stay unscheduled until the lookahead window');
   assert.ok(Math.abs(midiStarts[2]! - 1070) < .001);
 });

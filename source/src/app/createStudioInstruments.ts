@@ -47,15 +47,25 @@ export function createStudioInstruments(scene: Scene, robotHeight = 1) {
   grille.parent = root; grille.position.set(.7, microphoneY, -.65); grille.material = metal;
   [stand, base, mic, grille].forEach(mesh => { mesh.isPickable = false; });
   let notes: { midi: number; start: number; end: number }[] = [];
+  let longestNote = 0;
+  const active = new Set<number>();
   return {
     root,
     setScore(score: readonly SoundSequenceEntry[]) {
       const origin = score[0]?.at ?? 0;
       notes = score.flatMap(entry => entry.score.notes.map(n => ({ midi: 48 + ((n.midi - 48) % 36 + 36) % 36,
-        start: entry.at - origin + n.start, end: entry.at - origin + n.start + n.duration })));
+        start: entry.at - origin + n.start, end: entry.at - origin + n.start + n.duration }))).sort((a, b) => a.start - b.start);
+      longestNote = Math.max(0, ...notes.map(note => note.end - note.start));
     },
     update(time: number, playing: boolean, reducedMotion: boolean) {
-      const active = new Set(playing && !reducedMotion ? notes.filter(n => n.start <= time && n.end > time).map(n => n.midi) : []);
+      active.clear();
+      if (playing && !reducedMotion) {
+        let lo = 0, hi = notes.length;
+        while (lo < hi) { const mid = (lo + hi) >>> 1; if (notes[mid]!.start <= time) lo = mid + 1; else hi = mid; }
+        for (let i = lo - 1; i >= 0 && notes[i]!.start >= time - longestNote; i--) {
+          if (notes[i]!.end > time) active.add(notes[i]!.midi);
+        }
+      }
       keys.forEach(key => { key.mesh.material = active.has(key.midi) ? lit : key.material; });
     },
   };

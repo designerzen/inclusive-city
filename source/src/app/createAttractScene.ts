@@ -1,5 +1,5 @@
 import { reducedMotionPreference } from './accessibilityPreferences';
-import { Engine } from '@babylonjs/core/Engines/engine';
+import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Camera } from '@babylonjs/core/Cameras/camera';
@@ -10,9 +10,7 @@ import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { createRobot } from '../robot/createRobot';
 import { attractBpm } from '../audio/attractMusic';
 
-export function createAttractScene(canvas: HTMLCanvasElement, isPaused: () => boolean) {
-  const engine = new Engine(canvas, true, { alpha: true, premultipliedAlpha: false });
-  engine.setHardwareScalingLevel(Math.max(1, window.devicePixelRatio / 1.5));
+export function createAttractScene(engine: Engine, canvas: HTMLCanvasElement, isPaused: () => boolean) {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0, 0, 0, 0);
   const camera = new UniversalCamera('attract-camera', new Vector3(0, 3.8, -12), scene);
@@ -28,7 +26,7 @@ export function createAttractScene(canvas: HTMLCanvasElement, isPaused: () => bo
   const head = scene.getTransformNodeByName('head-rig')!;
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
   const motion = reducedMotionPreference();
-  let time = 0;
+  let time = 0, active = true;
   const resize = () => {
     engine.resize();
     const aspect = engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
@@ -36,9 +34,9 @@ export function createAttractScene(canvas: HTMLCanvasElement, isPaused: () => bo
     camera.orthoTop = height; camera.orthoBottom = -height;
     camera.orthoLeft = -height * aspect; camera.orthoRight = height * aspect;
   };
-  const observer = new ResizeObserver(resize); observer.observe(canvas); resize();
-  engine.runRenderLoop(() => {
-    if (document.hidden) return;
+  const observer = new ResizeObserver(() => { if (active) resize(); }); observer.observe(canvas); resize();
+  const render = () => {
+    if (!active || document.hidden) return;
     if (!isPaused() && !motion.matches) {
       const delta = Math.min(engine.getDeltaTime(), 50) / 1000;
       time += delta;
@@ -58,6 +56,11 @@ export function createAttractScene(canvas: HTMLCanvasElement, isPaused: () => bo
       });
     }
     scene.render();
-  });
-  return () => { observer.disconnect(); scene.dispose(); engine.dispose(); };
+  };
+  engine.runRenderLoop(render);
+  return {
+    enter() { active = true; resize(); },
+    leave() { active = false; },
+    dispose() { active = false; engine.stopRenderLoop(render); observer.disconnect(); scene.dispose(); },
+  };
 }

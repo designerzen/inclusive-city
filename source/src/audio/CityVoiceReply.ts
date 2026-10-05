@@ -92,7 +92,7 @@ export class CityVoiceReply {
     const generation = ++this.generation;
     this.busy = true; this.lines.clear(); this.partial = '';
     this.callbacks.active(true); this.callbacks.transcript('');
-    this.callbacks.status('Preparing on-device voice. The first use downloads a speech model.');
+    this.callbacks.status('Preparing on-device voice from your saved speech model.');
     let capture: VoiceCapture | null = null;
     const current = () => generation === this.generation;
     const show = () => { if (current()) this.callbacks.transcript([...this.lines.values(), this.partial].filter(Boolean).join(' ')); };

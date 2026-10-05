@@ -6,6 +6,7 @@ import type { CityJourney } from '../simulation/cityJourney';
 import { mapIcon } from './mapIcons';
 import type { ScreenSpeech } from '../audio/ScreenSpeech';
 import { mountRobotGuide } from './robotGuide';
+import type { RobotGuidePortrait } from './robotGuide';
 import { robotGuidance } from './robotGuidance';
 import { environmentChoiceCards } from './environmentChoices';
 import type { EnvironmentChoiceKind } from './environmentChoices';
@@ -20,7 +21,7 @@ const icons = { communication: 'message', curb: 'angled', crossing: 'plus', guid
 
 export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
   select: (id: BarrierId) => void; edit: (id: BarrierId, value: CityValue) => void;
-  undo: () => void; redo: () => void; done: () => void;
+  undo: () => void; redo: () => void; done: () => void; guidePortrait?: RobotGuidePortrait;
 }, speech?: ScreenSpeech) {
   container.innerHTML = `
     <div class="city-editor-heading"><span class="editor-eyebrow">SHAPE YOUR CITY</span><h2>Plan. Test. Improve.</h2><p id="city-plan-prompt">What would you change before your robot sets off?</p></div>
@@ -49,7 +50,7 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     <button id="city-edit-done" type="button">Start journey <span aria-hidden="true">→</span></button>
   `;
   const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
-  const guide = mountRobotGuide(get('city-robot-guide'), speech);
+  const guide = mountRobotGuide(get('city-robot-guide'), speech, callbacks.guidePortrait);
   const primary = get<HTMLButtonElement>('feature-primary'), secondary = get<HTMLButtonElement>('feature-secondary');
   const help = get<HTMLButtonElement>('feature-help'), hint = get('feature-hint');
   let journey: CityJourney | null = null, selected: BarrierId | null = null, showHelp = false;

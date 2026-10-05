@@ -1,3 +1,4 @@
+import { createExhibitionPerformer } from '../app/createExhibitionPerformer';
 import { createSteamTrain } from './steamTrain';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import type { Engine } from '@babylonjs/core/Engines/engine';
@@ -391,6 +392,11 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },
     resize: () => camera.update(), setZoom: camera.setZoom, pan: camera.pan, fit: camera.fit,
     setSinging(value: boolean) { robot.setSpeaking(value); },
+    exhibitionPerformer(canvas: HTMLCanvasElement, value: FinishedJourney) {
+      dance ??= new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4);
+      instruments.setScore(value.score);
+      return createExhibitionPerformer(canvas, value, scene, camera.camera, robot, instruments, dance, () => camera.update());
+    },
     danceToMusic(value: FinishedJourney, clock: () => number) { dance = new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4); instruments.setScore(value.score); musicClock = clock; },
     stopDancing() { musicClock = null; instruments.update(0, false, true); },
     get arrivalComplete() { return camera.arrivalComplete; },
