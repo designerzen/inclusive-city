@@ -119,11 +119,13 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   let stationarySeconds = 0;
   function reset() {
     const p = journey.position;
-    controller.setPosition(new Vector3(p.x, .075 + height / 2, p.z));
+    controller.setPosition(new Vector3(p.x, p.y - .085 + height / 2, p.z));
     controller.setVelocity(Vector3.Zero()); verticalVelocity = 0; stationarySeconds = 0;
   }
+  journey.syncTransport = reset;
   function update(seconds: number) {
     refreshContacts();
+    if (journey.onTrainLink) { reset(); return; }
     if (journey.ready && Vector3.DistanceSquared(controller.getPosition(), new Vector3(journey.position.x, controller.getPosition().y, journey.position.z)) > .0001) reset();
     // Small steps keep gravity and support stable after a slow frame.
     let remaining = Math.min(.1, Math.max(0, seconds));
@@ -165,7 +167,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   let disposed = false;
   function dispose() {
     if (disposed) return;
-    disposed = true; journey.constrainTravel = undefined;
+    disposed = true; journey.constrainTravel = undefined; journey.syncTransport = undefined;
     characters.forEach(c => c.controller.dispose()); characters.length = 0;
     colliders.forEach(({ aggregate }) => aggregate.dispose()); colliders.clear(); contacts.clear();
   }

@@ -26,6 +26,7 @@ import './cityHud.css';
 import './uiDesign.css';
 import './accessibility.css';
 import './environmentChoices.css';
+import './cityVoice.css';
 import { applyTheme, savedTheme } from './app/theme';
 import type { Theme } from './app/theme';
 import { requireMusicModel } from './ui/musicSetup';

@@ -1,3 +1,4 @@
+import { trainRidePose, trainRideDuration, trainPhaseText } from '../city/steamTrainRide';
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
 import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal, crossingReachProblem, robotButtonReach, studioEntranceProblem, studioDoorTypes, robotFootprint } from '../city/proceduralCity';
@@ -11,6 +12,7 @@ import { crossingSignal } from '../city/trafficSignals';
 export class PlannedJourney {
   /** The renderer can constrain route travel to distance actually allowed by physics. */
   constrainTravel?: (from: RoutePoint, to: RoutePoint, seconds: number) => { distance: number; blocker?: { id: string; reason: string } };
+  syncTransport?: () => void;
   readonly machine: RobotStateMachine;
   readonly bot: ArtBot;
   private path: string[];
@@ -21,6 +23,12 @@ export class PlannedJourney {
   edge = 0;
   distanceOnEdge = 0;
   heading = 0;
+  trainSeconds = 0;
+  trainFrom: string | null = null;
+  lastTrainPose: ReturnType<typeof trainRidePose> | null = null;
+  get onTrainLink() { return !!this.world.steamTrain && !this.ready && !this.complete && this.currentStreet?.id === this.world.steamTrain.street; }
+  get trainPose() { return this.onTrainLink ? trainRidePose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.trainSeconds) : null; }
+  get trainStatus() { return this.trainPose ? trainPhaseText[this.trainPose.phase] : null; }
   paused = false;
   blocked: { id: string; reason: string } | null = null;
   private encountered: string | null = null;
@@ -70,6 +78,7 @@ export class PlannedJourney {
     this.machine.depart(); this.collectAt(this.path[0]!); return true;
   }
   get position(): RoutePoint {
+    if (this.trainPose) return this.trainPose.position;
     const a = this.node(this.path[this.edge]!);
     const b = this.world.nodes.find(n => n.id === this.path[this.edge + 1]);
     if (!b) return { x: a.x, y: a.y, z: a.z };
@@ -232,6 +241,23 @@ export class PlannedJourney {
       this.blocked = null;
       if ((!this.constrainTravel || this.machine.state !== 'blocked') && !this.waiting) this.machine.transition('following');
       const a = this.node(this.path[this.edge]!), b = this.node(this.path[this.edge + 1]!);
+      if (this.onTrainLink) {
+        const duration = Math.min(remaining, trainRideDuration - this.trainSeconds);
+        this.trainFrom = a.id;
+        this.trainSeconds += duration;
+        this.lastTrainPose = trainRidePose(a, b, this.trainSeconds);
+        this.distanceOnEdge = this.crossingLength(street) * this.trainSeconds / trainRideDuration;
+        this.heading = this.trainPose!.heading;
+        this.machine.advance(duration, 'movingSeconds'); remaining -= duration;
+        if (this.trainSeconds >= trainRideDuration) {
+          this.machine.add('distance', this.crossingLength(street));
+          this.machine.add('stepsTaken', Math.max(0, Math.floor(this.metrics.distance) - this.metrics.stepsTaken));
+          this.edge++; this.distanceOnEdge = 0; this.trainSeconds = 0;
+          this.machine.add('segmentsCompleted', 1); this.machine.emit('segment', { segment: this.edge - 1, transport: 'steam-train' }); this.collectAt(this.path[this.edge]!);
+        }
+        this.syncTransport?.();
+        this.telemetry(); continue;
+      }
       const target = Math.atan2(a.x - b.x, a.z - b.z);
       const delta = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
       if (Math.abs(delta) > 1e-8) {
@@ -302,7 +328,7 @@ export class PlannedJourney {
   }
   restart() {
     this.machine.end('interrupted'); this.machine.transition('designer');
-    this.edge = 0; this.distanceOnEdge = 0; this.paused = false; this.blocked = null; this.encountered = null; this.crossingRequestEdge = -1;
+    this.edge = 0; this.distanceOnEdge = 0; this.trainSeconds = 0; this.lastTrainPose = null; this.trainFrom = null; this.paused = false; this.blocked = null; this.encountered = null; this.crossingRequestEdge = -1;
     this.machine.start(robotMetadata(this.bot), [...this.repaired], true);
     this.machine.run.environment.routeId = `procedural-${this.world.seed}`; this.savePlan(); this.telemetry();
   }

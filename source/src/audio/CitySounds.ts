@@ -16,6 +16,7 @@ export class CitySounds {
   private volume = 0.55;
   private muted = false;
   private disposed = false;
+  private capturingVoice = false;
   private active = new Set<ReturnType<SoundEffect['schedule']>>();
   private lastTune = -Infinity;
   private lastCrossingBeep = -Infinity;
@@ -30,7 +31,7 @@ export class CitySounds {
     try {
       if (!this.context) {
         this.context = new AudioContext();
-        this.master = this.context.createGain(); this.master.gain.value = this.muted ? 0 : this.volume;
+        this.master = this.context.createGain(); this.master.gain.value = this.muted || this.capturingVoice ? 0 : this.volume;
         const limiter = this.context.createDynamicsCompressor();
         limiter.threshold.value = -10; limiter.knee.value = 6; limiter.ratio.value = 12;
         limiter.attack.value = 0.003; limiter.release.value = 0.15;
@@ -41,8 +42,9 @@ export class CitySounds {
   }
 
   private updateGain() {
-    if (this.context && this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.context.currentTime, 0.02);
+    if (this.context && this.master) this.master.gain.setTargetAtTime(this.muted || this.capturingVoice ? 0 : this.volume, this.context.currentTime, 0.02);
   }
+  setVoiceCapture(value: boolean) { this.capturingVoice = value; if (value) this.midi.stop(); this.updateGain(); }
   setMuted(value: boolean) { this.muted = value; if (value) this.midi.stop(); this.updateGain(); }
   setVolume(value: number) { if (Number.isFinite(value)) this.volume = Math.min(1, Math.max(0, value)); if (!this.volume) this.midi.stop(); this.updateGain(); }
 
@@ -52,7 +54,7 @@ export class CitySounds {
     let stopped = false;
     let midi: { stop(): void } | undefined;
     const startMidi = () => {
-      if (stopped || this.disposed || this.muted || document.hidden || context.state !== 'running') return;
+      if (stopped || this.disposed || this.muted || this.capturingVoice || document.hidden || context.state !== 'running') return;
       const timestamp = context.getOutputTimestamp?.();
       const start = timestamp?.contextTime && timestamp.performanceTime
         ? timestamp.performanceTime + (when - timestamp.contextTime) * 1000

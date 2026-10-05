@@ -14,6 +14,7 @@ export interface ProceduralCity {
   studioEntrance?: StudioEntrance;
   bicycleGarage?: { x: number; z: number };
   bicycles?: CityBicycle[];
+  steamTrain?: { street: string };
   start: string; destination: string; riverX: number; rememberedRobots: number;
 }
 
@@ -94,7 +95,12 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
     ...streets.filter(s => s.kind !== 'bridge').slice(0, 3),
   ])];
   const bicycles: CityBicycle[] = bicycleStreets.map((street, i) => ({ id: `bicycle-${i + 1}`, street: street.id, location: street.kind === 'crossing' || i % 2 === 1 ? 'road' : 'pavement' }));
-  return { bicycleGarage: lots[names.length]!, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
+  const previewWorld = { nodes, streets, start, destination } as ProceduralCity;
+  const route = routeToGoal(previewWorld)!;
+  const trainStreet = route.slice(2).map((id, i) => streetBetween(previewWorld, route[i + 1]!, id)!).find(s => s.kind !== 'bridge' && s.b !== destination && s.a !== destination)!;
+  trainStreet.kind = 'clear'; trainStreet.width = Math.max(4, ...robots.map(robotFootprint));
+  const trainBikes = bicycles.filter(b => b.street !== trainStreet.id);
+  return { steamTrain: { street: trainStreet.id }, bicycleGarage: lots[names.length]!, bicycles: trainBikes, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {

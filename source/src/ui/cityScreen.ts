@@ -19,6 +19,8 @@ import type { FinishedJourney } from '../art/finishedJourney';
 import { pianoSynthScore } from '../audio/pianoSynth';
 import { environmentChoiceCards, studioDoorChoiceCards } from './environmentChoices';
 import type { EnvironmentChoiceKind } from './environmentChoices';
+import { mountCityVoicePanel } from './cityVoicePanel';
+import { interpretCityReply, applyCityReply } from './cityReply';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
@@ -56,6 +58,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
       <h2 id="city-heading" tabindex="-1">Reach the goal</h2>
       <p id="journey-status" role="status" aria-live="polite">Press Start robot. Help it reach the flagged Duet studio.</p>
+      <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
       <div class="city-route-stats" id="city-route-stats"></div>
       <section id="city-route-controls" aria-label="Draw your route">
         <p class="city-plan-hint">Drawing is optional. Choose stops or draw between junctions to explore. Start robot fills in the rest of the route to the flagged goal.</p>
@@ -136,6 +139,16 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
   function feedback(text: string) { setText('city-feedback', text); }
+  const voicePanel = mountCityVoicePanel(get('city-reply'), {
+    context: () => city ? `${city.journey.machine.run.id}:${city.journey.edge}:${city.journey.blocked?.id ?? ''}:${city.journey.dimensionRevision}:${[...city.journey.repaired]}:${city.journey.complete}` : '',
+    capture: value => { if (value) speech?.stop(); sounds.setVoiceCapture(value); },
+    submit: text => {
+      if (!city || !active) return 'Open the city to reply to your robot.';
+      city.resizer.finish(false);
+      const message = applyCityReply(city.journey, interpretCityReply(text, city.journey));
+      city.sync(); panelKey = ''; feedback(message); refresh(); speech?.say(message); return message;
+    },
+  });
   function beginCreation() {
     if (!city) return;
     stopTrack(); finished = null; studioStarted = false; studioPreparing = false; get('studio-track').hidden = true;
@@ -169,6 +182,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   const musicTimer = window.setInterval(updateCityMusic, 50);
   function refresh() {
     if (!city) return;
+    voicePanel.update();
     updateRobotConditions(city.robotConditions);
     const j = city.journey;
     const bikes = j.world.bicycles ?? [];
@@ -222,8 +236,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     const discoveries = new Set(stops.filter(n => n.discovery).map(n => n.id)).size;
     get('city-route-stats').hidden = j.ready && mode !== 'route';
     setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
-    setText('city-hud-status', j.complete ? 'At studio' : j.ready ? 'Ready' : j.blocked ? 'Blocked' : j.paused ? 'Paused' : j.waiting ? 'Waiting to cross' : `Travelling · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`);
-    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
+    setText('city-hud-status', j.complete ? 'At studio' : j.ready ? 'Ready' : j.blocked ? 'Blocked' : j.paused ? 'Paused' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting to cross' : `Travelling · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`);
+    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
     setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Help your robot through' : j.paused ? 'Journey paused' : 'Your robot is travelling');
     setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : 'GOAL / DUET STUDIO');
     if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
@@ -337,6 +351,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     if (mood !== lastMood) lastMood = mood;
   }
   function newCity() {
+    voicePanel.stop();
     if (!bot || !engine) return;
     pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
@@ -473,6 +488,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   }
   window.addEventListener('keydown', escape);
   function visibilityChanged() {
+    if (document.hidden) voicePanel.stop();
     lastMusicFrame = performance.now();
     if (document.hidden && playback) { stopTrack(false); setText('studio-track-status', 'Track stopped while you were away. Replay when you return.'); }
   }
@@ -481,13 +497,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   return {
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
-    suspend() { stopTrack(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
+    suspend() { voicePanel.stop(); stopTrack(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
     resume() { active = true; lastMusicFrame = performance.now(); engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       bot = value; robots = remembered; active = true; sounds.unlock();
       if (!engine) { engine = new Engine(canvas, true); engine.runRenderLoop(() => { if (!active || !city || document.hidden) return; city.update(Math.min(.1, engine!.getDeltaTime() / 1000)); refresh(); city.scene.render(); }); }
       newCity();
     },
-    dispose() { stopTrack(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
+    dispose() { voicePanel.dispose(); stopTrack(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
   };
 }

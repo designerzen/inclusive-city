@@ -1,3 +1,4 @@
+import { createSteamTrain } from './steamTrain';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
@@ -142,6 +143,11 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   const syncBicycles = createBicycleGarage(scene, journey, signalAmber, flagBlack, walls);
   if (world.bicycleGarage) label('BICYCLE GARAGE', world.bicycleGarage.x, 2.1, world.bicycleGarage.z + 2.2, 5);
+  const syncTrain = createSteamTrain(scene, journey, walls, flagBlack, signalAmber, flagWhite);
+  if (world.steamTrain) {
+    const rail = world.streets.find(s => s.id === world.steamTrain!.street)!;
+    for (const id of [rail.a, rail.b]) { const stop = world.nodes.find(n => n.id === id)!; label('STEAM TRAIN / RAMP SHED', stop.x, 2.1, stop.z - 2, 5); }
+  }
   const buildingModels = world.buildings.map(b => {
     const pieces = ['left', 'right', 'back', 'front-left', 'front-right', 'lintel'].map(side => {
       const mesh = box(`wall-${b.name}-${side}`, 0, 0, 0, 1, 1, 1, walls);
@@ -284,11 +290,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     sync(); physics?.update(seconds);
     autonomousBots?.update(seconds, reducedMotionPreference().matches, journey.signalTime);
     if (physicsStatus !== 'loading') journey.update(seconds);
-    sync(); syncSignals(); syncEntrance(); const p = journey.position;
+    sync(); syncSignals(); syncEntrance(); syncTrain(reducedMotionPreference().matches); const p = journey.position;
+    if (journey.onTrainLink || before.y > .2) physics?.reset();
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;
-    if (physics) robot.robot.position.copyFrom(physics.position);
+    if (physics && !journey.onTrainLink) robot.robot.position.copyFrom(physics.position);
     instruments.root.setEnabled(journey.complete);
     if (journey.complete) { instruments.root.position.copyFrom(robot.robot.position); instruments.root.rotation.y = journey.heading; }
     const moved = Math.hypot(p.x - before.x, p.z - before.z);

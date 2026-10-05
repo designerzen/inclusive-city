@@ -121,7 +121,7 @@ test('the robot stops before unedited streets and follows only the drawn line af
     j.update(.05);
     const a = world.nodes.find(n => n.id === route[Math.min(j.edge, route.length - 2)])!, b = world.nodes.find(n => n.id === route[Math.min(j.edge + 1, route.length - 1)])!;
     const p = j.position;
-    assert.ok(Math.abs((p.x - a.x) * (b.z - a.z) - (p.z - a.z) * (b.x - a.x)) < 1e-6, 'robot remains on the drawn segment');
+    if (!j.onTrainLink) assert.ok(Math.abs((p.x - a.x) * (b.z - a.z) - (p.z - a.z) * (b.x - a.x)) < 1e-6, 'robot remains on the drawn segment');
   }
   assert.equal(j.complete, true); assert.ok(j.repaired.size > 0);
   assert.deepEqual(j.machine.run.cityPlan!.route, route);
