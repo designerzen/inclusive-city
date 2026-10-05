@@ -261,7 +261,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) {
     solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 6.6 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
   }
-  const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
+  const robot = createRobot(scene); robot.setName(bot.name); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);
   instruments.root.scaling.set(bot.appearance.width * .5, .5, .5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });

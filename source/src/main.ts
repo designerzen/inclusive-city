@@ -432,7 +432,10 @@ document.querySelector('#previous-bot')!.addEventListener('click', () => {
   history.previous();
   showCurrentBot();
 });
-nameInput.addEventListener('input', () => nameInput.setCustomValidity(''));
+nameInput.addEventListener('input', () => {
+  nameInput.setCustomValidity('');
+  applyIdentity(nameInput.value.trim() || history.current.name, history.current.id);
+});
 nameInput.addEventListener('blur', () => {
   if (nameInput.value === history.current.name) return;
   try {
@@ -445,6 +448,7 @@ nameInput.addEventListener('blur', () => {
     sounds.button('save-name');
   } catch (error) {
     nameInput.value = history.current.name;
+    applyIdentity(history.current.name, history.current.id);
     nameInput.setCustomValidity('');
     nameError.textContent = `${error instanceof Error ? error.message : 'Enter a name.'} Kept the previous name.`;
   }
@@ -469,12 +473,13 @@ if (!Engine.IsSupported) {
 } else {
   try {
     const engine = new Engine(canvas, true);
-    const { scene, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine);
+    const { scene, setName, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine);
     updateWorkshopTheme = setTheme; setTheme(theme);
     applyProfile = setProfile;
     feelSettings = reactToSettings;
     applyAppearance = setAppearance;
     applyIdentity = (name, id) => {
+      setName(name);
       const robot = scene.getTransformNodeByName('artbot')!;
       robot.metadata = { ...robot.metadata, name, id, record: history.current.record };
     };

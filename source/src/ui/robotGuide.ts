@@ -82,7 +82,7 @@ export function mountRobotGuide(container: HTMLElement, speech?: ScreenSpeech) {
       } catch { engine?.dispose(); engine = null; canvas.hidden = true; }
     }
     if (bot !== next) {
-      bot = next; model?.setAppearance(next.appearance); model?.setProfile(next.profile);
+      bot = next; model?.setName(next.name); model?.setAppearance(next.appearance); model?.setProfile(next.profile);
       if (model) model.characterAnimation.mood = 'happy';
       const y = 1.05 + 2.35 * next.appearance.height;
       if (camera) { camera.position.set(0, y, -8); camera.setTarget(new Vector3(0, y, 0)); }

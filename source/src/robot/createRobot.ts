@@ -88,10 +88,22 @@ export function createRobot(scene: Scene) {
   });
   box('chest-light', [0.4, 0.25, 0.08], [0, 0.85, -0.47], eyes);
   box('art-bot-badge', [1.2, 0.34, 0.08], [0, 1.28, -0.47], dark);
+  let nameTexture: DynamicTexture | null = null;
+  function setName(value: string) {
+    const name = value.trim() || 'ART BOT';
+    if (robot.metadata?.name === name) return;
+    robot.metadata = { ...robot.metadata, name };
+    if (!nameTexture) return;
+    const context = nameTexture.getContext();
+    context.font = 'bold 88px sans-serif';
+    const size = Math.min(88, 88 * 480 / Math.max(1, context.measureText(name).width));
+    nameTexture.drawText(name, null, 64 + size * .34, `bold ${size}px sans-serif`, '#ffe6a5', '#173e45', true);
+  }
   // Canvas textures are available in rendered scenes; NullEngine has no canvas.
   if (scene.getEngine().getRenderingCanvas()) {
     const texture = new DynamicTexture('art-bot-lettering', { width: 512, height: 128 }, scene, false);
-    texture.drawText('ART BOT', null, 94, 'bold 88px sans-serif', '#ffe6a5', '#173e45', true);
+    nameTexture = texture;
+    setName('ART BOT');
     const lettering = material('art-bot-lettering', '#ffffff');
     lettering.diffuseTexture = texture;
     lettering.emissiveTexture = texture;
@@ -270,7 +282,7 @@ export function createRobot(scene: Scene) {
       star.rotation.z = pose.accent * (i % 2 ? -.6 : .6);
     });
   }
-  return { robot, setProfile, setAppearance, animateTravel, characterAnimation,
+  return { robot, setName, setProfile, setAppearance, animateTravel, characterAnimation,
     setCondition(value: RobotCondition) { characterAnimation.condition = value; characterAnimation.mood = value.mood; robot.metadata = { ...robot.metadata, condition: value }; },
     setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
 }

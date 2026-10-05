@@ -83,11 +83,12 @@ export function createWorkshopScene(engine: Engine) {
       const hud = editor.querySelector<HTMLElement>('#ability-designer')!.getBoundingClientRect();
       const identity = editor.querySelector<HTMLElement>('.bot-identity')!.getBoundingClientRect();
       const actions = editor.querySelector<HTMLElement>('.designer-next')!.getBoundingClientRect();
+      const introduction = editor.querySelector<HTMLElement>('.designer-introduction')!.getBoundingClientRect();
       const mobile = bounds.width <= 700;
       const left = mobile ? 62 : 84;
       const right = mobile ? bounds.width - 62 : hud.left - bounds.left - 64;
-      const top = identity.bottom - bounds.top + 12;
-      const bottom = (mobile ? hud.top : actions.top) - bounds.top - 12;
+      const top = introduction.bottom - bounds.top + 12;
+      const bottom = Math.min(identity.top, mobile ? hud.top : actions.top) - bounds.top - 12;
       const width = Math.max(1, right - left), height = Math.max(1, bottom - top);
       const scale = 2 * Math.max((maxY - minY) / 2 + .45, (radius + .3) / (width / height)) / height;
       const x = (left + right) / 2, y = (top + bottom) / 2;
@@ -98,7 +99,7 @@ export function createWorkshopScene(engine: Engine) {
     }
   }
   return {
-    scene, resize, setTheme,
+    scene, resize, setTheme, setName: bot.setName,
     setProfile(profile: RobotProfile) { bot.setProfile(profile); resize(); },
     feelSettings(change: EditorFeedback) { bot.characterAnimation.feel(change); feedbackSeconds = 2; bot.animateTravel(0, 1 / 60, reducedMotion.matches); },
     setAppearance(appearance: RobotAppearance) { bot.setAppearance(appearance); bot.characterAnimation.react('pickup'); resize(); },

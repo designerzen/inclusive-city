@@ -20,6 +20,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const light = new HemisphericLight('exhibition-light', new Vector3(-1, 2, -3), scene);
   light.intensity = 1.35; light.groundColor = Color3.FromHexString('#7a826a');
   const bot = createRobot(scene);
+  bot.setName(journey.name);
   bot.setAppearance(journey.robot.appearance); bot.setProfile(journey.robot.profile);
   bot.robot.metadata = { ...bot.robot.metadata, name: journey.name, id: journey.robotId };
   const instruments = createStudioInstruments(scene, journey.robot.appearance.height); instruments.setScore(journey.score);
