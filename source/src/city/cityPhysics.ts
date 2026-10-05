@@ -22,7 +22,8 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
     for (const mesh of solids) {
       const old = colliders.get(mesh);
       const enabled = mesh.isEnabled() && !mesh.isDisposed();
-      const key = [...mesh.position.asArray(), ...mesh.scaling.asArray(), ...mesh.rotation.asArray()].join('|');
+      mesh.computeWorldMatrix(true);
+      const key = Array.from(mesh.getWorldMatrix().m).join('|');
       if (enabled && old?.key === key) continue;
       old?.aggregate.dispose(); colliders.delete(mesh);
       if (enabled) {
@@ -162,7 +163,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
     stationarySeconds = distance < Math.min(requested * .1, 1e-4) ? stationarySeconds + seconds : 0;
     // Havok discards sub-millimetre residual motion in its contact solver. Treat
     // that tolerance as completed so a route milestone cannot retry forever.
-    return { distance: requested - distance <= 1e-4 ? requested : distance, blocker: stationarySeconds >= .25 ? blocker() : undefined };
+    return { distance: requested - distance <= 2e-4 ? requested : distance, blocker: stationarySeconds >= .25 ? blocker() : undefined };
   };
   let disposed = false;
   function dispose() {

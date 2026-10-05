@@ -14,7 +14,7 @@ export interface ProceduralCity {
   studioEntrance?: StudioEntrance;
   bicycleGarage?: { x: number; z: number };
   bicycles?: CityBicycle[];
-  steamTrain?: { street: string };
+  steamTrain?: { street: string; trackStart?: RoutePoint; trackEnd?: RoutePoint };
   start: string; destination: string; riverX: number; rememberedRobots: number;
 }
 
@@ -42,13 +42,18 @@ export function neighbours(city: ProceduralCity, id: string) {
 
 /** Follow streets to the goal without requiring the player to draw a whole route. */
 export function routeToGoal(city: ProceduralCity, from = city.start) {
-  const queue = [[from]], visited = new Set([from]);
-  for (let i = 0; i < queue.length; i++) {
-    const route = queue[i]!;
+  const queue = [{ route: [from], cost: 0 }], visited = new Set<string>();
+  while (queue.length) {
+    queue.sort((a, b) => a.cost - b.cost);
+    const { route, cost } = queue.shift()!;
+    if (visited.has(route.at(-1)!)) continue;
+    visited.add(route.at(-1)!);
     if (route.at(-1) === city.destination) return route;
     for (const node of neighbours(city, route.at(-1)!)) {
       if (visited.has(node.id)) continue;
-      visited.add(node.id); queue.push([...route, node.id]);
+      const street = streetBetween(city, route.at(-1)!, node.id)!;
+      const penalty = city.steamTrain && street.kind === 'bridge' && street.id !== city.steamTrain.street ? 100 : 0;
+      queue.push({ route: [...route, node.id], cost: cost + 1 + penalty });
     }
   }
   return null;
@@ -76,6 +81,7 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const root = (id: string): string => { const p = parent.get(id)!; if (p === id) return id; const r = root(p); parent.set(id, r); return r; };
   const chosen = shuffle(candidates).filter(edge => { const a = root(edge.a), b = root(edge.b); if (a !== b) { parent.set(a, b); return true; } return random() < .55; });
   const bridgeRows = shuffle([0, 1, 2, 3, 4]).slice(0, 2 + Math.floor(random() * 2));
+  if (!bridgeRows.includes(2)) bridgeRows[0] = 2;
   const minWidth = Math.min(...robots.map(robotFootprint));
   const fastest = Math.max(...robots.map(robotSpeed));
   const kinds: StreetKind[] = ['clear', 'clear', 'curb', 'stairs', 'width', 'crossing', 'guidance'];
@@ -95,12 +101,22 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
     ...streets.filter(s => s.kind !== 'bridge').slice(0, 3),
   ])];
   const bicycles: CityBicycle[] = bicycleStreets.map((street, i) => ({ id: `bicycle-${i + 1}`, street: street.id, location: street.kind === 'crossing' || i % 2 === 1 ? 'road' : 'pavement' }));
-  const previewWorld = { nodes, streets, start, destination } as ProceduralCity;
-  const route = routeToGoal(previewWorld)!;
-  const trainStreet = route.slice(2).map((id, i) => streetBetween(previewWorld, route[i + 1]!, id)!).find(s => s.kind !== 'bridge' && s.b !== destination && s.a !== destination)!;
-  trainStreet.kind = 'clear'; trainStreet.width = Math.max(4, ...robots.map(robotFootprint));
-  const trainBikes = bicycles.filter(b => b.street !== trainStreet.id);
-  return { steamTrain: { street: trainStreet.id }, bicycleGarage: lots[names.length]!, bicycles: trainBikes, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
+  // The railway crosses the central river corridor. Its station junctions sit
+  // on opposite sides of the rails, so riders continue directly off the train.
+  const west = nodes.find(n => n.id === '2-2')!, east = nodes.find(n => n.id === '3-2')!;
+  const centreZ = (west.z + east.z) / 2;
+  const trackStart = { x: west.x, y: .16, z: centreZ };
+  const trackEnd = { x: east.x, y: .16, z: centreZ };
+  const entry: CityNode = { id: 'train-west', label: 'Central station - board', x: west.x, y: .16, z: centreZ + 2.6 };
+  const exit: CityNode = { id: 'train-east', label: 'Central station - exit', x: east.x, y: .16, z: centreZ - 2.6 };
+  nodes.push(entry, exit);
+  const trainStreet = streets.find(s => s.id === 'bridge-2')!;
+  trainStreet.a = entry.id; trainStreet.b = exit.id; trainStreet.width = Math.max(8, ...robots.map(robotFootprint));
+  streets.push(
+    { id: 'train-west-approach', a: west.id, b: entry.id, kind: 'clear', width: 4, crossingSeconds: 20 },
+    { id: 'train-east-approach', a: exit.id, b: east.id, kind: 'clear', width: 4, crossingSeconds: 20 },
+  );
+  return { steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage: lots[names.length]!, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {

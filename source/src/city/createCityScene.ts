@@ -25,6 +25,7 @@ import { loadCityPhysics } from './loadCityPhysics';
 import { createAutonomousBots } from './autonomousBots';
 import { createStudioInstruments } from '../app/createStudioInstruments';
 import { createBicycleGarage } from './bicycleGarage';
+import { createStudioBuilding } from './studioBuilding';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -77,6 +78,11 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       if (street.kind === 'stairs') for (let i = -1; i <= 1; i++) { const step = box(`step-${street.id}-${i}`, x + (dx ? i * .45 : 0), .16 + (i + 1) * .07, z + (dz ? i * .45 : 0), dx ? .4 : 2.6, .12 + (i + 1) * .14, dx ? 2.6 : .4, obstruction); step.metadata = { street: street.id }; step.isPickable = true; parts.push(step); }
     }
     const bridge = street.kind === 'bridge' ? box(`bridge-deck-${street.id}`, x, .65, z, dx, .16, 2.6, walls) : null;
+    if (bridge && street.id === world.steamTrain?.street && world.steamTrain.trackStart && world.steamTrain.trackEnd) {
+      const start = world.steamTrain.trackStart, end = world.steamTrain.trackEnd;
+      bridge.position.x = (start.x + end.x) / 2; bridge.position.z = (start.z + end.z) / 2;
+      bridge.scaling.z = street.width / 2.6;
+    }
     if (bridge) { bridge.metadata = { street: street.id }; bridge.isPickable = true; }
     if (bridge) solids.push(bridge);
     if (street.kind === 'curb' || street.kind === 'stairs' || street.kind === 'bridge') solids.push(...parts);
@@ -191,7 +197,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const scale = resizer.value(`width:${street.id}`) / originalWidth;
       surface.scaling[dx ? 'z' : 'x'] = scale;
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
-      if (bridge) bridge.scaling.z = scale;
+      if (bridge) bridge.scaling.z = scale * (street.id === world.steamTrain?.street ? street.width / 2.6 : 1);
     }
     syncSignals();
     physics?.sync();
@@ -205,6 +211,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   });
   const goal = world.nodes.find(node => node.id === world.destination)!;
   const entranceRoot = new TransformNode('studio-entrance', scene);
+  const studio = createStudioBuilding(scene, entranceRoot, walls, roofs, pavement);
+  solids.push(...studio.parts);
+  let studioKey = '';
   const entranceParts = Array.from({ length: 7 }, (_, i) => {
     const mesh = box(`studio-door-part-${i}`, 0, 0, 0, 1, 1, 1, i < 3 ? walls : details);
     mesh.parent = entranceRoot; mesh.isPickable = true; mesh.metadata = { street: 'studio-entrance' };
@@ -220,6 +229,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     entranceRoot.position.set(goal.x - dx / length * 2, .15, goal.z - dz / length * 2);
     entranceRoot.rotation.y = Math.atan2(dx, dz);
     const width = resizer.value('studio:width');
+    studio.sync(width, journey.complete);
     const place = (i: number, x: number, y: number, w: number, h: number, d: number, rotation = 0) => {
       const mesh = entranceParts[i]!; mesh.setEnabled(true); mesh.position.set(x, y, 0); mesh.scaling.set(w, h, d); mesh.rotation.y = rotation;
     };
@@ -242,12 +252,14 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       place(4, 0, 1.75, width, 3.5, .09, rotation);
       place(5, 0, 1.75, .09, 3.5, width, rotation);
     }
+    const key = [entranceRoot.position.x, entranceRoot.position.z, entranceRoot.rotation.y, width].join('|');
+    if (key !== studioKey) { studioKey = key; physics?.sync(); }
   }
   const goalRing = MeshBuilder.CreateTorus('goal-finish-ring', { diameter: 4.2, thickness: .35, tessellation: 32 }, scene);
   goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
-  solids.push(box('goal-flagpole', goal.x + 1.2, 2.7, goal.z, .15, 5.4, .15, goalMaterial));
+  solids.push(box('goal-flagpole', goal.x + 1.2, 3.45, goal.z, .15, 6.9, .15, goalMaterial));
   for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) {
-    solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 5.1 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
+    solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 6.6 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
   }
   const robot = createRobot(scene); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);

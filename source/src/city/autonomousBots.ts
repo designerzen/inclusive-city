@@ -3,7 +3,8 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import { bodyColours, bodyShapes, defaultAppearance } from '../robot/appearance';
 import { createRobot } from '../robot/createRobot';
-import { neighbours, streetBetween } from './proceduralCity';
+import { streetBetween } from './proceduralCity';
+import { autonomousRoutes } from './autonomousRoutes';
 import { crossingSignal } from './trafficSignals';
 import type { ProceduralCity } from './proceduralCity';
 import type { createCityPhysics } from './cityPhysics';
@@ -12,7 +13,8 @@ import type { createCityPhysics } from './cityPhysics';
 export function createAutonomousBots(scene: Scene, world: ProceduralCity, physics: ReturnType<typeof createCityPhysics>) {
   let seed = world.seed >>> 0;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  const starts = world.nodes.filter(n => n.id !== world.start && n.id !== world.destination && neighbours(world, n.id).length);
+  const routes = autonomousRoutes(world);
+  const starts = world.nodes.filter(n => routes.has(n.id));
   const bots = Array.from({ length: Math.min(6, starts.length) }, (_, i) => {
     const node = starts[Math.floor(i * starts.length / Math.min(6, starts.length))]!;
     const model = createRobot(scene);
@@ -37,8 +39,11 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
     const p = bot.character.controller.getPosition();
     const dx = bot.target.x - bot.node.x, dz = bot.target.z - bot.node.z, length = Math.hypot(dx, dz) || 1;
     const clearance = physics.player.radius + bot.character.radius + .4;
-    bot.escape = { x: p.x + (dz / length || (dx === 0 ? 1 : 0)) * clearance * bot.escapeSide,
+    const goal = world.nodes.find(n => n.id === world.destination)!;
+    let escape = { x: p.x + (dz / length || (dx === 0 ? 1 : 0)) * clearance * bot.escapeSide,
       z: p.z - dx / length * clearance * bot.escapeSide };
+    if (Math.hypot(escape.x - goal.x, escape.z - goal.z) < 10) escape = { x: 2 * p.x - escape.x, z: 2 * p.z - escape.z };
+    bot.escape = escape;
     bot.escapeSide *= -1; bot.wait = 0; bot.stuck = 0;
   }
   function update(seconds: number, reducedMotion = false, signalTime = 0) {
@@ -58,7 +63,7 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
         const distanceToTarget = Math.hypot(bot.target.x - before.x, bot.target.z - before.z);
         if (!bot.escape && distanceToTarget < .12) {
           bot.previous = bot.node.id; bot.node = bot.target;
-          const options = neighbours(world, bot.node.id);
+          const options = routes.get(bot.node.id) ?? [];
           const unblocked = options.filter(n => n.id !== bot.avoid);
           const forward = unblocked.filter(n => n.id !== bot.previous);
           let choices = forward.length ? forward : unblocked.length ? unblocked : options;

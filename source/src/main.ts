@@ -268,13 +268,40 @@ document.querySelector('#back-to-designer')!.addEventListener('click', () => {
     workshop.classList.remove('city-mode'); resizeWorkshop();
   }, document.querySelector<HTMLButtonElement>('#enter-city')!);
 });
-document.querySelector('#exhibition-city')!.addEventListener('click', () => {
+function backToCity() {
   exhibition.leave();
   void screenTransition.run(exhibitionContainer, cityContainer, () => {
     inExhibition = false; inCity = true; exhibitionContainer.hidden = true; cityContainer.hidden = false;
     workshop.classList.remove('exhibition-mode'); workshop.classList.add('city-mode'); cityScreen.resume();
   }, document.querySelector<HTMLButtonElement>('#city-restart')!);
-});
+}
+function returnToAttract(from: HTMLElement) {
+  exhibition.leave();
+  cityScreen.suspend();
+  void screenTransition.run(from, attractContainer, () => {
+    inExhibition = false; inCity = false; inAttract = true;
+    from.hidden = true; attractContainer.hidden = false;
+    workshop.classList.remove('exhibition-mode', 'city-mode', 'presets-mode');
+    workshop.classList.add('attract-mode');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    attract.enter();
+  }, document.querySelector<HTMLButtonElement>('#attract-enter')!);
+}
+document.querySelector('#exhibition-attract')!.addEventListener('click', () => returnToAttract(exhibitionContainer));
+const onBackspace = (event: KeyboardEvent) => {
+  if (event.key !== 'Backspace' || event.defaultPrevented || event.isComposing || event.repeat
+    || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const focus = document.activeElement;
+  if (focus instanceof HTMLElement && (focus.isContentEditable || focus.closest('input, textarea, select, [role="textbox"]'))) return;
+  if (workshop.inert || openingExhibition || document.querySelector('dialog[open]') || inAttract) return;
+  event.preventDefault();
+  if (inExhibition) backToCity();
+  else if (inCity) document.querySelector<HTMLButtonElement>('#back-to-designer')!.click();
+  else if (!presetsScreen.hidden) document.querySelector<HTMLButtonElement>('#edit-robot')!.click();
+  else returnToAttract(designerScreen);
+};
+document.addEventListener('keydown', onBackspace);
+import.meta.hot?.dispose(() => document.removeEventListener('keydown', onBackspace));
 const themeSelect = document.querySelector<HTMLSelectElement>('#app-theme')!;
 themeSelect.value = theme;
 themeSelect.addEventListener('change', () => {

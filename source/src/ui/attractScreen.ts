@@ -79,6 +79,23 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
     } catch (error) { console.error('Attract preview unavailable:', error); }
   }
   return {
+    enter() {
+      if (!left) return;
+      left = false;
+      if (options) options.hidden = false;
+      paused = motion.matches;
+      updateMotion();
+      motion.addEventListener('change', onMotion);
+      music.setAttribute('aria-pressed', 'false');
+      musicLabel.textContent = sounds.supported ? 'Play soundtrack' : 'Sound unavailable';
+      container.classList.remove('has-music', 'has-robot');
+      if (Engine.IsSupported) {
+        try {
+          leaveScene = createAttractScene(canvas, () => paused);
+          container.classList.add('has-robot');
+        } catch (error) { console.error('Attract preview unavailable:', error); }
+      }
+    },
     leave() {
       if (left) return;
       left = true;

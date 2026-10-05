@@ -10,8 +10,10 @@ export function createSteamTrain(scene: Scene, journey: PlannedJourney, metal: S
   if (!street) return () => {};
   const a = journey.world.nodes.find(n => n.id === street.a)!, b = journey.world.nodes.find(n => n.id === street.b)!;
   const site = new TransformNode('steam-railway', scene);
-  site.position.set(a.x, 0, a.z); site.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
-  const length = Math.hypot(b.x - a.x, b.z - a.z);
+  const initial = trainRidePose(a, b, 0, journey.world.steamTrain);
+  const origin = initial.point(0, 0);
+  site.position.set(origin.x, 0, origin.z); site.rotation.y = initial.heading + Math.PI;
+  const length = initial.length;
   function box(name: string, parent: TransformNode, x: number, y: number, z: number, w: number, h: number, d: number, mat = metal) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
     mesh.parent = parent; mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
@@ -25,7 +27,7 @@ export function createSteamTrain(scene: Scene, journey: PlannedJourney, metal: S
     box(`train-carriage-end-${z}`, train, 0, 1.7, z, 2.2, 2, .12);
     for (const x of [-1, 1]) box(`train-door-post-${x}-${z}`, train, x, 1.7, z * .55, .12, 2, .12, accent);
   }
-  // Both side doorways remain clear so riders can roll straight through.
+  const doors = [-1, 1].map(side => box(`train-side-door-${side}`, train, side * 1.06, 1.7, 0, .09, 1.9, 1.4, accent));
   box('train-engine-chassis', train, 0, .6, 2.7, 1.8, .25, 2.4, dark);
   const boiler = MeshBuilder.CreateCylinder('steam-boiler', { diameter: 1.25, height: 2, tessellation: 20 }, scene);
   boiler.parent = train; boiler.position.set(0, 1.3, 2.8); boiler.rotation.x = Math.PI / 2; boiler.material = dark;
@@ -67,11 +69,13 @@ export function createSteamTrain(scene: Scene, journey: PlannedJourney, metal: S
     return { ramp, side, z };
   });
   site.getChildMeshes().forEach(m => { m.isPickable = false; }); train.getChildMeshes().forEach(m => { m.isPickable = false; });
-  let last = trainRidePose(a, b, 0);
+  let last = trainRidePose(a, b, 0, journey.world.steamTrain);
   return (reducedMotion: boolean) => {
-    if (journey.ready) last = trainRidePose(a, b, 0);
+    if (journey.ready) last = trainRidePose(a, b, 0, journey.world.steamTrain);
     else if (journey.lastTrainPose) last = journey.lastTrainPose;
     const reverse = journey.trainFrom === street.b;
+    doors[0]!.position.z = last.boardingDoorOpen ? -1.45 : 0;
+    doors[1]!.position.z = last.exitDoorOpen ? -1.45 : 0;
     train.position.set(last.train.x, 0, last.train.z);
     train.rotation.y = last.heading + Math.PI;
     for (const [i, { ramp, side, z }] of ramps.entries()) {

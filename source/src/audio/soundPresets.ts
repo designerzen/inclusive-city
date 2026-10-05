@@ -52,7 +52,7 @@ const buttonSignatures = {
   'exhibition-stop': { root: 59, intervals: [0, 5, 12], pattern: 'down', stepBeats: .07, waveform: 'sine' },
   'exhibition-download': { root: 74, intervals: [0, 3, 7, 14], pattern: 'down', stepBeats: .09, waveform: 'sine' },
   'exhibition-download-mp3': { root: 75, intervals: [0, 4, 9, 16], pattern: 'up', stepBeats: .1, waveform: 'triangle' },
-  'exhibition-city': { root: 57, intervals: [0, 7, 12, 15], pattern: 'down', stepBeats: .12 },
+  'exhibition-attract': { root: 57, intervals: [0, 7, 12, 15], pattern: 'down', stepBeats: .12 },
   'exhibition-designer': { root: 65, intervals: [0, 4, 12, 19], pattern: 'up', stepBeats: .13 },
   'city-instructions-close': { root: 60, intervals: [0, 4, 7, 14], pattern: 'up', stepBeats: .11, waveform: 'sine' },
   'attract-enter': { root: 60, intervals: [0, 7, 12, 19], pattern: 'up', stepBeats: .14, layers: 2 },

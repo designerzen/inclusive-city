@@ -22,7 +22,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
         <button id="exhibition-stop" type="button" disabled aria-label="Stop music" title="Stop music">Stop music</button>
         <button id="exhibition-download" type="button" aria-label="Download painting" title="Download painting">Download painting</button>
         <button id="exhibition-download-mp3" type="button" aria-label="Download song as MP3" title="Download song as MP3">Download song as MP3</button>
-        <button id="exhibition-city" type="button" aria-label="Back to city" title="Back to city">Back to city</button>
+        <button id="exhibition-attract" type="button" aria-label="Return to attractor" title="Return to attractor">Return to attractor</button>
       </div>
     </aside>
     <p id="exhibition-playback-status" class="sr-only" role="status" aria-live="polite"></p>

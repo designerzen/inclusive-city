@@ -39,7 +39,36 @@ test('generated trains are short links on the automatic route without a bicycle 
   for (let seed=0;seed<250;seed++) {
     const city=generateCity(seed,[bot]); const route=routeToGoal(city)!;
     const rail=city.streets.find(s=>s.id===city.steamTrain!.street)!;
-    assert.equal(rail.kind,'clear'); assert.ok(route.includes(rail.a) && route.includes(rail.b));
+    assert.equal(rail.id,'bridge-2'); assert.equal(rail.kind,'bridge');
+    assert.ok(Math.abs(city.steamTrain!.trackStart!.z) < 1);
+    assert.ok(Math.abs(city.steamTrain!.trackEnd!.z) < 1);
+    const a = city.nodes.find(n => n.id === rail.a)!, b = city.nodes.find(n => n.id === rail.b)!;
+    assert.ok(a.z > city.steamTrain!.trackStart!.z);
+    assert.ok(b.z < city.steamTrain!.trackEnd!.z);
+    assert.ok(city.steamTrain!.trackStart!.x < city.riverX && city.steamTrain!.trackEnd!.x > city.riverX); assert.ok(route.includes(rail.a) && route.includes(rail.b));
     assert.ok(!city.bicycles!.some(b=>b.street===rail.id));
+  }
+});
+
+
+test('central railway carries riders across town and exits directly onto the opposite platform only after arrival', () => {
+  const city = generateCity(42, [new BotHistory(['Curie','Einstein']).current]);
+  const service = city.steamTrain!, street = city.streets.find(s => s.id === service.street)!;
+  const west = city.nodes.find(n => n.id === street.a)!, east = city.nodes.find(n => n.id === street.b)!;
+  for (const reverse of [false, true]) {
+    const a = reverse ? east : west, b = reverse ? west : east;
+    const track = reverse ? { trackStart: service.trackEnd, trackEnd: service.trackStart } : service;
+    assert.deepEqual(trainRidePose(a,b,0,track).position, { x:a.x,y:a.y,z:a.z });
+    for (const t of [0,3,5,8,10,13.99]) {
+      const pose = trainRidePose(a,b,t,track);
+      assert.equal(pose.exitDoorOpen,false); assert.equal(pose.exitRamp,0);
+    }
+    const arrived = trainRidePose(a,b,14,track);
+    assert.ok(Math.abs(arrived.train.x-track.trackEnd!.x)<1e-8); assert.ok(Math.abs(arrived.train.z-track.trackEnd!.z)<1e-8);
+    assert.equal(arrived.exitDoorOpen,false);
+    assert.equal(trainRidePose(a,b,17,track).exitDoorOpen,true);
+    assert.equal(trainRidePose(a,b,17,track).boardingDoorOpen,false);
+    assert.deepEqual(trainRidePose(a,b,19,track).position,{ x:b.x,y:b.y,z:b.z });
+    assert.deepEqual(trainRidePose(a,b,24,track).position,{ x:b.x,y:b.y,z:b.z });
   }
 });

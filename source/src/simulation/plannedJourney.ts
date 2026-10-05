@@ -27,7 +27,12 @@ export class PlannedJourney {
   trainFrom: string | null = null;
   lastTrainPose: ReturnType<typeof trainRidePose> | null = null;
   get onTrainLink() { return !!this.world.steamTrain && !this.ready && !this.complete && this.currentStreet?.id === this.world.steamTrain.street; }
-  get trainPose() { return this.onTrainLink ? trainRidePose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.trainSeconds) : null; }
+  private trainTrack() {
+    const service = this.world.steamTrain;
+    const reverse = this.currentStreet?.b === this.path[this.edge];
+    return reverse ? { trackStart: service?.trackEnd, trackEnd: service?.trackStart } : service;
+  }
+  get trainPose() { return this.onTrainLink ? trainRidePose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.trainSeconds, this.trainTrack()) : null; }
   get trainStatus() { return this.trainPose ? trainPhaseText[this.trainPose.phase] : null; }
   paused = false;
   blocked: { id: string; reason: string } | null = null;
@@ -245,7 +250,7 @@ export class PlannedJourney {
         const duration = Math.min(remaining, trainRideDuration - this.trainSeconds);
         this.trainFrom = a.id;
         this.trainSeconds += duration;
-        this.lastTrainPose = trainRidePose(a, b, this.trainSeconds);
+        this.lastTrainPose = trainRidePose(a, b, this.trainSeconds, this.trainTrack());
         this.distanceOnEdge = this.crossingLength(street) * this.trainSeconds / trainRideDuration;
         this.heading = this.trainPose!.heading;
         this.machine.advance(duration, 'movingSeconds'); remaining -= duration;
