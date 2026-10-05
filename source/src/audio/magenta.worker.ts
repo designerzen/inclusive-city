@@ -22,11 +22,16 @@ scope.onmessage = async ({ data }) => {
       await model.initialize();
     }
     if (data.type === 'initialize') { scope.postMessage({ type: 'ready' }); return; }
+    const started = performance.now();
+    const primerSteps = data.primerSteps ?? 16, steps = data.steps ?? 16, temperature = data.temperature ?? .75;
+    if (!Number.isInteger(primerSteps) || primerSteps < 1 || primerSteps > 32
+      || !Number.isInteger(steps) || steps < 1 || steps > 64
+      || !Number.isFinite(temperature) || temperature < .1 || temperature > 1.2) throw new Error('Invalid generation request.');
     const result = await model.continueSequence({
       notes: data.notes,
-      quantizationInfo: { stepsPerQuarter: 4 }, totalQuantizedSteps: 16,
-    }, 16, .75, [data.chord]);
-    scope.postMessage({ type: 'notes', notes: (result.notes ?? []).map(note => ({
+      quantizationInfo: { stepsPerQuarter: 4 }, totalQuantizedSteps: primerSteps,
+    }, steps, temperature, data.chords ?? [data.chord]);
+    scope.postMessage({ type: 'notes', inferenceMs: performance.now() - started, notes: (result.notes ?? []).map(note => ({
       pitch: note.pitch!, quantizedStartStep: note.quantizedStartStep!, quantizedEndStep: note.quantizedEndStep!,
     })) });
   } catch {

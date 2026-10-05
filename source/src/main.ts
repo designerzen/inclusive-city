@@ -88,7 +88,7 @@ app.innerHTML = `
     </section>
     <button id="randomise-design" type="button" aria-label="Next robot" title="Next robot"><span aria-hidden="true">→</span></button>
     </div>
-    <div class="designer-next"><button id="enter-city" class="primary-action" type="button">Start!</button><button id="choose-existing" type="button">Browse ready-made robots</button></div>
+    <div class="designer-next"><button id="choose-existing" type="button">Browse ready-made robots</button></div>
     <p id="engine-status" class="sr-only" role="status">Loading preview…</p>
     </div><aside id="ability-designer" aria-label="Robot ability designer"></aside></div>
     </div>
@@ -255,7 +255,7 @@ const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, 
 let designStorage: Storage | undefined;
 try { designStorage = window.localStorage; } catch { /* The designer works without storage. */ }
 const history = new BotHistory(parseScientistSurnames(scientistSurnamesText), Math.random, designStorage);
-document.querySelector('#enter-city')!.addEventListener('click', () => {
+function startCity() {
   void screenTransition.run(designerScreen, cityContainer, () => {
     inCity = true;
     designerScreen.hidden = true;
@@ -264,7 +264,7 @@ document.querySelector('#enter-city')!.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     cityScreen.enter(history.current, history.all);
   }, document.querySelector<HTMLElement>('#city-heading')!).then(() => cityScreen.showInstructions());
-});
+}
 import.meta.hot?.dispose(() => cityScreen.dispose());
 cityScreen.setTheme(theme);
 document.querySelector('#back-to-designer')!.addEventListener('click', () => {
@@ -341,7 +341,7 @@ const designer = mountAbilityDesigner(document.querySelector('#ability-designer'
   } else if (previous.painter !== artist.painter) {
     sounds.play(new SoundEffect({ root: 60 + painterStyles.findIndex(style => style.id === artist.painter), intervals: [0, 4, 7], pattern: 'up', waveform: 'sine', gain: .08 }), `artist:painter:${artist.painter}`);
   }
-}, history.current.profile);
+}, history.current.profile, startCity);
 import.meta.hot?.dispose(() => designer.dispose());
 const nameInput = document.querySelector<HTMLInputElement>('#bot-name-input')!;
 const nameError = document.querySelector('#name-error')!;

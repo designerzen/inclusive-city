@@ -121,6 +121,11 @@ export class JourneyCreativity {
     // Skip unseen measures after an interruption; never emit a catch-up burst.
     if (time - this.nextPhrase > length) this.nextPhrase = time;
     const result: SoundSequenceEntry[] = [];
+    if (!ending) this.composer.prepareAccompaniment({ at: this.nextPhrase, phrase: this.phrase,
+      steps: this.steps, edge: this.edge, blocked: this.blocked, harmony: this.harmony,
+      mood: this.blocked ? 'frustrated' : this.expression.paused ? 'calm' : this.moodBars > 0 ? this.mood
+        : this.state === 'waiting' ? 'uncertain' : this.expression.moving ? 'determined' : undefined,
+      expression: this.expression });
     if (!ending && time + .15 >= this.nextPhrase) {
       const at = this.nextPhrase;
       this.nextPhrase += length;
@@ -129,6 +134,7 @@ export class JourneyCreativity {
         : this.state === 'arrived' ? 'celebrating' : this.expression.moving ? 'determined' : undefined;
       result.push(...this.composer.compose({ at, phrase: this.phrase, steps: this.steps, edge: this.edge,
         blocked: this.blocked, harmony: this.harmony, mood, expression: this.expression }));
+      this.composer.remember(result);
       this.moodBars = Math.max(0, this.moodBars - 1);
       this.phrase++;
       this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked, mood });
@@ -181,7 +187,7 @@ export class JourneyCreativity {
     const first = this.score[0]!.at;
     const last = Math.max(...this.score.map(entry => entry.at));
     const bars = Math.floor((last - first) / measure + 1e-8) + 1;
-    const verses = await this.composer.studioVerses(first + bars * measure, bars, this.steps, this.edge);
+    const verses = await this.composer.studioVerses(first + bars * measure, bars, this.steps, this.edge, this.score);
     this.score.push(...structuredClone(verses));
     this.harmony = true;
     return this.score;

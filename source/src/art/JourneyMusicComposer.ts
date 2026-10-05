@@ -2,14 +2,14 @@ import { SoundEffect } from '../audio/SoundEffect';
 import type { SoundScore, SoundSequenceEntry } from '../audio/SoundEffect';
 import type { MusicianStyle } from './artistStyles';
 import { magentaAccompaniment } from '../audio/MagentaAccompaniment';
-import type { AccompanimentProvider } from '../audio/magentaProtocol';
-import { magentaBackingNotes } from '../audio/magentaScore';
+import type { AccompanimentProvider, AccompanimentRequest, QuantizedNote } from '../audio/magentaProtocol';
+import { magentaBackingNotes, magentaPhraseNotes, magentaPrimer } from '../audio/magentaScore';
 import { robotMusicalIdentity } from '../audio/robotMusicalIdentity';
 import { robotHarmonies } from '../audio/robotHarmony';
 import type { RobotMood } from '../audio/robotHarmony';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
-interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; expression?: JourneyExpression }
+interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; expression?: JourneyExpression; cadence?: boolean }
 type Voice = Partial<SoundScore['voice']>;
 /** Scale degree, beat position, beat length. Original motifs, never song quotations. */
 type Figure = readonly (readonly [number, number, number])[];
@@ -63,6 +63,8 @@ export class JourneyMusicComposer {
   readonly bpm: number;
   readonly beats: number;
   private readonly identity;
+  private readonly sections = new Map<string, { start: number; request: AccompanimentRequest; notes?: readonly QuantizedNote[] }>();
+  private heard: SoundSequenceEntry[] = [];
   constructor(readonly style: MusicianStyle, private readonly seed: number, speed = 50,
     private readonly accompaniment: AccompanimentProvider = magentaAccompaniment) {
     this.bpm = style === 'melodic' ? 92 + Math.round(speed * .2) + (seed >>> 0) % 9 : recipes[style].bpm;
@@ -70,16 +72,73 @@ export class JourneyMusicComposer {
     this.identity = robotMusicalIdentity(seed);
   }
 
-  /** Warm four chord responses without changing any recorded or audible notes. */
-  prepareAccompaniment() { this.preview(); }
+  /** Retain the actual played lead, including resolved AI phrases, for future continuation. */
+  remember(score: readonly SoundSequenceEntry[]) {
+    this.heard.push(...structuredClone(score.filter(entry => [':melody:', ':harmony:', ':city-bed:'].some(part => entry.label?.includes(part)))));
+    const bars = [...new Set(this.heard.filter(entry => entry.label?.includes(':melody:')).map(entry => entry.at))].sort((a, b) => a - b).slice(-8);
+    this.heard = this.heard.filter(entry => bars.includes(entry.at)).sort((a, b) => a.at - b.at);
+  }
+
+  private section(data: Phrase, studio: boolean) {
+    const start = Math.floor(data.phrase / 4) * 4;
+    const mood = data.mood ?? (data.expression?.paused ? 'calm' : undefined);
+    const key = JSON.stringify([studio, start, data.blocked, mood]);
+    const existing = this.sections.get(key);
+    if (existing) return existing;
+    const measure = this.beats * 60 / this.bpm;
+    const templates = Array.from({ length: 4 }, (_, i) => this.compose({ ...data, mood,
+      at: data.at + (start + i - data.phrase) * measure, phrase: start + i, harmony: true, cadence: false }, studio, false)).flat();
+    const primer = magentaPrimer(this.heard.length ? this.heard : templates.filter(entry => entry.at === templates[0]!.at), this.bpm, this.beats);
+    const chordFor = (score: readonly SoundSequenceEntry[], at: number) => {
+      const chord = score.find(entry => entry.at === at && entry.label?.includes(':harmony:'))
+        ?? score.find(entry => entry.at === at && entry.label?.includes(':city-bed:'));
+      if (!chord) return 'C';
+      const root = chord.score.notes[0]!.midi;
+      const intervals = chord.score.notes.map(note => (note.midi - root) % 12);
+      const name = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][((root % 12) + 12) % 12]!;
+      const suffix = intervals.includes(3) ? intervals.includes(6) ? 'm7b5' : intervals.includes(10) ? 'm7' : 'm'
+        : !intervals.includes(4) && intervals.includes(2) ? 'sus2'
+        : !intervals.includes(4) && intervals.includes(5) ? 'sus4'
+        : intervals.includes(11) ? 'maj7' : intervals.includes(10) ? '7' : intervals.includes(9) ? '6' : '';
+      return name + suffix;
+    };
+    const chords = Array.from({ length: 4 }, (_, i) => chordFor(templates, templates[0]!.at + i * measure));
+    // ChordEncoder spreads chords evenly across primer + continuation. Include primer bars too.
+    const historyChords = primer.bars.map(at => chordFor(this.heard, at));
+    const primerChords = this.heard.length ? historyChords : [chords[0]!];
+    const temperatures: Partial<Record<RobotMood, number>> = { calm: .5, sad: .55, frustrated: .85,
+      uncertain: .7, determined: .65, relieved: .65, curious: .85, wonder: .9, happy: .8, celebrating: .9 };
+    const request: AccompanimentRequest = { chord: chords[0]!, chords: [...primerChords, ...chords], notes: primer.notes,
+      primerSteps: primer.steps, steps: this.beats * 4 * 4,
+      temperature: mood ? temperatures[mood] ?? .75 : ['ambient', 'minimalist'].includes(this.style) ? .55 : .75 };
+    const section = { start, request, notes: undefined as readonly QuantizedNote[] | undefined };
+    this.sections.set(key, section);
+    if (this.sections.size > 16) this.sections.delete(this.sections.keys().next().value!);
+    return section;
+  }
+
+  prepareAccompaniment(data: Phrase = { at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: true }) {
+    const section = this.section(data, false);
+    this.accompaniment.get(section.request, 2);
+  }
+
+  private async waitForSections(requests: readonly AccompanimentRequest[]) {
+    if (this.accompaniment.waitFor) { await this.accompaniment.waitFor(requests, 8000); return; }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([this.accompaniment.whenIdle?.() ?? Promise.resolve(),
+      new Promise<void>(resolve => { timer = setTimeout(resolve, 8000); })]); }
+    finally { clearTimeout(timer); }
+  }
 
   async enhancedPreview(): Promise<SoundSequenceEntry[]> {
-    this.prepareAccompaniment();
-    await this.accompaniment.whenIdle?.();
+    const data = { at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: true };
+    const section = this.section(data, false);
+    this.accompaniment.get(section.request, 4);
+    await this.waitForSections([section.request]);
     return this.preview();
   }
 
-  /** Four bars expose a groove and its chord changes. */
+  /** Four bars expose the robot's motif followed by its connected answers. */
   preview(bars = 4): SoundSequenceEntry[] {
     const count = Math.max(1, Math.min(12, Math.floor(bars) || 4));
     const measure = this.beats * 60 / this.bpm;
@@ -88,22 +147,21 @@ export class JourneyMusicComposer {
     })).flat();
   }
 
-  async studioVerses(at: number, phrase: number, steps: number, edge: number): Promise<SoundSequenceEntry[]> {
+  async studioVerses(at: number, phrase: number, steps: number, edge: number, history?: readonly SoundSequenceEntry[]): Promise<SoundSequenceEntry[]> {
+    if (history) {
+      this.heard = [];
+      this.remember(history);
+    }
     const measure = this.beats * 60 / this.bpm;
-    const compose = () => Array.from({ length: 8 }, (_, i) => this.compose({
-      at: at + i * measure, phrase: phrase + i, steps, edge, blocked: false, harmony: true,
-    }, true)).flat();
-    compose(); // Queue model responses before freezing the studio arrangement.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await Promise.race([this.accompaniment.whenIdle?.() ?? Promise.resolve(),
-        new Promise<void>(resolve => { timer = setTimeout(resolve, 8000); })]);
-    } catch { /* A playable harmonic arrangement survives unavailable inference. */ }
-    finally { clearTimeout(timer); }
-    return compose();
+    const data = Array.from({ length: 8 }, (_, i) => ({ at: at + i * measure, phrase: phrase + i, steps, edge,
+      blocked: false, harmony: true, mood: 'celebrating' as RobotMood, cadence: i === 7 }));
+    const sections = [...new Set(data.map(bar => this.section(bar, true)))];
+    sections.forEach(section => this.accompaniment.get(section.request, 4));
+    await this.waitForSections(sections.map(section => section.request));
+    return data.flatMap(bar => this.compose(bar, true));
   }
 
-  compose(data: Phrase, studio = false): SoundSequenceEntry[] {
+  compose(data: Phrase, studio = false, enhance = true): SoundSequenceEntry[] {
     const style = this.style, beat = 60 / this.bpm, slot = data.phrase % 4;
     // Functional progressions survive changing steps; incidents change their emotional mode.
     let root = [60, 67, 57, 65][slot]!, minor = slot === 2, seventh = 10;
@@ -120,6 +178,7 @@ export class JourneyMusicComposer {
     if (style === 'funk') { root = slot < 3 ? 60 : 65; minor = false; }
     // Different robots choose different keys while retaining each genre's harmonic grammar.
     const transpose = ((this.seed >>> 5) % 12) - 5;
+    if (data.cadence) { root = 60; minor = false; }
     const tonicRoot = root;
     root += transpose;
     if (data.blocked) { root = 57 + transpose; minor = true; }
@@ -214,20 +273,29 @@ export class JourneyMusicComposer {
       add('harmony', { ...this.identity.voice({ waveform: style === 'synthwave' ? 'sawtooth' : 'sine', attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300 }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
         offsets.flatMap(at => notes(intervals.map(interval => [interval, at, length]), root - 12)));
     }
-    if (data.harmony && (studio || ['melodic', 'ambient', 'jazz', 'lofi', 'cinematic'].includes(style))) {
-      const chordName = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][((root % 12) + 12) % 12]!;
-      const extended = style === 'jazz' || style === 'lofi';
-      const response = this.accompaniment.get({
-        chord: chordName + (colour ? mood === 'curious' ? 'sus2' : third === 3 ? fifth === 6 ? 'm7b5' : 'm7' : third === 5 ? 'sus4' : intervals.includes(11) ? 'maj7' : intervals.includes(9) ? '6' : '' : minor ? extended ? 'm7' : 'm' : extended ? seventh === 11 ? 'maj7' : '7' : ''),
-        notes: melody.notes.map(note => {
-          const start = Math.min(15, Math.round(note.start / beat * 4));
-          return { pitch: Math.max(48, Math.min(83, note.midi)), quantizedStartStep: start,
-            quantizedEndStep: Math.min(16, Math.max(start + 1, Math.round((note.start + note.duration) / beat * 4))) };
-        }),
-      });
-      if (response) {
-        const backing = magentaBackingNotes(response, root, intervals, this.bpm);
-        if (backing.length) add('magenta-countermelody', { waveform: 'triangle', gain: .09, pan: -.3, cutoff: 1500, attack: .025, release: .2 }, backing);
+    if (enhance) {
+      const section = this.section(data, studio);
+      section.notes ??= this.accompaniment.get(section.request, studio ? 4 : 3);
+      // Prepare the next section a full musical section before it is audible.
+      if (!studio && data.phrase - section.start >= 2) {
+        const next = this.section({ ...data, at: data.at + (section.start + 4 - data.phrase) * this.beats * beat,
+          phrase: section.start + 4 }, false);
+        this.accompaniment.get(next.request, 1);
+      }
+      if (section.notes) {
+        const options = { beats: this.beats, offsetSteps: (data.phrase - section.start) * this.beats * 4,
+          scale, swing: style === 'jazz' || style === 'blues' || style === 'lofi' };
+        // Each four-bar section opens with the robot's motif; subsequent bars develop it.
+        if (slot !== 0 && !data.cadence) {
+          const developed = magentaPhraseNotes(section.notes, root, intervals, this.bpm,
+            { ...options, role: 'lead', centre: melody.notes.reduce((sum, note) => sum + note.midi, 0) / melody.notes.length });
+          if (developed.length) { melody.notes = developed; result[0]!.label += ':magenta'; }
+        }
+        if (data.harmony) {
+          const backing = magentaBackingNotes(section.notes, root, intervals, this.bpm, options);
+          if (backing.length) add('magenta-countermelody', { ...this.identity.voice({ waveform: 'triangle',
+            cutoff: 1500, attack: .025, release: .2 }), gain: .075, pan: -.3 }, backing);
+        }
       }
     }
     if (data.expression) {
@@ -246,12 +314,18 @@ export class JourneyMusicComposer {
         decay: .04, sustain: .1, release: .08, cutoff: 1100, echoGain: .04 },
       notes(regular([0, fifth, colour && mood === 'curious' ? 2 : third, fifth], this.beats, .16), root));
     }
+    if (data.cadence) {
+      const ending = (this.beats - 1) * beat;
+      melody.notes = melody.notes.filter(note => note.start < ending).map(note => ({ ...note,
+        duration: Math.min(note.duration, ending - note.start) }));
+      melody.notes.push({ midi: root + 12, start: ending, duration: beat });
+    }
     return result;
   }
 
   /** Short chord-tone answers on the same beat grid as the ongoing arrangement. */
   react(kind: string, data: Phrase, direction = 0): SoundSequenceEntry {
-    const arrangement = this.compose({ ...data, mood: data.mood ?? (data.expression?.paused ? 'calm' : undefined), expression: undefined, harmony: true });
+    const arrangement = this.compose({ ...data, mood: data.mood ?? (data.expression?.paused ? 'calm' : undefined), expression: undefined, harmony: true }, false, false);
     const chord = arrangement.find(entry => entry.label?.includes(':harmony:'))!.score.notes;
     const pitches = [...new Set(chord.map(note => note.midi))].slice(0, 3).map(midi => midi + 12);
     const figures: Record<string, number[]> = {

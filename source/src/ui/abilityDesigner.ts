@@ -8,7 +8,7 @@ import type { PainterStyle, MusicianStyle, ArtistPreferences } from '../art/arti
 import { ProceduralPainting } from '../art/ProceduralPainting';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 
-export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void, initialProfile?: RobotProfile) {
+export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void, initialProfile?: RobotProfile, onStart?: () => void) {
   const allocation = defaultAbilities();
   if (initialProfile) for (const pair of abilityPairs) allocation[pair.id] = initialProfile.abilities[pair.id];
   let enabledFunctions = initialProfile ? [...initialProfile.enabledFunctions] : defaultFunctions();
@@ -21,6 +21,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <button id="designer-tuning" type="button" data-designer-panel="tuning" aria-pressed="false" aria-controls="designer-tuning-panel">Tuning</button>
       <button id="designer-creativity" type="button" data-designer-panel="creativity" aria-pressed="false" aria-controls="designer-creativity-panel">Creativity</button>
     </div>
+    <div class="designer-settings-panels">
     <div id="designer-capabilities-panel" data-settings-panel="capabilities">
     <div class="designer-heading">
       <h2 id="functions-heading">Pick 3 Capabilities</h2>
@@ -63,6 +64,8 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <label for="artist-musician">Musician</label><select id="artist-musician" aria-describedby="artist-musician-description artist-musician-hint">${musicianStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-musician-description"></p><p id="artist-musician-hint">Choose a style to hear a four-bar preview. Your robot will develop its own melody as it explores.</p>
       <p class="artist-note">Each is a generative interpretation. Your choices stay with this robot.</p>
     </section>
+    </div>
+    <div class="designer-step-actions"><button id="enter-city" class="primary-action" type="button" aria-controls="designer-tuning-panel">Next step</button></div>
     <p id="designer-announcement" class="sr-only" role="status" aria-live="polite"></p>
   `;
 
@@ -142,12 +145,30 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
     onArtistChange?.(artist, previous);
     container.querySelector('#designer-announcement')!.textContent = `Creative personality: ${painterStyles.find(style => style.id === artist.painter)!.label} and ${musicianStyles.find(style => style.id === artist.musician)!.label}.`;
   };
+  const views = [...container.querySelectorAll<HTMLButtonElement>('[data-designer-panel]')];
+  const nextStep = container.querySelector<HTMLButtonElement>('#enter-city')!;
+  let activeStep = 0;
+  function selectStep(index: number) {
+    activeStep = index;
+    const view = views[index]!;
+    for (const button of views) button.setAttribute('aria-pressed', String(button === view));
+    for (const panel of container.querySelectorAll<HTMLElement>('[data-settings-panel]')) panel.hidden = panel.dataset.settingsPanel !== view.dataset.designerPanel;
+    const nextView = views[index + 1];
+    nextStep.textContent = nextView ? 'Next step' : 'Start';
+    if (nextView) nextStep.setAttribute('aria-controls', nextView.getAttribute('aria-controls')!);
+    else nextStep.removeAttribute('aria-controls');
+    container.querySelector<HTMLElement>('.designer-settings-panels')!.scrollTop = 0;
+    container.querySelector('#designer-announcement')!.textContent = `Step ${index + 1} of ${views.length}: ${view.textContent}.`;
+    container.dispatchEvent(new CustomEvent('designer-layout-change', { bubbles: true }));
+  }
+  const onNextStep = () => {
+    if (activeStep < views.length - 1) selectStep(activeStep + 1);
+    else onStart?.();
+  };
   const onFunctionClick = (event: Event) => {
     const view = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-designer-panel]') : null;
     if (view) {
-      for (const button of container.querySelectorAll<HTMLButtonElement>('[data-designer-panel]')) button.setAttribute('aria-pressed', String(button === view));
-      for (const panel of container.querySelectorAll<HTMLElement>('[data-settings-panel]')) panel.hidden = panel.dataset.settingsPanel !== view.dataset.designerPanel;
-      container.dispatchEvent(new CustomEvent('designer-layout-change', { bubbles: true }));
+      selectStep(views.indexOf(view));
       return;
     }
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-function]') : null;
@@ -162,6 +183,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   container.addEventListener('input', onInput);
   container.addEventListener('click', onFunctionClick);
   container.addEventListener('change', onArtistInput);
+  nextStep.addEventListener('click', onNextStep);
   container.querySelector('#reset-abilities')!.addEventListener('click', onReset);
   update();
   return {
@@ -178,6 +200,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       container.removeEventListener('input', onInput);
       container.removeEventListener('click', onFunctionClick);
       container.removeEventListener('change', onArtistInput);
+      nextStep.removeEventListener('click', onNextStep);
       container.querySelector('#reset-abilities')?.removeEventListener('click', onReset);
     },
   };

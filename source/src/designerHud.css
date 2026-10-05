@@ -23,6 +23,11 @@
 #designer-screen .designer-hud-views button { padding: 6px 4px; font-size: .75rem; }
 #designer-screen .designer-hud-views button::before { display: none; }
 #designer-screen .designer-hud-views button[aria-pressed='true'] { background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-primary-ink); }
+#designer-screen #ability-designer { display: flex; flex-direction: column; overflow: visible; }
+#designer-screen .designer-hud-views { flex-shrink: 0; }
+#designer-screen .designer-settings-panels { min-height: max(44px, 3.3rem); overflow-y: auto; overscroll-behavior: contain; }
+#designer-screen .designer-step-actions { flex-shrink: 0; padding-top: 12px; }
+#designer-screen .designer-step-actions button { width: 100%; min-height: 48px; padding: 10px 16px; background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-primary-ink); }
 #designer-screen #functions-heading { margin: 4px 0 8px; font-size: 1.125rem; }
 #designer-screen .designer-heading { margin: 0; }
 #designer-screen .function-item { padding: 6px 0; }
@@ -44,13 +49,14 @@
 #designer-screen #artist-preview { height: 90px; width: 100%; object-fit: cover; margin: 8px 0; }
 #designer-screen .artist-designer p { font-size: .75rem; margin: 6px 0; }
 @media (max-width: 700px) {
+  #designer-screen { display: grid; grid-template-rows: minmax(130px, 1fr) auto minmax(calc(110px + 6.6rem), 1.4fr) auto; gap: 12px; padding: 12px; overflow-y: auto; }
   #designer-screen .designer-introduction { top: 12px; left: 12px; }
-  #designer-screen .bot-identity { bottom: calc(84px + min(330px, 100dvh - 230px)); left: 12px; right: 12px; width: auto; }
-  #designer-screen #ability-designer { top: auto; bottom: 76px; left: 12px; right: 12px; width: auto; height: 330px; max-height: calc(100dvh - 230px); padding: 10px 12px; }
+  #designer-screen .bot-identity { position: static; grid-row: 2; width: auto; }
+  #designer-screen #ability-designer { position: static; grid-row: 3; width: auto; min-height: 0; max-height: none; padding: 10px 12px; }
   #designer-screen .designer-hud-views { margin-bottom: 6px; }
   #designer-screen .function-item { padding: 0; }
   #designer-screen #functions-heading { margin: 0 0 4px; }
-  #designer-screen .designer-next { left: 12px; right: 12px; bottom: 12px; gap: 8px; }
+  #designer-screen .designer-next { position: static; grid-row: 4; gap: 8px; }
   #designer-screen .designer-next button { flex: 1; padding: 8px; font-size: .8125rem; }
   #designer-screen .designer-next button::before { display: none; }
   #designer-screen .robot-carousel > button { top: 110px; }

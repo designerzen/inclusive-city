@@ -15,12 +15,13 @@ const phrase = { at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: f
 test('studio verses wait for Magenta, add chord-matched backing and preserve each genre groove', async () => {
   let ready = false, requests = 0;
   const provider = {
-    get() { requests++; return ready ? [{ pitch: 67, quantizedStartStep: 0, quantizedEndStep: 4 }] : undefined; },
+    get(request: { steps?: number }) { requests++; return ready ? Array.from({ length: 4 }, (_, i) =>
+      ({ pitch: 67, quantizedStartStep: i * (request.steps ?? 64) / 4, quantizedEndStep: i * (request.steps ?? 64) / 4 + 4 })) : undefined; },
     async whenIdle() { ready = true; },
   };
   const composer = new JourneyMusicComposer('techno', 42661, 50, provider);
   const verses = await composer.studioVerses(10, 4, 30, 5);
-  assert.equal(requests, 16);
+  assert.equal(requests, 4, 'eight bars share two section requests and two cached responses');
   assert.equal(new Set(verses.map(entry => entry.at)).size, 8);
   assert.equal(verses[0]!.at, 10);
   assert.equal(verses.filter(entry => entry.label?.includes('magenta-countermelody')).length, 8);
