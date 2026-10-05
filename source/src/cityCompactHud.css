@@ -25,6 +25,9 @@
 #city-screen .city-status-hud #city-hud-status { margin: 0; font-size: .8125rem; line-height: 1.4; }
 .city-robot-name { position: absolute; z-index: 3; transform: translate(-50%, -100%); width: max-content; max-width: min(360px, calc(100% - 16px)); padding: 8px 16px; border: 2px solid #ffffff; border-radius: 10px; background: #17261ef5; color: #ffffff; font-size: clamp(1.125rem, 2vw, 1.5rem); font-weight: 800; line-height: 1.2; text-align: center; overflow-wrap: anywhere; box-shadow: 0 3px 12px #0007; pointer-events: none; }
 .city-robot-name::after { content: ''; position: absolute; top: 100%; left: calc(50% + var(--robot-pointer-offset, 0px) - 7px); border: 7px solid transparent; border-top-color: #ffffff; }
+.city-robot-name.is-alert { font-size: clamp(1rem, 1.5vw, 1.125rem); font-weight: 600; line-height: 1.4; border-color: #f7bc84; }
+.city-robot-name.is-alert::after { border-top-color: #f7bc84; }
+.city-robot-name.is-detached::after { display: none; }
 [data-theme='light'] #city-screen :is(.city-controls-hud, .city-view-tools, .city-status-hud) { background: #fafafaf5; }
 #city-screen[data-studio-performance] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(180px, 1fr) auto; }
 #city-screen[data-studio-performance] .city-plan { display: block; }

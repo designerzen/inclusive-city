@@ -19,6 +19,7 @@ import { environmentChoiceCards, studioDoorChoiceCards } from './environmentChoi
 import type { EnvironmentChoiceKind } from './environmentChoices';
 import { mountCityVoicePanel } from './cityVoicePanel';
 import { interpretCityReply, applyCityReply } from './cityReply';
+import { cityRobotAlert } from './cityRobotAlert';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
@@ -33,7 +34,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <button id="back-to-designer" type="button">Edit robot</button>
     </header>
     <div class="city-map">
-      <div id="city-robot-name" class="city-robot-name" hidden></div>
+      <div id="city-robot-name" class="city-robot-name" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div id="city-goal" class="city-goal-marker"><strong>⚑ GOAL</strong><span>Duet studio</span><small>Use Show goal</small></div>
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
@@ -48,7 +49,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
       <h2 id="city-heading" tabindex="-1">Reach the goal</h2>
-      <p id="journey-status" role="status" aria-live="polite">Press Start robot. Help it reach the flagged Duet studio.</p>
+      <p id="journey-status" role="status" aria-live="polite">Press Start robot to travel to the flagged Duet studio.</p>
       <button id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
       <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
       <div class="city-route-stats" id="city-route-stats"></div>
@@ -108,6 +109,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let renderLoopStarted = false;
   let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
   let mode: 'route' | 'edit' = 'edit', selected: string | null = null, lastBlock: string | null = null;
+  let lastAlert: string | null = null, voiceCapturing = false;
   let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
   let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
   let finished: FinishedJourney | null = null;
@@ -122,7 +124,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   function feedback(text: string) { setText('city-feedback', text); }
   const voicePanel = mountCityVoicePanel(get('city-reply'), {
     context: () => city ? `${city.journey.machine.run.id}:${city.journey.edge}:${city.journey.blocked?.id ?? ''}:${city.journey.dimensionRevision}:${[...city.journey.repaired]}:${city.journey.complete}` : '',
-    capture: value => { if (value) speech?.stop(); sounds.setVoiceCapture(value); },
+    capture: value => { voiceCapturing = value; if (value) speech?.stop(); sounds.setVoiceCapture(value); },
     submit: text => {
       if (!city || !active) return 'Open the city to reply to your robot.';
       city.resizer.finish(false);
@@ -169,6 +171,17 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setText('city-garage-status', `Bicycle garage · ${bikes.filter(bike => j.repaired.has(bike.id)).length} / ${bikes.length} bikes stored. Move blocking bicycles here to clear pavements and roads.`);
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
+    const alert = cityRobotAlert(j);
+    setText('city-robot-name', alert ?? j.bot.name);
+    nameTag.classList.toggle('is-alert', !!alert);
+    const alertKey = alert ? `${j.blocked!.id}:${alert}` : null;
+    if (alertKey !== lastAlert && !voiceCapturing) {
+      lastAlert = alertKey;
+      if (alert && active && !document.hidden) {
+        const speakingCity = city;
+        speech?.say(alert, () => speakingCity.setSinging(true), () => speakingCity.setSinging(false));
+      }
+    }
     // A screen-space billboard faces the camera even in the overhead view.
     // Leave space above the complete animated silhouette, including its antenna.
     nameTag.hidden = !robotBounds || robotBounds.right < 0 || robotBounds.left > canvas.clientWidth || robotBounds.bottom < 0 || robotBounds.top > canvas.clientHeight;
@@ -180,6 +193,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       nameTag.style.setProperty('--robot-pointer-offset', `${Math.max(-halfWidth + 10, Math.min(halfWidth - 10, (robotBounds.left + robotBounds.right) / 2 - x))}px`);
       // Never clamp down onto the robot when it approaches the top edge.
       nameTag.hidden = bottom < nameTag.offsetHeight + 8;
+    }
+    // Keep the alert readable when the robot is offscreen or in robot-eye view.
+    nameTag.classList.toggle('is-detached', !!alert && nameTag.hidden);
+    if (alert && nameTag.hidden) {
+      nameTag.hidden = false;
+      nameTag.style.left = `${canvas.clientWidth / 2}px`;
+      nameTag.style.top = `${Math.min(canvas.clientHeight - 8, nameTag.offsetHeight + 136)}px`;
     }
     const goal = city.projectNode(j.world.destination), marker = get('city-goal');
     const onMap = goal.z >= 0 && goal.z <= 1 && goal.x >= 0 && goal.x <= canvas.clientWidth && goal.y >= 0 && goal.y <= canvas.clientHeight;
@@ -211,7 +231,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('city-finished').hidden = !j.complete;
     get('city-exhibition').hidden = !j.complete;
     get<HTMLButtonElement>('city-exhibition').disabled = !finished || !city.arrivalComplete;
-    if (j.blocked && j.blocked.id !== lastBlock) { controlsHud.open = true; selected = j.blocked.id; mode = 'edit'; plan.scrollTop = 0; streetSelect.value = selected; panelKey = ''; }
+    if (j.blocked && j.blocked.id !== lastBlock) { selected = j.blocked.id; mode = 'edit'; plan.scrollTop = 0; streetSelect.value = selected; panelKey = ''; }
     lastBlock = j.blocked?.id ?? null;
     const stops = j.route.map(id => j.world.nodes.find(n => n.id === id)!);
     const discoveries = new Set(stops.filter(n => n.discovery).map(n => n.id)).size;
@@ -219,8 +239,9 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
     setText('city-hud-status', j.complete ? 'At studio' : j.ready ? 'Ready' : j.blocked ? 'Blocked' : j.paused ? 'Paused' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting to cross' : `Travelling · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`);
     get('city-ask-robot').hidden = !j.nearbyHelp;
-    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blockedExplanation : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
-    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Help your robot through' : j.paused ? 'Journey paused' : 'Your robot is travelling');
+    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot to travel to the flagged Duet studio.' : j.blocked ? '' : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
+    get('journey-status').hidden = !!alert;
+    setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Change the city' : j.paused ? 'Journey paused' : 'Your robot is travelling');
     setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : 'GOAL / DUET STUDIO');
     if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
     const nextKey = j.route.join('|') + j.ready;
@@ -321,6 +342,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   function newCity() {
     voicePanel.stop();
+    speech?.stop(); lastAlert = null;
     if (!bot || !engine) return;
     pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;

@@ -43,14 +43,30 @@ test('moving bikes supports undo, paused journeys, restart and independent stree
   assert.ok(j.repaired.has('bicycle-1')); j.start(); j.update(100); assert.equal(j.complete, true);
 });
 
-test('generated cities have a garage and bicycles on roads and pavements, blocking every workshop exit', () => {
+test('generated cities have a garage and bicycles on roads and pavements, blocking non-crossing workshop exits', () => {
   const bot = new BotHistory(['Curie', 'Einstein']).current;
   for (let seed = 0; seed < 30; seed++) {
     const world = generateCity(seed, [bot]);
     assert.ok(world.bicycleGarage); assert.ok(world.bicycles!.some(b => b.location === 'pavement'));
     assert.ok(world.bicycles!.some(b => b.location === 'road'));
-    for (const street of world.streets.filter(s => s.a === world.start || s.b === world.start)) {
+    for (const street of world.streets.filter(s => s.kind !== 'crossing' && (s.a === world.start || s.b === world.start))) {
       assert.ok(world.bicycles!.some(b => b.street === street.id));
     }
   }
+});
+
+test('bicycles never occupy pelican crossings, including workshop exits', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  let workshopCrossings = 0;
+  for (let seed = 0; seed < 1000; seed++) {
+    const world = generateCity(seed, [bot]);
+    const crossings = world.streets.filter(street => street.kind === 'crossing');
+    workshopCrossings += crossings.filter(street => street.a === world.start || street.b === world.start).length;
+    for (const bike of world.bicycles ?? []) {
+      const street = world.streets.find(street => street.id === bike.street);
+      assert.ok(street, `Seed ${seed}: ${bike.id} must belong to an existing street`);
+      assert.notEqual(street.kind, 'crossing', `Seed ${seed}: ${bike.id} must not occupy a pelican crossing`);
+    }
+  }
+  assert.ok(workshopCrossings > 0, 'Seeds must cover pelican crossings at workshop exits');
 });

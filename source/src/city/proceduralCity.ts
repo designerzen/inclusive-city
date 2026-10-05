@@ -97,10 +97,9 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const buildings = names.map((name, i) => ({ name, ...lots[i]!, w: 3 + random(), d: 3 + random(), h: 1.8 + random() * 3 }));
   const bicycleStreets = [...new Set([
     ...streets.filter(s => s.a === start || s.b === start),
-    ...streets.filter(s => s.kind === 'crossing').slice(0, 2),
     ...streets.filter(s => s.kind !== 'bridge').slice(0, 3),
-  ])];
-  const bicycles: CityBicycle[] = bicycleStreets.map((street, i) => ({ id: `bicycle-${i + 1}`, street: street.id, location: street.kind === 'crossing' || i % 2 === 1 ? 'road' : 'pavement' }));
+  ])].filter(street => street.kind !== 'crossing');
+  const bicycles: CityBicycle[] = bicycleStreets.map((street, i) => ({ id: `bicycle-${i + 1}`, street: street.id, location: i % 2 === 1 ? 'road' : 'pavement' }));
   // The railway crosses the central river corridor. Its station junctions sit
   // on opposite sides of the rails, so riders continue directly off the train.
   const west = nodes.find(n => n.id === '2-2')!, east = nodes.find(n => n.id === '3-2')!;
