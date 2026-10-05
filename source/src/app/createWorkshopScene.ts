@@ -76,6 +76,26 @@ export function createWorkshopScene(engine: Engine) {
     camera.orthoBottom = -halfHeight;
     camera.orthoLeft = -halfHeight * aspect;
     camera.orthoRight = halfHeight * aspect;
+    const canvas = engine.getRenderingCanvas();
+    const editor = document.querySelector<HTMLElement>('#designer-screen');
+    if (canvas && editor && !editor.hidden && editor.contains(canvas)) {
+      const bounds = canvas.getBoundingClientRect();
+      const hud = editor.querySelector<HTMLElement>('#ability-designer')!.getBoundingClientRect();
+      const identity = editor.querySelector<HTMLElement>('.bot-identity')!.getBoundingClientRect();
+      const actions = editor.querySelector<HTMLElement>('.designer-next')!.getBoundingClientRect();
+      const mobile = bounds.width <= 700;
+      const left = mobile ? 62 : 84;
+      const right = mobile ? bounds.width - 62 : hud.left - bounds.left - 64;
+      const top = identity.bottom - bounds.top + 12;
+      const bottom = (mobile ? hud.top : actions.top) - bounds.top - 12;
+      const width = Math.max(1, right - left), height = Math.max(1, bottom - top);
+      const scale = 2 * Math.max((maxY - minY) / 2 + .45, (radius + .3) / (width / height)) / height;
+      const x = (left + right) / 2, y = (top + bottom) / 2;
+      camera.orthoLeft = -x * scale;
+      camera.orthoRight = (bounds.width - x) * scale;
+      camera.orthoTop = y * scale;
+      camera.orthoBottom = -(bounds.height - y) * scale;
+    }
   }
   return {
     scene, resize, setTheme,

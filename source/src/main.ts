@@ -36,6 +36,7 @@ import { mountAccessibilityControls } from './ui/accessibilityControls';
 import './readingPreferences.css';
 import './performance.css';
 import './cityCompactHud.css';
+import './designerHud.css';
 
 let theme = savedTheme();
 applyTheme(theme);
@@ -66,7 +67,7 @@ app.innerHTML = `
     </dialog>
     <section id="attract-screen" aria-labelledby="attract-title"></section>
     <div id="designer-screen" hidden>
-    <header class="designer-introduction"
+    <header class="designer-introduction">
         <h1 id="designer-title" tabindex="-1">Meet your artbot</h1>
     </header>
     <div class="designer-layout"><div class="preview-column">
@@ -83,7 +84,7 @@ app.innerHTML = `
     <button id="previous-bot" type="button" aria-label="Previous robot" title="Previous robot" disabled><span aria-hidden="true">←</span></button>
     <section class="stage" aria-label="Artbot preview">
       <canvas id="render-canvas" role="img" aria-label="A mint robot with four wheels on a circular workshop platform."></canvas>
-      <button id="rotation-toggle" type="button" aria-label="Pause rotation" title="Pause rotation" disabled>Ⅱ</button>
+      <button id="rotation-toggle" type="button" aria-label="Pause rotation" title="Pause rotation" hidden disabled>Ⅱ</button>
     </section>
     <button id="randomise-design" type="button" aria-label="Next robot" title="Next robot"><span aria-hidden="true">→</span></button>
     </div>
@@ -508,6 +509,8 @@ if (!Engine.IsSupported) {
       if (!inCity && !inAttract && !inExhibition) { engine.resize(); resize(); }
     });
     observer.observe(canvas);
+    observer.observe(document.querySelector('#ability-designer')!);
+    designerScreen.addEventListener('designer-layout-change', resize);
     resize();
     resizeWorkshop = () => { engine.resize(); resize(); };
     scene.onAfterRenderObservable.addOnce(() => {
@@ -517,6 +520,7 @@ if (!Engine.IsSupported) {
 
     import.meta.hot?.dispose(() => {
       observer.disconnect();
+      designerScreen.removeEventListener('designer-layout-change', resize);
       motionPreference.removeEventListener('change', onMotionChange);
       scene.dispose();
       engine.dispose();

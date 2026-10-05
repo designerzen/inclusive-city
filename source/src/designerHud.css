@@ -1,0 +1,66 @@
+/* The editor is a full canvas with a small, persistent set of HUD controls. */
+.workshop:has(#designer-screen:not([hidden])) { width: 100%; height: 100dvh; margin: 0; padding: 0; }
+#designer-screen { position: fixed; inset: 0; isolation: isolate; }
+#designer-screen .designer-layout, #designer-screen .preview-column, #designer-screen .robot-carousel { display: contents; }
+#designer-screen .stage { position: absolute; inset: 0; z-index: -1; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+#designer-screen #render-canvas { width: 100%; height: 100%; border: 0; border-radius: 0; }
+#designer-screen .designer-introduction { position: absolute; top: 20px; left: 24px; margin: 0; }
+#designer-screen .designer-introduction h1 { margin: 0; font-size: 1rem; }
+#designer-screen .bot-identity { position: absolute; top: 56px; left: 24px; width: min(520px, calc(100% - 420px)); margin: 0; }
+#designer-screen .rename-controls { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; }
+#designer-screen #rename-bot label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+#designer-screen #bot-name-input { width: 100%; box-sizing: border-box; height: 44px; padding: 6px 12px; font-size: 1rem; background: var(--ui-surface); }
+#designer-screen #random-name { width: 44px; height: 44px; max-width: none; padding: 0; font-size: 0; background: var(--ui-surface); }
+#designer-screen #random-name::before { margin: 0; }
+#designer-screen .robot-carousel > button { position: absolute; top: 48%; width: 44px; height: 44px; padding: 0; background: var(--ui-surface); }
+#designer-screen #previous-bot { left: 24px; }
+#designer-screen #randomise-design { right: 384px; }
+#designer-screen .designer-next { position: absolute; left: 24px; right: 384px; bottom: 24px; display: flex; justify-content: center; gap: 12px; margin: 0; }
+#designer-screen .designer-next button { width: auto; min-height: 48px; padding: 10px 16px; font-size: .875rem; }
+#designer-screen #choose-existing { background: var(--ui-surface); }
+#designer-screen #ability-designer { position: absolute; right: 24px; top: 24px; max-height: calc(100dvh - 48px); width: 320px; box-sizing: border-box; padding: 14px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; overflow-y: auto; overscroll-behavior: contain; }
+#designer-screen .designer-hud-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; }
+#designer-screen .designer-hud-views button { padding: 6px 4px; font-size: .75rem; }
+#designer-screen .designer-hud-views button::before { display: none; }
+#designer-screen .designer-hud-views button[aria-pressed='true'] { background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-primary-ink); }
+#designer-screen #functions-heading { margin: 4px 0 8px; font-size: 1.125rem; }
+#designer-screen .designer-heading { margin: 0; }
+#designer-screen .function-item { padding: 6px 0; }
+#designer-screen .function-row { flex-wrap: nowrap; gap: 8px; }
+#designer-screen .function-row > div { flex: 1; }
+#designer-screen .function-row h3 { font-size: .875rem; }
+#designer-screen .function-row button { min-height: 44px; padding: 4px; gap: 6px; }
+#designer-screen .function-row button::before { display: none; }
+#designer-screen .switch-state { font-size: .75rem; }
+#designer-screen .function-announcement { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+#designer-screen .ability-list { margin: 0; padding: 0; border: 0; }
+#designer-screen .ability-list > h3 { margin: 4px 0 12px; font-size: 1rem; }
+#designer-screen .ability-pair { padding: 4px 0; }
+#designer-screen .pair-values { font-size: .8125rem; }
+#designer-screen .ability-list .control-hint, #designer-screen .artist-intro, #designer-screen .artist-note { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+#designer-screen .artist-designer { margin: 0; padding: 0; border: 0; }
+#designer-screen .artist-designer h2 { font-size: 1rem; margin: 4px 0 12px; }
+#designer-screen .artist-designer label { margin: 10px 0 4px; }
+#designer-screen .artist-designer select { padding: 6px 8px; }
+#designer-screen #artist-preview { height: 90px; width: 100%; object-fit: cover; margin: 8px 0; }
+#designer-screen .artist-designer p { font-size: .75rem; margin: 6px 0; }
+@media (max-width: 700px) {
+  #designer-screen .designer-introduction { top: 12px; left: 12px; }
+  #designer-screen .bot-identity { top: 40px; left: 12px; right: 12px; width: auto; }
+  #designer-screen #ability-designer { top: auto; bottom: 76px; left: 12px; right: 12px; width: auto; height: 330px; max-height: calc(100dvh - 230px); padding: 10px 12px; }
+  #designer-screen .designer-hud-views { margin-bottom: 6px; }
+  #designer-screen .function-item { padding: 2px 0; }
+  #designer-screen .designer-next { left: 12px; right: 12px; bottom: 12px; gap: 8px; }
+  #designer-screen .designer-next button { flex: 1; padding: 8px; font-size: .8125rem; }
+  #designer-screen .designer-next button::before { display: none; }
+  #designer-screen .robot-carousel > button { top: 110px; }
+  #designer-screen #previous-bot { left: 12px; }
+  #designer-screen #randomise-design { right: 12px; }
+  #designer-screen .ability-pair { padding: 0; }
+  #designer-screen .ability-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
+  #designer-screen .ability-list > h3 { grid-column: 1 / -1; }
+  #designer-screen .pair-values { flex-direction: column; gap: 0; font-size: .75rem; line-height: 1.2; }
+  #designer-screen .ability-list > h3 { margin: 0 0 4px; }
+  #designer-screen #artist-preview { display: none; }
+  #designer-screen #artist-musician-hint { display: none; }
+}

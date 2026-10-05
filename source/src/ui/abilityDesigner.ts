@@ -16,13 +16,17 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   let previewRenderer: AsyncPaintingRenderer | null = null;
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `
+    <div class="designer-hud-views" role="group" aria-label="Robot settings">
+      <button id="designer-capabilities" type="button" data-designer-panel="capabilities" aria-pressed="true" aria-controls="designer-capabilities-panel">Capabilities</button>
+      <button id="designer-tuning" type="button" data-designer-panel="tuning" aria-pressed="false" aria-controls="designer-tuning-panel">Tuning</button>
+      <button id="designer-creativity" type="button" data-designer-panel="creativity" aria-pressed="false" aria-controls="designer-creativity-panel">Creativity</button>
+    </div>
+    <div id="designer-capabilities-panel" data-settings-panel="capabilities">
     <div class="designer-heading">
-      <h2>Robot Capabilities</h2>
+      <h2 id="functions-heading">Pick 3 Capabilities</h2>
       <button hidden type="button" id="reset-abilities">Reset abilities</button>
     </div>
     <section class="function-designer" aria-labelledby="functions-heading">
-      <h3 id="functions-heading">Robot abilities <span id="function-count">3 / 5 enabled</span></h3>
-      <p class="control-hint">Pick 3 abilities for your robot.</p>
       <div class="function-list">${robotFunctions.map(item => `
         <div class="function-item">
           <div class="function-row"><div><h3 id="function-label-${item.id}">${item.label}</h3>
@@ -35,6 +39,8 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
         </div>`).join('')}</div>
       <p id="function-announcement" class="function-announcement" role="status" aria-live="polite"></p>
     </section>
+    </div>
+    <div id="designer-tuning-panel" data-settings-panel="tuning" hidden>
     <div class="ability-list" role="group" aria-label="Ability tradeoffs">
       <h3>Balance your abilities</h3><p class="control-hint">Each pair shares 100 points. Move a slider towards the ability you want more of.</p>
       ${abilityPairs.map(pair => `
@@ -49,7 +55,8 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
         </section>
       `).join('')}
     </div>
-    <section class="artist-designer" aria-labelledby="artist-heading">
+    </div>
+    <section id="designer-creativity-panel" data-settings-panel="creativity" class="artist-designer" aria-labelledby="artist-heading" hidden>
       <h2 id="artist-heading">Creative personality</h2><p class="artist-intro">Choose how this robot sees and hears its journey.</p>
       <label for="artist-painter">Painter</label><select id="artist-painter" aria-describedby="artist-painter-description">${painterStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-painter-description"></p>
       <canvas id="artist-preview" width="480" height="240" role="img" aria-label="A study of this robot’s selected painting style"></canvas>
@@ -88,7 +95,6 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       container.querySelector(`#function-swap-${item.id}`)!.textContent = swapText;
       button.title = swapText;
     }
-    container.querySelector('#function-count')!.textContent = `${enabledFunctions.length} / 5 enabled`;
     for (const pair of abilityPairs) {
       const value = allocation[pair.id];
       const slider = container.querySelector<HTMLInputElement>(`#ability-${pair.id}`)!;
@@ -137,6 +143,13 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
     container.querySelector('#designer-announcement')!.textContent = `Creative personality: ${painterStyles.find(style => style.id === artist.painter)!.label} and ${musicianStyles.find(style => style.id === artist.musician)!.label}.`;
   };
   const onFunctionClick = (event: Event) => {
+    const view = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-designer-panel]') : null;
+    if (view) {
+      for (const button of container.querySelectorAll<HTMLButtonElement>('[data-designer-panel]')) button.setAttribute('aria-pressed', String(button === view));
+      for (const panel of container.querySelectorAll<HTMLElement>('[data-settings-panel]')) panel.hidden = panel.dataset.settingsPanel !== view.dataset.designerPanel;
+      container.dispatchEvent(new CustomEvent('designer-layout-change', { bubbles: true }));
+      return;
+    }
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-function]') : null;
     const item = robotFunctions.find(item => item.id === button?.dataset.function);
     if (!item) return;
