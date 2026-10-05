@@ -170,6 +170,32 @@ export class PlannedJourney {
     if (action === 'resize') { this.machine.add('interventions', 1); this.machine.emit('intervention', { action }, id); }
     this.savePlan();
   }
+  bicycleBlocks(id: string) {
+    const bike = this.world.bicycles?.find(bike => bike.id === id);
+    // The fallen bike extends 1.1 m toward the route; leave room for the bot.
+    return !!bike && !this.repaired.has(id) && (bike.pushDistance ?? 0) < 1.1 + robotFootprint(this.bot) / 2 + .15;
+  }
+  pushBicycle(id: string) {
+    const bike = this.world.bicycles?.find(bike => bike.id === id);
+    if (!bike || this.complete || this.repaired.has(id)) return false;
+    const before = bike.pushDistance ?? 0;
+    this.history.push({ id: `push:${id}`, before });
+    this.applyBicyclePush(id, before + .65);
+    return true;
+  }
+  private applyBicyclePush(id: string, distance: number, undo = false) {
+    const bike = this.world.bicycles!.find(bike => bike.id === id)!;
+    const before = bike.pushDistance ?? 0;
+    bike.pushDistance = distance;
+    this.machine.emit('city_edit', { feature: id, before, after: distance, action: undo ? 'undo' : 'push-bicycle' });
+    if (!undo) { this.machine.add('interventions', 1); this.machine.emit('intervention', { action: 'push-bicycle' }, id); }
+    if (!this.bicycleBlocks(id)) {
+      const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === id && f.resolvedAt === null);
+      if (failure) failure.resolvedAt = this.machine.record.clock;
+      if (this.blocked?.id === id) { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
+    }
+    this.savePlan();
+  }
   repair(id: string): boolean {
     if (this.world.bicycleGarage && this.world.bicycles?.some(bike => bike.id === id)) {
       if (this.complete || this.repaired.has(id)) return false;
@@ -206,7 +232,8 @@ export class PlannedJourney {
   undoRepair() {
     if (!this.undoAvailable) return false;
     const edit = this.history.pop()!;
-    if (typeof edit.before === 'number') {
+    if (edit.id.startsWith('push:')) this.applyBicyclePush(edit.id.slice(5), edit.before as number, true);
+    else if (typeof edit.before === 'number') {
       const before = this.dimensions.get(edit.id)!;
       this.dimensions.set(edit.id, edit.before); this.dimensionChanged(edit.id, before, edit.before, 'undo');
     } else this.applyRepair(edit.id, edit.before);
@@ -255,10 +282,10 @@ export class PlannedJourney {
     let remaining = seconds;
     while (remaining > 1e-9 && this.edge < this.path.length - 1) {
       const street = this.currentStreet!;
-      const bicycle = this.world.bicycles?.find(bike => bike.street === street.id && !this.repaired.has(bike.id));
+      const bicycle = this.world.bicycles?.find(bike => bike.street === street.id && this.bicycleBlocks(bike.id));
       const bicycleStop = bicycle ? Math.max(0, this.crossingLength(street) / 2 - 1 - robotFootprint(this.bot) / 2) : Infinity;
       const bicycleReason = bicycle && this.distanceOnEdge >= bicycleStop - 1e-8
-        ? `A bicycle blocks the ${bicycle.location}. Move it into the bicycle garage so the robot can continue.` : null;
+        ? `A bicycle blocks the ${bicycle.location}. Push it out of the way with repeated clicks, or move it into the bicycle garage so the robot can continue.` : null;
       const communication = !this.bot.profile.enabledFunctions.includes('communication') && !this.repaired.has('communication');
       const entranceStop = this.edge === this.path.length - 2 ? Math.max(0, this.crossingLength(street) - 2 - robotFootprint(this.bot) / 2 - .2) : Infinity;
       const entranceReason = this.distanceOnEdge >= entranceStop - 1e-8 ? this.entranceProblem : null;

@@ -42,7 +42,9 @@ export function createBicycleGarage(scene: Scene, journey: PlannedJourney, frame
   return () => {
     for (const { root, bike, index, x, z, rotation } of bikes) {
       const parked = journey.repaired.has(bike.id);
-      root.position.set(parked ? garage.x + (index % 2 ? 1.3 : -1.3) : x, .12, parked ? garage.z - 1.5 + Math.floor(index / 2) * .85 : z);
+      const push = parked ? 0 : bike.pushDistance ?? 0;
+      root.position.set(parked ? garage.x + (index % 2 ? 1.3 : -1.3) : x + Math.cos(rotation) * push, .12, parked ? garage.z - 1.5 + Math.floor(index / 2) * .85 : z - Math.sin(rotation) * push);
+      root.rotation.x = push > 0 ? Math.PI / 2 : 0;
       root.rotation.y = parked ? 0 : rotation;
     }
   };

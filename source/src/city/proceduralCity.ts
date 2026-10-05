@@ -8,7 +8,7 @@ export interface CityBuilding { name: string; x: number; z: number; w: number; d
 export const studioDoorTypes = ['revolving', 'automatic', 'push'] as const;
 export type StudioDoorType = typeof studioDoorTypes[number];
 export interface StudioEntrance { width: number; doorType: StudioDoorType }
-export interface CityBicycle { id: string; street: string; location: 'pavement' | 'road' }
+export interface CityBicycle { id: string; street: string; location: 'pavement' | 'road'; pushDistance?: number }
 export interface ProceduralCity {
   seed: number; nodes: CityNode[]; streets: CityStreet[]; buildings: CityBuilding[];
   studioEntrance?: StudioEntrance;

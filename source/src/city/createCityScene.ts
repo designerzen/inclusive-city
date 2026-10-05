@@ -27,6 +27,7 @@ import { createAutonomousBots } from './autonomousBots';
 import { createStudioInstruments } from '../app/createStudioInstruments';
 import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
+import { createRoadSurface, roadSurfaceData, updateRoadSurface } from './roadSurface';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -71,7 +72,11 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const width = street.width;
     const surface = box(street.id, x, .025, z, dx || width, .1, dz || width, pavement);
     solids.push(surface);
-    surface.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' }; surface.isPickable = true;
+    // Invisible boxes retain the existing collision support. Only the union is rendered.
+    surface.isVisible = false;
+    const road = createRoadSurface(`road-${street.id}`, scene);
+    road.position.set(x, 0, z); road.material = pavement;
+    road.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' };
     const parts: ReturnType<typeof box>[] = [];
     if (street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
       const mark = box(`issue-${street.id}`, x, .34, z, dx ? .28 : 2.6, .55, dx ? 2.6 : .28, obstruction);
@@ -87,7 +92,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (bridge) { bridge.metadata = { street: street.id }; bridge.isPickable = true; }
     if (bridge) solids.push(bridge);
     if (street.kind === 'curb' || street.kind === 'stairs' || street.kind === 'bridge') solids.push(...parts);
-    return { street, surface, parts, bridge, dx, dz, originalWidth: width };
+    return { street, surface, road, parts, bridge, dx, dz, originalWidth: width };
   });
   const crossings = streetModels.filter(m => m.street.kind === 'crossing').map(({ street, dx }) => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
@@ -200,6 +205,14 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale * (street.id === world.steamTrain?.street ? street.width / 2.6 : 1);
     }
+    const roads = roadSurfaceData(streetModels.map(({ street, surface, dx, dz }) => {
+      const width = resizer.value(`width:${street.id}`);
+      const halfX = (dx || width) / 2 + (dx && !dz ? width / 2 : 0);
+      const halfZ = (dz || width) / 2 + (dz && !dx ? width / 2 : 0);
+      return { id: street.id, minX: surface.position.x - halfX, maxX: surface.position.x + halfX,
+        minZ: surface.position.z - halfZ, maxZ: surface.position.z + halfZ };
+    }));
+    for (const { street, road } of streetModels) updateRoadSurface(road, roads.get(street.id)!);
     syncSignals();
     physics?.sync();
   }
@@ -284,16 +297,16 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const next = journey.nextStops.map(n => n.id);
       nodeModels.forEach(({ node, ring }) => { ring.material = node.id === world.destination ? goalMaterial : next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });
     }
-    const edits = [...journey.repaired].join('|') + journey.dimensionRevision;
+    const edits = [...journey.repaired].join('|') + journey.dimensionRevision + ':' + world.bicycles?.map(bike => bike.pushDistance ?? 0).join(',');
     if (revisionKey !== edits) {
       revisionKey = edits;
       syncDimensions();
       syncBicycles();
-      streetModels.forEach(({ street, surface, parts, bridge, dx }) => {
+      streetModels.forEach(({ street, road, parts, bridge, dx }) => {
         const repaired = journey.repaired.has(street.id);
         parts.forEach(m => m.setEnabled(!repaired));
         if (bridge) { bridge.rotation.z = repaired ? 0 : .22; bridge.position.y = repaired ? .06 : .65; }
-        if (street.kind === 'guidance' || street.kind === 'crossing') surface.material = repaired ? details : pavement;
+        if (street.kind === 'guidance' || street.kind === 'crossing') road.material = repaired ? details : pavement;
       });
       physics?.sync();
     }
@@ -354,7 +367,22 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     for (const node of world.nodes) { const p = projectNode(node.id); const d = Math.hypot(p.x - x, p.y - y); if (p.z >= 0 && p.z <= 1 && d < distance) { best = node.id; distance = d; } }
     return best;
   }
-  function streetAt(x: number, y: number) { return scene.pick(x, y, m => !!m.metadata?.street)?.pickedMesh?.metadata.street as string | undefined; }
+  function streetAt(x: number, y: number) {
+    // Reserve a 44px square target even when a bike is small or lying flat.
+    const camera = scene.activeCamera!;
+    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    const scale = engine.getHardwareScalingLevel();
+    let bicycle: string | undefined, closest = Infinity;
+    for (const bike of world.bicycles ?? []) {
+      const root = scene.getTransformNodeById(bike.id);
+      if (!root) continue;
+      const centre = root.position.add(new Vector3(0, journey.repaired.has(bike.id) || !bike.pushDistance ? .65 : .1, 0));
+      const p = Vector3.Project(centre, Matrix.Identity(), scene.getTransformMatrix(), viewport);
+      const dx = Math.abs(p.x * scale - x), dy = Math.abs(p.y * scale - y), distance = Math.hypot(dx, dy);
+      if (p.z >= 0 && p.z <= 1 && dx <= 22 && dy <= 22 && distance < closest) { bicycle = bike.id; closest = distance; }
+    }
+    return bicycle ?? scene.pick(x, y, m => !!m.metadata?.street)?.pickedMesh?.metadata.street as string | undefined;
+  }
   let highlighted: typeof scene.meshes = [];
   function highlight(id: string | null) {
     highlighted.forEach(m => { m.renderOverlay = false; m.visibility = 1; });

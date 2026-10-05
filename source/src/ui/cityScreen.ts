@@ -173,7 +173,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     updateRobotConditions(city.robotConditions);
     const j = city.journey;
     const bikes = j.world.bicycles ?? [];
-    setText('city-garage-status', `Bicycle garage · ${bikes.filter(bike => j.repaired.has(bike.id)).length} / ${bikes.length} bikes stored. Move blocking bicycles here to clear pavements and roads.`);
+    setText('city-garage-status', `Bicycle garage · ${bikes.filter(bike => j.repaired.has(bike.id)).length} / ${bikes.length} bikes stored. Store blocking bikes here, or click them repeatedly to push them aside.`);
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
     const alert = cityRobotAlert(j);
@@ -263,7 +263,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     }
     get<HTMLButtonElement>('city-route-undo').disabled = j.route.length < 2 || !j.ready;
     get<HTMLButtonElement>('city-route-clear').disabled = j.route.length < 2 || !j.ready;
-    const key = `${selected}:${[...j.repaired]}:${j.dimensionRevision}:${j.ready}:${j.paused}:${j.complete}:${j.currentStreet?.id}:${j.distanceOnEdge > 0}`;
+    const key = `${selected}:${[...j.repaired]}:${j.dimensionRevision}:${j.world.bicycles?.map(bike => bike.pushDistance ?? 0)}:${j.ready}:${j.paused}:${j.complete}:${j.currentStreet?.id}:${j.distanceOnEdge > 0}`;
     if (panelKey !== key) {
       panelKey = key;
       const street = j.world.streets.find(s => s.id === selected);
@@ -274,7 +274,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       const dimension = selected && j.dimensions.limits(selected);
       sizeId = studio ? 'studio:width' : dimension ? selected : street ? `${street.kind === 'crossing' ? j.reachProblem(street) ? 'panel' : 'crossing' : 'width'}:${street.id}` : null;
       setText('city-feature-name', bicycle ? `Bicycle on ${bicycle.location}` : studio ? 'Duet studio entrance' : dimension ? j.dimensions.name(selected!) : communication ? 'Workshop communication board board' : street ? streetNames[street.kind] : 'Choose a place on the map');
-      setText('city-feature-reason', bicycle ? repaired ? 'Stored in the bicycle garage. The route is clear of this bike.' : `This bicycle blocks the ${bicycle.location}. Move it into the garage to let the robot pass.` : studio ? j.entranceProblem ?? 'The robot can enter through this door. Try different doors and widths.' : dimension ? selected!.startsWith('panel:') ? 'Lower the button panel so robots with shorter reach can press it to request a green light.' : selected!.startsWith('door:') ? 'Widen or narrow the doorway and watch the opening change.' : 'Move this wall to change the building’s shape.' : repaired ? 'Changed. Your robot can use this street.' : communication ? 'Add a symbol board so robots can share messages and request help.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Choose a wall, doorway or street to change.');
+      setText('city-feature-reason', bicycle ? repaired ? 'Stored in the bicycle garage. The route is clear of this bike.' : j.bicycleBlocks(bicycle.id) ? `This bicycle blocks the ${bicycle.location}. Click it on the map to tip it over and keep pushing, or move it into the garage.` : 'Pushed clear of the path. You can keep pushing it or store it in the garage.' : studio ? j.entranceProblem ?? 'The robot can enter through this door. Try different doors and widths.' : dimension ? selected!.startsWith('panel:') ? 'Lower the button panel so robots with shorter reach can press it to request a green light.' : selected!.startsWith('door:') ? 'Widen or narrow the doorway and watch the opening change.' : 'Move this wall to change the building’s shape.' : repaired ? 'Changed. Your robot can use this street.' : communication ? 'Add a symbol board so robots can share messages and request help.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Choose a wall, doorway or street to change.');
       get('city-size-controls').hidden = !sizeId;
       if (sizeId) {
         const limits = j.dimensions.limits(sizeId)!;
@@ -447,24 +447,27 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (pointers.size > 1) { city.resizer.finish(false); if (drawing) city.journey.setRoute(savedRoute); drawing = false; city.sync(); pinch = 0; moved = true; refresh(); return; }
     origin = { x: event.clientX, y: event.clientY }; moved = false; savedRoute = [...city.journey.route];
     const p = local(event.clientX, event.clientY), id = city.nodeAt(p.x, p.y);
-    if (mode === 'edit' && city.resizer.begin(p.x, p.y)) return;
-    drawing = mode === 'route' && city.journey.ready && !!id;
+    const bicycle = city.journey.world.bicycles?.find(bike => bike.id === city!.streetAt(p.x, p.y));
+    if (mode === 'edit' && !bicycle && city.resizer.begin(p.x, p.y)) return;
+    drawing = mode === 'route' && !bicycle && city.journey.ready && !!id;
     if (drawing) drawAt(event.clientX, event.clientY);
   });
   canvas.addEventListener('pointermove', event => {
     if (!active || !city || !engine || city.journey.complete) return;
     const previous = pointers.get(event.pointerId), p = local(event.clientX, event.clientY);
     if (!previous) {
-      const target = mode === 'edit' ? city.resizer.inspect(p.x, p.y) : null;
+      const hovered = city.streetAt(p.x, p.y);
+      const bicycle = city.journey.world.bicycles?.find(bike => bike.id === hovered);
+      const target = mode === 'edit' && !bicycle ? city.resizer.inspect(p.x, p.y) : null;
       if (target) {
         get('city-hover').hidden = false; setText('city-hover', `${city.journey.dimensions.name(target.id)} · drag to resize`);
         city.highlight(target.id); canvas.style.cursor = target.available ? 'ew-resize' : 'not-allowed'; return;
       }
-      const id = mode === 'edit' ? city.streetAt(p.x, p.y) : city.nodeAt(p.x, p.y);
+      const id = bicycle || mode === 'edit' ? hovered : city.nodeAt(p.x, p.y);
       const street = city.journey.world.streets.find(s => s.id === id), node = city.journey.world.nodes.find(n => n.id === id);
       get('city-hover').hidden = !id;
-      if (id) setText('city-hover', city.journey.world.bicycles?.some(bike => bike.id === id) ? 'Bicycle · tap to move into garage' : id === 'studio-entrance' ? 'Studio entrance · tap to change' : street ? `${streetNames[street.kind]} · tap to change` : `${node!.label} · draw through this junction`);
-      if (mode === 'edit') city.highlight(id ?? null); canvas.style.cursor = id ? 'pointer' : 'grab'; return;
+      if (id) setText('city-hover', bicycle ? city.journey.repaired.has(bicycle.id) ? 'Bicycle \u00b7 stored in garage' : 'Bicycle \u00b7 tap repeatedly to push aside' : id === 'studio-entrance' ? 'Studio entrance \u00b7 tap to change' : street ? `${streetNames[street.kind]} \u00b7 tap to change` : `${node!.label} \u00b7 draw through this junction`);
+      if (mode === 'edit') city.highlight(id ?? null); canvas.style.cursor = bicycle && !city.journey.repaired.has(bicycle.id) ? 'move' : id ? 'pointer' : 'grab'; return;
     }
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 8) moved = true;
@@ -477,7 +480,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!pointers.has(event.pointerId)) return;
     if (city?.resizer.active) { city.resizer.finish(event.type === 'pointerup'); panelKey = ''; refresh(); }
     else if (event.type !== 'pointerup' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); refresh(); }
-    else if (mode === 'edit' && !moved && city) { const p = local(event.clientX, event.clientY); const id = city.streetAt(p.x, p.y); if (id) selectStreet(id); }
+    else if (event.type === 'pointerup' && !moved && city) {
+      const p = local(event.clientX, event.clientY), id = city.streetAt(p.x, p.y);
+      if (id && (mode === 'edit' || city.journey.world.bicycles?.some(bike => bike.id === id))) {
+        if (city.journey.pushBicycle(id)) {
+          city.sync(); feedback(city.journey.bicycleBlocks(id) ? 'Bicycle pushed over. Keep clicking it to clear the path.' : 'Bicycle pushed clear of the path.');
+        }
+        selectStreet(id);
+      }
+    }
     drawing = false; pointers.delete(event.pointerId); pinch = 0;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   }

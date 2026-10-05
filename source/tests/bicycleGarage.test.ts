@@ -3,6 +3,10 @@ import { test } from 'node:test';
 import { BotHistory } from '../src/robot/botHistory';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { generateCity } from '../src/city/proceduralCity';
+import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { Scene } from '@babylonjs/core/scene';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { createBicycleGarage } from '../src/city/bicycleGarage';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 
 function setup(reverse = false) {
@@ -69,4 +73,69 @@ test('bicycles never occupy pelican crossings, including workshop exits', () => 
     }
   }
   assert.ok(workshopCrossings > 0, 'Seeds must cover pelican crossings at workshop exits');
+});
+
+
+test('repeated pushes tip bikes aside and clear travel in both directions without storing them', () => {
+  for (const reverse of [false, true]) {
+    const j = setup(reverse);
+    j.start(); j.update(100);
+    const stopped = j.position;
+    assert.equal(j.pushBicycle('missing'), false);
+    assert.equal(j.pushBicycle('bicycle-1'), true);
+    assert.equal(j.world.bicycles![0]!.pushDistance, .65);
+    assert.equal(j.bicycleBlocks('bicycle-1'), true);
+    j.update(100); assert.deepEqual(j.position, stopped);
+    for (let i = 0; i < 20 && j.bicycleBlocks('bicycle-1'); i++) j.pushBicycle('bicycle-1');
+    assert.equal(j.bicycleBlocks('bicycle-1'), false);
+    assert.equal(j.blocked, null);
+    assert.equal(j.repaired.has('bicycle-1'), false);
+    assert.equal(j.machine.run.cityPlan!.world.bicycles![0]!.pushDistance, j.world.bicycles![0]!.pushDistance);
+    assert.ok(j.machine.record.failures[0]!.resolvedAt !== null);
+    j.update(100); assert.equal(j.complete, true);
+    assert.equal(j.pushBicycle('bicycle-1'), false);
+  }
+});
+
+test('pushes undo separately, survive restart, preserve pause and still allow garage storage', () => {
+  const j = setup();
+  j.start(); j.update(100); j.setPaused(true);
+  const original = structuredClone(j.machine.run.cityPlan);
+  while (j.bicycleBlocks('bicycle-1')) j.pushBicycle('bicycle-1');
+  assert.equal(j.paused, true); assert.equal(j.machine.state, 'paused');
+  assert.equal(j.undoRepair(), true); assert.equal(j.bicycleBlocks('bicycle-1'), true);
+  j.setPaused(false); j.update(100); assert.equal(j.blocked?.id, 'bicycle-1');
+  j.pushBicycle('bicycle-1');
+  const pushed = j.world.bicycles![0]!.pushDistance;
+  j.repair('bicycle-1'); assert.equal(j.pushBicycle('bicycle-1'), false);
+  j.undoRepair(); assert.equal(j.world.bicycles![0]!.pushDistance, pushed);
+  j.restart(); assert.equal(j.bicycleBlocks('bicycle-1'), false);
+  assert.equal(original!.world.bicycles![0]!.pushDistance, undefined);
+  while (j.undoAvailable) j.undoRepair();
+  assert.equal(j.world.bicycles![0]!.pushDistance, 0);
+  assert.equal(j.bicycleBlocks('bicycle-1'), true);
+});
+
+
+test('bike meshes fall, move perpendicular to the route, and stand upright when stored or undone', () => {
+  const j = setup(), engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const material = new StandardMaterial('bike', scene);
+    const sync = createBicycleGarage(scene, j, material, material, material);
+    sync();
+    const root = scene.getTransformNodeById('bicycle-1')!;
+    const initial = root.position.clone();
+    j.pushBicycle('bicycle-1'); sync();
+    assert.equal(root.rotation.x, Math.PI / 2);
+    assert.ok(Math.abs(root.position.x - initial.x) < 1e-8);
+    assert.ok(Math.abs(root.position.z - initial.z + .65) < 1e-8);
+    j.pushBicycle('bicycle-1'); sync();
+    assert.ok(Math.abs(root.position.z - initial.z + 1.3) < 1e-8);
+    j.repair('bicycle-1'); sync();
+    assert.equal(root.rotation.x, 0);
+    assert.equal(root.position.x, j.world.bicycleGarage!.x - 1.3);
+    j.undoRepair(); sync(); assert.equal(root.rotation.x, Math.PI / 2);
+    j.undoRepair(); j.undoRepair(); sync();
+    assert.equal(root.rotation.x, 0); assert.deepEqual(root.position, initial);
+  } finally { scene.dispose(); engine.dispose(); }
 });
