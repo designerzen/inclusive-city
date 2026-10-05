@@ -370,6 +370,11 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (scene.isDisposed) return;
     physics = createCityPhysics(scene, journey, solids, instance);
     autonomousBots = createAutonomousBots(scene, world, physics);
+    journey.nearbyRobots = () => autonomousBots?.bots.map(bot => {
+      const p = bot.character.controller.getPosition();
+      return { id: bot.id, name: bot.name, buttonReach: bot.buttonReach,
+        position: { x: p.x, y: p.y - bot.character.height / 2 + .05, z: p.z } };
+    }) ?? [];
     physicsStatus = 'ready';
     scene.metadata.physics = physics;
     scene.metadata.autonomousBots = autonomousBots;

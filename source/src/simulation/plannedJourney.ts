@@ -1,7 +1,7 @@
 import { trainRidePose, trainRideDuration, trainPhaseText } from '../city/steamTrainRide';
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
-import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal, crossingReachProblem, robotButtonReach, studioEntranceProblem, studioDoorTypes, robotFootprint } from '../city/proceduralCity';
+import { neighbours, robotSpeed, streetBetween, streetProblem, routeToGoal, crossingReachProblem, crossingButtonHeight, robotButtonReach, studioEntranceProblem, studioDoorTypes, robotFootprint } from '../city/proceduralCity';
 import type { CityStreet, ProceduralCity, StudioDoorType } from '../city/proceduralCity';
 import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
@@ -10,6 +10,33 @@ import { crossingSignal } from '../city/trafficSignals';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
+  /** Live positions and capabilities supplied by the city's wandering robots. */
+  nearbyRobots: () => readonly { id: string; name: string; position: RoutePoint; buttonReach: number }[] = () => [];
+  get nearbyHelp() {
+    const street = this.currentStreet;
+    if (this.ready || this.complete || !street || this.blocked?.id !== street.id || this.distanceOnEdge !== 0
+      || !this.reachProblem(street) || this.hasRequestedCrossing(street)) return null;
+    const position = this.position;
+    return this.nearbyRobots().find(robot => Number.isFinite(robot.buttonReach)
+      && robot.buttonReach + 1e-8 >= crossingButtonHeight(street)
+      && Math.hypot(robot.position.x - position.x, robot.position.z - position.z) <= 3
+      && Math.abs(robot.position.y - position.y) <= .5) ?? null;
+  }
+  get blockedExplanation() {
+    const helper = this.nearbyHelp;
+    return `${this.blocked?.reason ?? ''}${helper ? ` ${helper.name} is nearby and can reach the button. You can ask it to press the button for you.` : ''}`;
+  }
+  askNearbyRobot() {
+    const helper = this.nearbyHelp, street = this.currentStreet;
+    if (!helper || !street) return false;
+    this.crossingRequestEdge = this.edge;
+    this.machine.emit('crossing_requested', { street: street.id, buttonHeight: crossingButtonHeight(street), reach: helper.buttonReach, helper: helper.id }, street.id);
+    this.machine.add('interventions', 1);
+    this.machine.emit('intervention', { action: 'ask-nearby-robot', helper: helper.id }, street.id);
+    this.blocked = null;
+    if (!this.paused) this.machine.transition('following');
+    return true;
+  }
   /** The renderer can constrain route travel to distance actually allowed by physics. */
   constrainTravel?: (from: RoutePoint, to: RoutePoint, seconds: number) => { distance: number; blocker?: { id: string; reason: string } };
   syncTransport?: () => void;
@@ -106,7 +133,10 @@ export class PlannedJourney {
     return this.bot.profile.enabledFunctions.includes('hearing') ? 'audible' : 'tactile';
   }
   problem(street: CityStreet) {
-    const problem = streetProblem(street, this.bot, street.kind !== 'width' && street.kind !== 'crossing' && this.repaired.has(street.id), this.crossingLength(street));
+    // A helper's button press lasts for this traversal; city settings stay intact.
+    const crossing = street.kind === 'crossing' && this.hasRequestedCrossing(street)
+      ? { ...street, buttonHeight: Math.min(crossingButtonHeight(street), robotButtonReach(this.bot)) } : street;
+    const problem = streetProblem(crossing, this.bot, street.kind !== 'width' && street.kind !== 'crossing' && this.repaired.has(street.id), this.crossingLength(street));
     if (problem) return problem;
     return street.kind === 'crossing' && !this.crossingCue(street)
       ? `${this.bot.name} cannot see the green light. Add an audible beeper and tactile crossing cues.` : null;

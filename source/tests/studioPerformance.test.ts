@@ -8,12 +8,14 @@ import { createStudioInstruments } from '../src/app/createStudioInstruments';
 import { JourneyDance } from '../src/robot/journeyDance';
 import { musicDuration } from '../src/art/finishedJourney';
 
-test('piano synth preserves notes, timing and duration for live playback and MP3 export', () => {
+test('studio synth preserves robot patches, notes and timing for playback and MP3 export', () => {
   const score = [{ at: 12, label: 'melody', score: new SoundEffect({ root: 60, waveform: 'square', pan: -.2 }).toScore() }];
   const saved = structuredClone(score), piano = pianoSynthScore(score);
   assert.deepEqual(piano[0]!.score.notes, score[0]!.score.notes);
   assert.equal(piano[0]!.at, 12); assert.equal(piano[0]!.score.voice.pan, -.2);
-  assert.equal(piano[0]!.score.voice.waveform, 'triangle');
+  assert.deepEqual(piano, score);
+  piano[0]!.score.voice.cutoff = 600;
+  assert.notEqual(piano[0]!.score.voice.cutoff, score[0]!.score.voice.cutoff);
   assert.ok(musicDuration(piano) > 0);
   assert.doesNotThrow(() => SoundEffect.fromScore(piano[0]!.score));
   assert.deepEqual(score, saved);

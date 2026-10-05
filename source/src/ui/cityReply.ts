@@ -5,6 +5,7 @@ export type CityReplyAction =
   | { kind: 'repair'; id: string }
   | { kind: 'feature'; id: string }
   | { kind: 'dimension'; id: string; value: number }
+  | { kind: 'ask-robot' }
   | { kind: 'undo' | 'pause' | 'resume' };
 export type CityReply = { message: string; action?: CityReplyAction };
 
@@ -12,10 +13,14 @@ export type CityReply = { message: string; action?: CityReplyAction };
 export function interpretCityReply(input: string, journey: PlannedJourney): CityReply {
   const text = input.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'.\s]/g, ' ').trim();
   const id = journey.blocked?.id;
-  const reason = journey.blocked?.reason ?? 'Your robot is not blocked. You can pause, resume, or undo the last city change.';
+  const reason = journey.blocked ? journey.blockedExplanation : 'Your robot is not blocked. You can pause, resume, or undo the last city change.';
   if (!text) return { message: 'I didn’t hear a reply. Try again, type a reply, or use the city choices.' };
   if (/\b(don't|dont|do not|never|not|no|cancel|stop listening|without|instead|remove the ramp|raise the bridge|raise the curb|raise the kerb)\b/.test(text)) return { message: 'No city change made. Tell me what you would like to change.' };
   if (/\b(undo|change my mind|put it back)\b/.test(text)) return { message: 'Undo the last city change.', action: { kind: 'undo' } };
+  if (/\b(ask|get)\b.*\b(robot|somebody|someone)\b.*\b(press|push)\b.*\bbutton\b/.test(text)) {
+    return journey.nearbyHelp ? { message: 'Nearby robot pressed the crossing button.', action: { kind: 'ask-robot' } }
+      : { message: 'No nearby robot can press this button right now. You can change the city or wait for help.' };
+  }
   if (/\b(why|explain|what can|how can|help|what happened)\b/.test(text)) return { message: reason };
   if (/^(do|does|is|are|would|should|what|which|where|how)\b/.test(text)) return { message: reason };
   if (/\b(go around|another route|turn left|turn right)\b/.test(text)) return { message: 'Changing the route during a journey is not available yet. You can change the blocked place or wait.' };
@@ -61,6 +66,7 @@ export function applyCityReply(journey: PlannedJourney, reply: CityReply): strin
   if (journey.complete) return 'This journey is complete. No city change made.';
   let changed = false;
   switch (action.kind) {
+    case 'ask-robot': return journey.askNearbyRobot() ? `${reply.message} Wait for a safe green light before crossing.` : 'The helper is no longer available. You can lower the panel or wait for help.';
     case 'undo': changed = journey.undoRepair(); break;
     case 'pause': case 'resume':
       if (journey.ready) return 'Start the robot with Start robot when you’re ready.';

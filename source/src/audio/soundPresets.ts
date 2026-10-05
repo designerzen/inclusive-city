@@ -1,13 +1,21 @@
 import { SoundEffect } from './SoundEffect';
 import type { SoundEffectConfig } from './SoundEffect';
+import { robotHarmonies } from './robotHarmony';
+import type { RobotMood } from './robotHarmony';
+export type { RobotMood } from './robotHarmony';
 
-export type RobotMood = 'curious' | 'sad' | 'happy' | 'celebrating';
 // All voices share C as their tonal centre so interaction cues and robot phrases fit together.
 const moods: Record<RobotMood, SoundEffectConfig> = {
   curious: { root: 60, intervals: [0, 7, 14], pattern: 'up-down', durationBeats: 0.35, gain: 0.16 },
   sad: { root: 48, intervals: [0, 3, 7], pattern: 'chord', waveform: 'sine', durationBeats: 1.4, attack: 0.07, release: 0.6, cutoff: 1600, layers: 2, vibratoDepth: 4 },
   happy: { root: 60, intervals: [0, 4, 7, 12], pattern: 'up', stepBeats: 0.25, durationBeats: 0.45, echoGain: 0.2 },
   celebrating: { root: 60, intervals: [0, 4, 7, 11, 12], pattern: 'up', stepBeats: 0.3, durationBeats: 1.1, release: 0.5, layers: 2, gain: 0.24 },
+  calm: { root: 60, intervals: robotHarmonies.calm.intervals, attack: .12, release: .7, waveform: 'sine' },
+  determined: { root: 55, intervals: robotHarmonies.determined.intervals, durationBeats: .6, attack: .008 },
+  uncertain: { root: 60, intervals: robotHarmonies.uncertain.intervals, durationBeats: .8, vibratoDepth: 5 },
+  frustrated: { root: 48, intervals: robotHarmonies.frustrated.intervals, waveform: 'triangle', cutoff: 1000, release: .4 },
+  relieved: { root: 60, intervals: robotHarmonies.relieved.intervals, attack: .08, release: .65 },
+  wonder: { root: 60, intervals: robotHarmonies.wonder.intervals, waveform: 'sine', attack: .15, release: 1 },
 };
 
 export function robotMoodSound(mood: RobotMood, overrides: SoundEffectConfig = {}) {
@@ -39,6 +47,7 @@ const buttonSignatures = {
   'city-route-clear': { root: 62, intervals: [0, 5, 11, 18], pattern: 'down', stepBeats: .09 },
   'city-repair': { root: 59, intervals: [0, 4, 10, 17], pattern: 'up', stepBeats: .11 },
   'city-crossing-cues': { root: 84, intervals: [0, 7], pattern: 'up', stepBeats: .12, waveform: 'sine' },
+  'city-ask-robot': { root: 76, intervals: [0, 4, 9], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'city-undo': { root: 58, intervals: [0, 4, 10, 17], pattern: 'down', stepBeats: .11 },
   'city-new': { root: 70, intervals: [0, 5, 10, 17], pattern: 'up-down', stepBeats: .1 },
   'city-view-toggle': { root: 73, intervals: [0, 5, 10, 17], pattern: 'up', stepBeats: .1 },

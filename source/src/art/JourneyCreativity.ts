@@ -5,6 +5,7 @@ import type { ArtistPreferences } from './artistStyles';
 import { JourneyMusicComposer } from './JourneyMusicComposer';
 import type { JourneyExpression } from './JourneyMusicComposer';
 import type { RobotEvent } from '../robot/robotState';
+import type { RobotMood } from '../audio/robotHarmony';
 import { PaintingRenderer, ProceduralPainting } from './ProceduralPainting';
 import type { PaintStroke } from './ProceduralPainting';
 
@@ -33,7 +34,10 @@ export class JourneyCreativity {
   private previousMotion: { position: RobotEvent['position']; heading: number; time: number } | null = null;
   private lastTurn = -Infinity;
   private lastSlope = -Infinity;
-  private scheduledHarmony: { at: number; phrase: number; blocked: boolean }[] = [];
+  private mood: RobotMood | undefined;
+  private moodBars = 0;
+  private state: RobotEvent['state'] = 'ready';
+  private scheduledHarmony: { at: number; phrase: number; blocked: boolean; mood?: RobotMood }[] = [];
   readonly artist: ArtistPreferences;
   private readonly composer: JourneyMusicComposer;
 
@@ -56,6 +60,14 @@ export class JourneyCreativity {
     if (event.sequence <= this.lastSequence) return;
     this.lastSequence = event.sequence;
     this.painting.consume(event);
+    this.state = event.state;
+    const moods: Partial<Record<RobotEvent['type'], RobotMood>> = {
+      journey_started: 'determined', blocked: 'frustrated', collision: 'uncertain',
+      intervention: 'relieved', pickup: 'happy', exploration: 'wonder',
+      crossing_requested: 'uncertain', achievement: 'celebrating', arrived: 'celebrating',
+      journey_ended: event.state === 'arrived' ? 'celebrating' : 'sad',
+    };
+    if (moods[event.type]) { this.mood = moods[event.type]; this.moodBars = 2; }
     // Coalesce repeated events within one frame; the phrase still reflects every state change.
     if (event.type === 'collision') this.collisions.push(structuredClone(event));
     else this.pending.set(event.type, 0);
@@ -112,10 +124,14 @@ export class JourneyCreativity {
     if (!ending && time + .15 >= this.nextPhrase) {
       const at = this.nextPhrase;
       this.nextPhrase += length;
+      const mood = this.blocked ? 'frustrated' : this.expression.paused ? 'calm'
+        : this.moodBars > 0 ? this.mood : this.state === 'waiting' ? 'uncertain'
+        : this.state === 'arrived' ? 'celebrating' : this.expression.moving ? 'determined' : undefined;
       result.push(...this.composer.compose({ at, phrase: this.phrase, steps: this.steps, edge: this.edge,
-        blocked: this.blocked, harmony: this.harmony, expression: this.expression }));
+        blocked: this.blocked, harmony: this.harmony, mood, expression: this.expression }));
+      this.moodBars = Math.max(0, this.moodBars - 1);
       this.phrase++;
-      this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked });
+      this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked, mood });
       this.scheduledHarmony = this.scheduledHarmony.slice(-2);
     }
     const beat = 60 / this.bpm;
@@ -125,13 +141,13 @@ export class JourneyCreativity {
     const phrase = activeHarmony?.phrase ?? Math.max(0, this.phrase - 1);
     for (const [kind, direction] of this.pending) result.push(this.composer.react(kind, {
       at: Math.max(time, at), phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
-      harmony: this.harmony, expression: this.expression,
+      harmony: this.harmony, mood: ending && kind === 'arrived' ? 'celebrating' : activeHarmony?.mood, expression: this.expression,
     }, direction));
     // Each impact leaves its own saved musical answer, even within one frame.
     this.collisions.forEach((event, index) => {
       const reaction = this.composer.react('collision', { at: Math.max(time, at) + index * beat / 4,
         phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
-        harmony: this.harmony, expression: this.expression }, Math.min(1, Number(event.data.speed) / 3));
+        harmony: this.harmony, mood: activeHarmony?.mood, expression: this.expression }, Math.min(1, Number(event.data.speed) / 3));
       reaction.label = `journey:action:collision:${event.sequence}:${event.data.actor}:${event.data.other}`;
       result.push(reaction);
     });

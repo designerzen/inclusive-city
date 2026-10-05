@@ -13,7 +13,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   container.innerHTML = `
     <header class="performance-caption"><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution" class="sr-only"></p></header>
     <div class="performance-artwork"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot's finished journey painting"></canvas></div>
-    <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span><canvas id="exhibition-robot" role="img" aria-label="The robot plays a piano-style synth beside a microphone on a stand, in front of its artwork"></canvas></div>
+    <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span><canvas id="exhibition-robot" role="img" aria-label="The robot plays its own synth voices on a keyboard beside a microphone on a stand, in front of its artwork"></canvas></div>
     <aside class="performance-hud" aria-label="Performance controls">
       <progress id="exhibition-progress" max="1" value="0" aria-label="Music playback progress"></progress>
       <span id="exhibition-time">0:00 / 0:00</span>
@@ -130,7 +130,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       title.textContent = journey.artworkTitle.text;
       title.title = `A title remix of “${journey.artworkTitle.inspirations[0]}” and “${journey.artworkTitle.inspirations[1]}”.`;
       container.querySelector('#exhibition-attribution')!.textContent = `A painting & composition by ${journey.name}. Made through one unforgettable city journey.`;
-      status.textContent = !sounds.supported ? 'Audio playback is unavailable in this browser.' : 'Your robot plays its studio song on a piano-style synth. Download your painting or song using the controls.';
+      status.textContent = !sounds.supported ? 'Audio playback is unavailable in this browser.' : 'Your robot plays its studio song with its own synth voices. Download your painting or song using the controls.';
       canvas.setAttribute('aria-label', `${journey.artworkTitle.text}, by ${journey.name}. A finished journey painting made from ${journey.marks.length} expressive gestures.`);
       const painting = new ProceduralPainting(journey.seed); painting.marks.push(...journey.marks);
       renderer = new AsyncPaintingRenderer(painting);
@@ -139,7 +139,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
         try {
           performerContainer.hidden = false;
           performer = createExhibitionPerformer(performerCanvas, journey);
-          performerCanvas.setAttribute('aria-label', `${journey.name}, the robot that created this painting, plays a piano-style synth beside a microphone on a stand in time to its recorded music. Reduced motion uses a still presentation pose.`);
+          performerCanvas.setAttribute('aria-label', `${journey.name}, the robot that created this painting, plays its own synth voices on a keyboard beside a microphone on a stand in time to its recorded music. Reduced motion uses a still presentation pose.`);
         } catch (error) { performerContainer.hidden = true; console.error('Exhibition robot unavailable:', error); }
       }
     },

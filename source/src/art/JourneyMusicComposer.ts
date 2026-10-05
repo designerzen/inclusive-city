@@ -4,9 +4,12 @@ import type { MusicianStyle } from './artistStyles';
 import { magentaAccompaniment } from '../audio/MagentaAccompaniment';
 import type { AccompanimentProvider } from '../audio/magentaProtocol';
 import { magentaBackingNotes } from '../audio/magentaScore';
+import { robotMusicalIdentity } from '../audio/robotMusicalIdentity';
+import { robotHarmonies } from '../audio/robotHarmony';
+import type { RobotMood } from '../audio/robotHarmony';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
-interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; expression?: JourneyExpression }
+interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; expression?: JourneyExpression }
 type Voice = Partial<SoundScore['voice']>;
 /** Scale degree, beat position, beat length. Original motifs, never song quotations. */
 type Figure = readonly (readonly [number, number, number])[];
@@ -59,10 +62,12 @@ const hooks: Partial<Record<MusicianStyle, Figure>> = {
 export class JourneyMusicComposer {
   readonly bpm: number;
   readonly beats: number;
+  private readonly identity;
   constructor(readonly style: MusicianStyle, private readonly seed: number, speed = 50,
     private readonly accompaniment: AccompanimentProvider = magentaAccompaniment) {
     this.bpm = style === 'melodic' ? 92 + Math.round(speed * .2) + (seed >>> 0) % 9 : recipes[style].bpm;
     this.beats = style === 'waltz' ? 3 : 4;
+    this.identity = robotMusicalIdentity(seed);
   }
 
   /** Warm four chord responses without changing any recorded or audible notes. */
@@ -118,28 +123,33 @@ export class JourneyMusicComposer {
     const tonicRoot = root;
     root += transpose;
     if (data.blocked) { root = 57 + transpose; minor = true; }
-    const third = minor ? 3 : 4;
-    const scale = style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
+    const mood = data.mood ?? (data.expression?.paused ? 'calm' : undefined);
+    const colour = mood ? robotHarmonies[mood] : undefined;
+    const third = colour?.scale[2] ?? (minor ? 3 : 4);
+    const fifth = colour?.intervals.some(interval => interval === 6) ? 6 : 7;
+    const scale = colour?.scale ?? (style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
       : style === 'folk' ? [0, minor ? 3 : 2, minor ? 5 : 4, 7, minor ? 10 : 9, 12, 14]
       : [0, 2, third, tonicRoot === 65 && !data.blocked ? 6 : 5, 7,
         minor && (data.blocked || tonicRoot !== 62) ? 8 : 9,
-        ['jazz', 'latin', 'lofi', 'funk'].includes(style) ? seventh : minor || tonicRoot === 67 ? 10 : 11];
-    const pitch = (degree: number) => scale[degree % scale.length]! + Math.floor(degree / scale.length) * 12;
+        ['jazz', 'latin', 'lofi', 'funk'].includes(style) ? seventh : minor || tonicRoot === 67 ? 10 : 11]);
+    const pitch = (degree: number) => scale[((degree % scale.length) + scale.length) % scale.length]! + Math.floor(degree / scale.length) * 12;
     const figure = hooks[style] ?? (style === 'minimalist' ? regular([0, 4, 2, 4, 0, 4, 2, 4])
       : style === 'baroque' ? regular([0, 1, 2, 4, 3, 2, 1, 0])
       : style === 'waltz' ? regular([4, 2, 1, 0, 1, 2], 3)
       : style === 'chimes' ? regular([0, 4, 2, 6, 4, 2], 4, .75)
       : style === 'chiptune' ? regular([0, 2, 4, 7, 4, 2, 0, 4, 2, 4, 7, 9, 7, 4, 2, 0], 4, .12)
       : style === 'synthwave' ? regular([0, 4, 7, 4, 0, 4, 7, 6]) : regular([0, 0, 4, 0, 2, 0, 4, 2]));
-    const motif = (this.seed >>> 0) % 3;
-    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoTime: beat / 2, echoGain: .1, ...recipes[style].voice }).toScore();
+    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoTime: beat / 2, echoGain: .1, ...this.identity.voice(recipes[style].voice) }).toScore();
     melody.notes = figure.map(([degree, start, duration], i) => {
-      let resolved = degree + motif + (i % 2 ? (this.seed >>> ((i % 8) * 3)) & 1 : 0);
+      const identityNote = (slot * figure.length + i) % 16;
+      let resolved = degree + this.identity.contour[identityNote]!;
+      // Keep a recognisable motif, then answer it in later four-bar sections.
+      if (Math.floor(data.phrase / 4) % 2 && i % 3 === 1) resolved += 2;
       // An occasional phrase-ending ornament reflects the travelled route.
       if (slot === 3 && i === figure.length - 1) resolved = data.harmony ? (data.steps + data.edge) % 3 : 0;
       if (style === 'minimalist') resolved += Math.floor(data.phrase / 4) % 3;
       if (studio) resolved += Math.floor(data.phrase / 4) % 2 ? (i % 2 ? 2 : 0) : 0;
-      return { midi: root + (style === 'ambient' ? 0 : style === 'chimes' ? 24 : 12) + pitch(resolved), start: start * beat, duration: duration * beat * (data.blocked ? 1.25 : 1) };
+      return { midi: root + (style === 'ambient' ? 0 : style === 'chimes' ? 24 : 12) + pitch(resolved), start: start * beat, duration: duration * beat * this.identity.articulation[identityNote]! * (data.blocked ? 1.25 : 1) };
     });
     const result: SoundSequenceEntry[] = [{ at: data.at, score: melody, label: `journey:melody:${data.phrase}` }];
     const add = (part: string, voice: Voice, notes: SoundScore['notes']) => {
@@ -177,15 +187,22 @@ export class JourneyMusicComposer {
     if (style === 'synthwave') bass = regular([0, 0, 0, 12, 0, 0, 7, 0], 4, .35);
     if (style === 'dnb') bass = [[0, 0, 1.2], [0, 1.5, .5], [7, 2.75, .7]];
     if (!['ambient', 'chimes', 'cinematic', 'melodic', 'minimalist'].includes(style)) {
-      add(style === 'techno' ? 'donk-bass' : 'bass', { waveform: ['techno', 'chiptune', 'funk', 'synthwave'].includes(style) ? 'square' : 'triangle', gain: .16, cutoff: 650, attack: .006, release: .1, echoGain: 0 }, notes(bass, root - 24));
+      const bassNotes = notes(bass, root - 24);
+      if (colour) for (const note of bassNotes) {
+        const offset = note.midi - (root - 24), octave = Math.floor(offset / 12) * 12;
+        const nearest = [...colour.intervals].map(interval => interval % 12)
+          .sort((a, b) => Math.abs(a - (offset - octave)) - Math.abs(b - (offset - octave)))[0]!;
+        note.midi = root - 24 + octave + nearest;
+      }
+      add(style === 'techno' ? 'donk-bass' : 'bass', { waveform: ['techno', 'chiptune', 'funk', 'synthwave'].includes(style) ? 'square' : 'triangle', gain: .16, cutoff: 650, attack: .006, release: .1, echoGain: 0 }, bassNotes);
     }
     if (style === 'baroque') {
       add('counterpoint', { waveform: 'triangle', gain: .11, attack: .002, release: .08, pan: -.25, echoGain: .02 },
         regular([4, 3, 2, 1, 0, 1, 2, 4]).map(([degree, start, duration]) => ({ midi: root + pitch(degree), start: start * beat, duration: duration * beat })));
     }
-    if (data.harmony || !['melodic', 'classical', 'baroque', 'blues', 'techno', 'chiptune', 'folk'].includes(style)) {
-      const extended = ['jazz', 'lofi', 'latin', 'funk', 'disco', 'ragtime'].includes(style);
-      const intervals = [0, third, 7, ...(extended ? [seventh] : data.harmony ? [12] : []), ...(extended && data.harmony ? [14] : [])];
+    const extended = ['jazz', 'lofi', 'latin', 'funk', 'disco', 'ragtime'].includes(style);
+    const intervals = colour ? [...colour.intervals] : [0, third, 7, ...(extended ? [seventh] : data.harmony ? [12] : []), ...(extended && data.harmony ? [14] : [])];
+    if (colour || data.harmony || !['melodic', 'classical', 'baroque', 'blues', 'techno', 'chiptune', 'folk'].includes(style)) {
       let offsets = [0], length = 2;
       if (style === 'waltz') { offsets = [1, 2]; length = .4; }
       if (style === 'latin') { offsets = [0, .75, 1.5, 2.5, 3.25]; length = .25; }
@@ -194,14 +211,14 @@ export class JourneyMusicComposer {
       if (style === 'funk') { offsets = [.75, 1.75, 2.5, 3.75]; length = .12; }
       if (style === 'disco' || style === 'electronic') { offsets = [.5, 1.5, 2.5, 3.5]; length = .3; }
       if (['ambient', 'cinematic', 'synthwave'].includes(style)) length = 3.5;
-      add('harmony', { waveform: style === 'synthwave' ? 'sawtooth' : 'sine', layers: style === 'synthwave' ? 2 : 1, spread: 10, gain: .12, attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
+      add('harmony', { ...this.identity.voice({ waveform: style === 'synthwave' ? 'sawtooth' : 'sine', attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300 }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
         offsets.flatMap(at => notes(intervals.map(interval => [interval, at, length]), root - 12)));
     }
     if (data.harmony && (studio || ['melodic', 'ambient', 'jazz', 'lofi', 'cinematic'].includes(style))) {
       const chordName = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][((root % 12) + 12) % 12]!;
       const extended = style === 'jazz' || style === 'lofi';
       const response = this.accompaniment.get({
-        chord: chordName + (minor ? extended ? 'm7' : 'm' : extended ? seventh === 11 ? 'maj7' : '7' : ''),
+        chord: chordName + (colour ? mood === 'curious' ? 'sus2' : third === 3 ? fifth === 6 ? 'm7b5' : 'm7' : third === 5 ? 'sus4' : intervals.includes(11) ? 'maj7' : intervals.includes(9) ? '6' : '' : minor ? extended ? 'm7' : 'm' : extended ? seventh === 11 ? 'maj7' : '7' : ''),
         notes: melody.notes.map(note => {
           const start = Math.min(15, Math.round(note.start / beat * 4));
           return { pitch: Math.max(48, Math.min(83, note.midi)), quantizedStartStep: start,
@@ -209,7 +226,7 @@ export class JourneyMusicComposer {
         }),
       });
       if (response) {
-        const backing = magentaBackingNotes(response, root, [0, third, 7, ...(extended ? [seventh] : [])], this.bpm);
+        const backing = magentaBackingNotes(response, root, intervals, this.bpm);
         if (backing.length) add('magenta-countermelody', { waveform: 'triangle', gain: .09, pan: -.3, cutoff: 1500, attack: .025, release: .2 }, backing);
       }
     }
@@ -222,19 +239,19 @@ export class JourneyMusicComposer {
         entry.score.voice.pan = Math.max(-.4, Math.min(.4, expression.turning * .3));
       }
       // A full-measure chord bridges sparse genre motifs, including when waiting or stuck.
-      add('city-bed', { waveform: 'sine', gain: .09, attack: .18, sustain: .6, release: .5,
-        cutoff: data.blocked ? 750 : 1200, echoGain: .12, echoTime: beat / 2 },
-      notes([0, third, 7, data.harmony ? 14 : 12].map(interval => [interval, 0, this.beats]), root - 12));
+      add('city-bed', { ...this.identity.voice({ waveform: 'sine', attack: .18, sustain: .6, release: .5,
+        cutoff: data.blocked ? 750 : 1200 }), gain: .09, echoGain: .12, echoTime: beat / 2 },
+      notes((colour ? intervals : [0, third, 7, data.harmony ? 14 : 12]).map(interval => [interval, 0, this.beats]), root - 12));
       if (expression.moving) add('travel-pulse', { waveform: 'triangle', gain: .08, attack: .003,
         decay: .04, sustain: .1, release: .08, cutoff: 1100, echoGain: .04 },
-      notes(regular([0, 7, third, 7], this.beats, .16), root));
+      notes(regular([0, fifth, colour && mood === 'curious' ? 2 : third, fifth], this.beats, .16), root));
     }
     return result;
   }
 
   /** Short chord-tone answers on the same beat grid as the ongoing arrangement. */
   react(kind: string, data: Phrase, direction = 0): SoundSequenceEntry {
-    const arrangement = this.compose({ ...data, expression: undefined, harmony: true });
+    const arrangement = this.compose({ ...data, mood: data.mood ?? (data.expression?.paused ? 'calm' : undefined), expression: undefined, harmony: true });
     const chord = arrangement.find(entry => entry.label?.includes(':harmony:'))!.score.notes;
     const pitches = [...new Set(chord.map(note => note.midi))].slice(0, 3).map(midi => midi + 12);
     const figures: Record<string, number[]> = {
@@ -246,13 +263,18 @@ export class JourneyMusicComposer {
       state_changed: data.expression?.paused ? [2, 1, 0] : [0, 2, 3],
     };
     const beat = 60 / this.bpm;
-    const score = new SoundEffect({ ...recipes[this.style].voice, gain: kind === 'step' ? .055 : .12,
+    const score = new SoundEffect({ ...this.identity.voice(recipes[this.style].voice), gain: kind === 'step' ? .055 : .12,
       attack: .008, release: kind === 'blocked' ? .4 : .2, pan: Math.max(-.6, Math.min(.6, direction * .6)),
       echoTime: beat / 2, echoGain: .16, vibratoDepth: kind === 'blocked' ? 9 : 2 }).toScore();
     score.notes = (figures[kind] ?? [0, 2]).map((degree, i) => ({
       midi: pitches[degree % pitches.length]! + Math.floor(degree / pitches.length) * 12,
-      start: i * beat / 4, duration: beat * (kind === 'step' ? .16 : .35),
+      start: i * beat / 4, duration: beat * (kind === 'step' ? .16 : .35) * this.identity.articulation[i % 16]!,
     }));
+    // Significant encounters speak in chords as well as a melodic gesture.
+    if (['blocked', 'collision', 'intervention', 'pickup', 'achievement', 'arrived', 'exploration'].includes(kind)) {
+      score.notes.push(...chord.slice(0, data.mood === 'celebrating' || data.mood === 'wonder' ? 6 : 4)
+        .map(note => ({ midi: note.midi, start: 0, duration: beat * (kind === 'arrived' ? 2 : .7) })));
+    }
     return { at: data.at, score, label: `journey:action:${kind}` };
   }
 }

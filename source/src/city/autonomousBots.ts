@@ -24,7 +24,8 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
     model.robot.getChildMeshes().forEach(mesh => { mesh.isPickable = false; mesh.metadata = { autonomousBot: i + 1 }; });
     const radius = .55, height = 1.725;
     const character = physics.addRobot(`city-bot-${i + 1}`, new Vector3(node.x, .075 + height / 2, node.z), radius, height);
-    return { condition: freshCondition(), model, character, node, target: node, previous: '', avoid: '', returning: false, yielding: false,
+    return { id: `city-bot-${i + 1}`, name: `City robot ${i + 1}`, buttonReach: 1.5,
+      condition: freshCondition(), model, character, node, target: node, previous: '', avoid: '', returning: false, yielding: false,
       escape: null as { x: number; z: number } | null, escapeSide: i % 2 ? -1 : 1,
       heading: 0, wait: .3 + random(), stuck: 0, speed: .8 + random() * .6, verticalVelocity: 0, distance: 0, turns: 0, crossingEntered: false };
   });

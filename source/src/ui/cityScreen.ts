@@ -50,6 +50,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
       <h2 id="city-heading" tabindex="-1">Reach the goal</h2>
       <p id="journey-status" role="status" aria-live="polite">Press Start robot. Help it reach the flagged Duet studio.</p>
+      <button id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
       <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
       <div class="city-route-stats" id="city-route-stats"></div>
       <section id="city-route-controls" aria-label="Draw your route">
@@ -217,7 +218,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     get('city-route-stats').hidden = j.ready && mode !== 'route';
     setText('city-route-stats', `${j.route.length - 1} streets · ${Math.round(j.routeLength)} m · ${discoveries} of 6 discoveries`);
     setText('city-hud-status', j.complete ? 'At studio' : j.ready ? 'Ready' : j.blocked ? 'Blocked' : j.paused ? 'Paused' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting to cross' : `Travelling · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`);
-    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blocked.reason : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
+    get('city-ask-robot').hidden = !j.nearbyHelp;
+    const status = j.complete ? 'You reached the studio. Time for our duet.' : j.ready ? 'Press Start robot. It will head to the flagged Duet studio. Help it through barriers as you go.' : j.blocked ? j.blockedExplanation : j.paused ? 'Paused. Change the city, then resume when you’re ready.' : j.trainStatus ? j.trainStatus : j.waiting ? 'Waiting at the pelican crossing for a green light with enough time to cross safely.' : `Heading to the flagged Duet studio · ${Math.round(j.machine.record.telemetry!.progress * 100)}%`;
     setText('journey-status', status); setText('city-heading', j.complete ? 'You reached the goal!' : j.ready ? mode === 'route' ? 'Choose your own route' : 'Reach the goal' : j.blocked ? 'Help your robot through' : j.paused ? 'Journey paused' : 'Your robot is travelling');
     setText('city-phase', j.complete ? 'WELCOME TO THE DUET STUDIO' : 'GOAL / DUET STUDIO');
     if (j.complete) setText('city-result', `${j.metrics.stepsTaken} steps, ${j.metrics.pickups} discoveries, ${j.repaired.size} city changes. Try another line or generate a different city.`);
@@ -357,6 +359,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
   get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
+  get('city-ask-robot').addEventListener('click', () => {
+    if (city?.journey.askNearbyRobot()) {
+      sounds.interaction('tap');
+      feedback('Nearby robot pressed the button. Wait for a safe green light, then continue.');
+    } else feedback('No robot close enough can reach this button right now. You can lower the panel or wait.');
+    refresh();
+  });
   get('city-environment-choices').addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-studio-door]') : null;
     if (button && !button.disabled && city?.journey.setStudioDoor(button.dataset.studioDoor as StudioDoorType)) { city.sync(); feedback('Studio door changed. Undo lets you try another door.'); refresh(); }
