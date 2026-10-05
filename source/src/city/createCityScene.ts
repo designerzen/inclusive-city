@@ -28,6 +28,7 @@ import { createStudioInstruments } from '../app/createStudioInstruments';
 import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from './roadSurface';
+import { createGoalFlag } from './goalFlag';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -271,10 +272,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   const goalRing = MeshBuilder.CreateTorus('goal-finish-ring', { diameter: 4.2, thickness: .35, tessellation: 32 }, scene);
   goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
-  solids.push(box('goal-flagpole', goal.x + 1.2, 3.45, goal.z, .15, 6.9, .15, goalMaterial));
-  for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) {
-    solids.push(box(`goal-flag-${row}-${col}`, goal.x + 1.5 + col * .5, 6.6 - row * .5, goal.z, .5, .5, .08, (row + col) % 2 ? flagBlack : flagWhite));
-  }
+  createGoalFlag(scene, goal, goalMaterial, flagBlack, flagWhite);
   const robot = createRobot(scene); robot.setName(bot.name); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);
   instruments.root.scaling.set(bot.appearance.width * .5, .5, .5);

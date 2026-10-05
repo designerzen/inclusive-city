@@ -10,6 +10,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { createStudioBuilding } from '../src/city/studioBuilding';
+import { createGoalFlag } from '../src/city/goalFlag';
 import { BotHistory } from '../src/robot/botHistory';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { createCityPhysics } from '../src/city/cityPhysics';
@@ -232,6 +233,7 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
     const material = new StandardMaterial('studio', scene);
     const studio = createStudioBuilding(scene, entrance, material, material, material);
     studio.sync(world.studioEntrance!.width, false); solids.push(...studio.parts);
+    createGoalFlag(scene, goal, material, material, material);
     const physics = createCityPhysics(scene, journey, solids, await wasm);
     const autonomous = createAutonomousBots(scene, world, physics);
     try {
@@ -244,6 +246,29 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
       assert.equal(journey.blocked, null, `seed ${seed}: ${JSON.stringify({ blocked: journey.blocked, street: journey.currentStreet, logical: journey.position, physical: physics.position })}`);
       assert.equal(journey.complete, true, `seed ${seed} reaches the studio`);
       assert.ok(Math.hypot(physics.position.x - journey.position.x, physics.position.z - journey.position.z) < .02);
+    } finally { scene.dispose(); engine.dispose(); }
+  }
+});
+
+test('the decorative goal flag remains visible but cannot obstruct arrival from either side', async () => {
+  for (const reverse of [false, true]) {
+    const { engine, scene, journey, floor } = fixture();
+    if (reverse) journey.world.nodes[0]!.x = 14;
+    const goal = journey.world.nodes[1]!;
+    const material = new StandardMaterial('flag', scene);
+    createGoalFlag(scene, goal, material, material, material);
+    const physics = createCityPhysics(scene, journey, [floor], await wasm);
+    try {
+      assert.equal(scene.getMeshByName('goal-flagpole')!.isVisible, true);
+      assert.equal(physics.colliderCount, 1, 'finish decorations add no collision bodies');
+      journey.start();
+      for (let i = 0; i < 600 && !journey.complete; i++) {
+        physics.update(1 / 60); journey.update(1 / 60);
+        scene.getPhysicsEngine()!._step(1 / 60);
+      }
+      assert.equal(journey.blocked, null);
+      assert.equal(journey.complete, true, `arrival from ${reverse ? 'east' : 'west'} finishes`);
+      assert.ok(Math.abs(physics.position.x - goal.x) < .02);
     } finally { scene.dispose(); engine.dispose(); }
   }
 });
