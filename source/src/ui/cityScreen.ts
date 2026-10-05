@@ -12,8 +12,6 @@ import type { CitySounds } from '../audio/CitySounds';
 import type { ScreenSpeech } from '../audio/ScreenSpeech';
 import { JourneyCreativity } from '../art/JourneyCreativity';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
-import type { MusicPlayback } from '../audio/CitySounds';
-import { musicDuration } from '../art/finishedJourney';
 import { captureFinishedJourney } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
 import { pianoSynthScore } from '../audio/pianoSynth';
@@ -31,19 +29,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         <button id="city-tool-edit" type="button" aria-pressed="true">Change city</button>
         <button id="city-pause" type="button">Start robot</button>
       </div>
+      <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
       <button id="back-to-designer" type="button">Edit robot</button>
     </header>
     <div class="city-map">
       <canvas id="city-canvas" role="img" aria-label="Your robot starts at the Workshop. Its goal is the Duet studio, marked by a large finish flag. Start the robot and change the city when a barrier blocks its journey."></canvas>
       <div id="city-robot-name" class="city-robot-name" hidden></div>
       <div id="city-goal" class="city-goal-marker"><strong>⚑ GOAL</strong><span>Duet studio</span><small>Use Show goal</small></div>
-      <section id="studio-track" class="studio-track" aria-label="Your duet track" hidden>
-        <p class="city-eyebrow">ARTBOT + YOU / THE DUET</p><h2 id="studio-track-title"></h2>
-        <p class="studio-invitation">Join your ArtBot! Sway, clap or dance along in your own way.</p>
-        <p id="studio-track-status" role="status" aria-live="polite"></p>
-        <progress id="studio-track-progress" max="1" value="0" aria-label="Duet playback progress"></progress>
-        <div class="studio-track-controls"><button id="studio-track-play" type="button">Replay from start</button><button id="studio-track-stop" type="button" disabled>Stop track</button><span id="studio-track-time">0:00 / 0:00</span></div>
-      </section>
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
     <details class="city-controls-hud" id="city-controls-hud"><summary>City controls <span class="disclosure-chevron" aria-hidden="true">&#8964;</span></summary>
@@ -84,7 +76,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       </section>
       <p id="city-feedback" role="status" aria-live="polite"></p>
       <p id="city-garage-status" role="status" aria-live="polite"></p>
-      <div id="city-finished" hidden><p id="city-result"></p><button id="city-exhibition" type="button">See your artwork</button></div>
+      <div id="city-finished" hidden><p id="city-result"></p></div>
       <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
         <div class="city-map-buttons" role="group" aria-label="Zoom and pan controls">
           <button type="button" data-map="zoom-in">Zoom in</button><button type="button" data-map="zoom-out">Zoom out</button>
@@ -117,24 +109,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   let mode: 'route' | 'edit' = 'edit', selected: string | null = null, lastBlock: string | null = null;
   let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
   let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
-  let finished: FinishedJourney | null = null, playback: MusicPlayback | undefined;
-  let studioStarted = false, studioPreparing = false, trackElapsed = 0;
+  let finished: FinishedJourney | null = null;
+  let performancePresented = false, studioPreparing = false;
   let cityMusicTime = 0, lastMusicFrame = performance.now();
   let stopArrivalBed: (() => void) | undefined;
-  const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-  function stopTrack(reset = true) {
+  function stopArrivalMusic() {
     stopArrivalBed?.(); stopArrivalBed = undefined;
-    trackElapsed = reset ? 0 : playback?.elapsed() ?? trackElapsed;
-    playback?.stop(); playback = undefined; city?.setSinging(false); city?.stopDancing();
-    get<HTMLButtonElement>('studio-track-stop').disabled = true;
-  }
-  function playTrack() {
-    if (!finished || !active) return;
-    stopTrack(); sounds.stop(); sounds.unlock();
-    playback = sounds.perform(finished.score);
-    if (playback) { const handle = playback; city?.danceToMusic(finished, () => handle.elapsed()); }
-    get<HTMLButtonElement>('studio-track-stop').disabled = !playback;
-    setText('studio-track-status', playback ? 'Your duet is playing. Move to the beat and try a turn together!' : sounds.isMuted ? 'Unmute sound, then play your duet.' : 'Press play to hear your duet.');
   }
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
@@ -151,8 +131,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   });
   function beginCreation() {
     if (!city) return;
-    stopTrack(); finished = null; studioStarted = false; studioPreparing = false; get('studio-track').hidden = true;
-    delete container.dataset.studioPerformance;
+    stopArrivalMusic(); finished = null; performancePresented = false; studioPreparing = false;
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot); renderer = new AsyncPaintingRenderer(creation.painting);
     cityMusicTime = 0; lastMusicFrame = performance.now();
     city.journey.machine.run.creative = { seed: creation.seed, bpm: creation.bpm, music: creation.music, art: true, harmony: false, colour: false, artist: structuredClone(creation.artist), score: creation.score, marks: creation.marks };
@@ -229,7 +208,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     get('city-route-controls').hidden = mode !== 'route' || !j.ready;
     get('city-change-controls').hidden = mode !== 'edit' || j.complete;
     get('city-finished').hidden = !j.complete;
-    get<HTMLButtonElement>('city-exhibition').disabled = !finished;
+    get('city-exhibition').hidden = !j.complete;
+    get<HTMLButtonElement>('city-exhibition').disabled = !finished || !city.arrivalComplete;
     if (j.blocked && j.blocked.id !== lastBlock) { controlsHud.open = true; selected = j.blocked.id; mode = 'edit'; plan.scrollTop = 0; streetSelect.value = selected; panelKey = ''; }
     lastBlock = j.blocked?.id ?? null;
     const stops = j.route.map(id => j.world.nodes.find(n => n.id === id)!);
@@ -329,23 +309,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
         refresh();
       });
     }
-    if (finished && city.arrivalComplete && !studioStarted) {
-      studioStarted = true; get('studio-track').hidden = false;
-      container.append(get('studio-track'));
-      container.dataset.studioPerformance = 'true';
-      setText('studio-track-title', `${finished.name} · ${finished.artworkTitle.text}`);
-      playTrack();
-    }
-    if (finished && studioStarted) {
-      const duration = musicDuration(finished.score), elapsed = playback?.elapsed() ?? trackElapsed;
-      get<HTMLProgressElement>('studio-track-progress').value = duration ? elapsed / duration : 0;
-      setText('studio-track-time', `${timestamp(elapsed)} / ${timestamp(duration)}`);
-      const origin = finished.score[0]?.at ?? 0;
-      const singing = !!playback && finished.score.some(entry => entry.label?.includes('melody') && entry.score.notes.some(note => elapsed >= entry.at - origin + note.start && elapsed < entry.at - origin + note.start + note.duration));
-      city.setSinging(singing);
-      if (playback && (elapsed >= duration || sounds.isMuted)) {
-        stopTrack(false); setText('studio-track-status', sounds.isMuted ? 'Sound is muted. Unmute, then replay your duet.' : 'Your duet has finished. Replay it from the start.');
-      }
+    if (finished && city.arrivalComplete && !performancePresented && active && !container.closest('[inert]')) {
+      performancePresented = true;
+      stopArrivalMusic();
+      onPresent(structuredClone(finished));
     }
     const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
     if (mood !== lastMood) lastMood = mood;
@@ -381,8 +348,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
     setText('city-robot-name', bot.name); controlsHud.open = false;
     plan.scrollTop = 0; beginCreation(); refresh();
   }
-  get('studio-track-play').addEventListener('click', playTrack);
-  get('studio-track-stop').addEventListener('click', () => { stopTrack(); setText('studio-track-status', 'Track stopped. Replay from the beginning when you’re ready.'); });
   get('city-tool-route').addEventListener('click', () => setMode('route'));
   get('city-tool-edit').addEventListener('click', () => setMode('edit'));
   streetSelect.addEventListener('change', () => { city?.resizer.finish(false); selectStreet(streetSelect.value); });
@@ -426,7 +391,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
       city.pan(action === 'left' ? -step : action === 'right' ? step : 0, action === 'up' ? step : action === 'down' ? -step : 0);
     }
   });
-  get('city-exhibition').addEventListener('click', () => { if (finished) onPresent(structuredClone(finished)); });
+  get('city-exhibition').addEventListener('click', () => { if (finished && city?.arrivalComplete) { performancePresented = true; onPresent(structuredClone(finished)); } });
   const pointers = new Map<number, { x: number; y: number }>();
   let drawing = false, moved = false, origin = { x: 0, y: 0 }, savedRoute: readonly string[] = [], pinch = 0;
   function local(x: number, y: number) { const bounds = canvas.getBoundingClientRect(); return { x: x - bounds.left, y: y - bounds.top }; }
@@ -490,20 +455,20 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, onPr
   function visibilityChanged() {
     if (document.hidden) voicePanel.stop();
     lastMusicFrame = performance.now();
-    if (document.hidden && playback) { stopTrack(false); setText('studio-track-status', 'Track stopped while you were away. Replay when you return.'); }
+    if (document.hidden) stopArrivalMusic();
   }
   document.addEventListener('visibilitychange', visibilityChanged);
   const observer = new ResizeObserver(() => { if (active) { engine?.resize(); city?.resize(); } }); observer.observe(canvas);
   return {
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
-    suspend() { voicePanel.stop(); stopTrack(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
+    suspend() { voicePanel.stop(); stopArrivalMusic(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
     resume() { active = true; lastMusicFrame = performance.now(); engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       bot = value; robots = remembered; active = true; sounds.unlock();
       if (!engine) { engine = new Engine(canvas, true); engine.runRenderLoop(() => { if (!active || !city || document.hidden) return; city.update(Math.min(.1, engine!.getDeltaTime() / 1000)); refresh(); city.scene.render(); }); }
       newCity();
     },
-    dispose() { voicePanel.dispose(); stopTrack(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
+    dispose() { voicePanel.dispose(); stopArrivalMusic(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.dispose(); },
   };
 }
