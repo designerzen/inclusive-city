@@ -1,5 +1,7 @@
 # Procedural journey painting
 
+Journey music now develops through Markov chains, cellular automata, stochastic distributions and evolutionary motif selection. See the [development algorithms, musical behaviour and runtime bounds](MusicDevelopment.md).
+
 `ProceduralPainting` consumes the current run's complete ordered robot event stream. Painting begins immediately, independent of music or art pickups. Every `step` creates one new curved pigment stroke. Barriers add fractured charcoal; interventions create golden blooms; pickups add blossoms; achievements leave luminous seals; route segments, queued detours, pause/resume and interrupted journeys add ink gestures. Arrival adds a finishing flourish. Idle time produces no new marks.
 
 The robot's identity/configuration seeds its palette and composition. Position, heading, edge, step count and event order shape the painting, rather than copying the route onto the canvas. Drawing spark enriches bristle texture, opacity and stroke breadth; Colour prism expands the subsequent pigment palette. Earlier paint stays intact.

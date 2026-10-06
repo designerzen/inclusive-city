@@ -9,6 +9,7 @@ import { robotHarmonies } from '../audio/robotHarmony';
 import type { RobotMood } from '../audio/robotHarmony';
 import { worldArrangements } from './worldMusicStyles';
 import type { WorldMusicStyle } from './worldMusicStyles';
+import { MusicDevelopment } from './MusicDevelopment';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
 interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; expression?: JourneyExpression; cadence?: boolean }
@@ -66,6 +67,7 @@ export class JourneyMusicComposer {
   readonly bpm: number;
   readonly beats: number;
   private readonly identity;
+  private readonly development: MusicDevelopment;
   private readonly sections = new Map<string, { start: number; request: AccompanimentRequest; notes?: readonly QuantizedNote[] }>();
   private heard: SoundSequenceEntry[] = [];
   constructor(readonly style: MusicianStyle, private readonly seed: number, speed = 50,
@@ -73,6 +75,7 @@ export class JourneyMusicComposer {
     this.bpm = style === 'melodic' ? 92 + Math.round(speed * .2) + (seed >>> 0) % 9 : recipes[style].bpm;
     this.beats = style === 'waltz' ? 3 : worldArrangements[style as WorldMusicStyle]?.beats ?? 4;
     this.identity = robotMusicalIdentity(seed);
+    this.development = new MusicDevelopment(seed, style, this.beats);
   }
 
   /** Retain the actual played lead, including resolved AI phrases, for future continuation. */
@@ -311,6 +314,19 @@ export class JourneyMusicComposer {
         }
       }
     }
+    const developed = this.development.develop(melody.notes, {
+      phrase: data.phrase, beat, root, scale,
+      motif: figure.map(([degree], i) => degree + this.identity.contour[i % 16]!),
+      harmony: data.harmony, cadence: data.cadence ?? false,
+      restrained: data.blocked || mood === 'calm' || mood === 'sad' || mood === 'uncertain',
+      sparse: ['ambient', 'cinematic', 'chimes', 'koto', 'persian', 'raga'].includes(style),
+      swing: ['jazz', 'blues', 'lofi', 'ethiojazz', 'hiphop'].includes(style),
+    });
+    melody.notes = developed.lead;
+    if (developed.counter.length) add('evolution-countermelody', {
+      ...this.identity.voice(recipes[style].voice), gain: .055, pan: .25,
+      echoTime: beat / 2, echoGain: .08,
+    }, developed.counter);
     if (data.expression) {
       const expression = data.expression;
       const energy = expression.moving ? .9 + Math.min(1, expression.speed / 3) * .2 : data.blocked ? .55 : .45;
