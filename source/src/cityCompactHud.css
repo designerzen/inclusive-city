@@ -12,8 +12,17 @@
 #city-screen .city-view-tools { position: absolute; top: 12px; left: 12px; bottom: auto; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 24px); margin: 0; padding: 4px; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525ee; z-index: 4; }
 #city-screen .city-view-tools button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; font-size: 0; }
 #city-screen .city-view-tools button::before { margin: 0; }
-.city-controls-hud { position: absolute; right: 24px; bottom: 24px; z-index: 5; width: min(300px, calc(100% - 48px)); border: 1px solid var(--ui-border); border-radius: 12px; background: #252525f5; box-shadow: 0 4px 20px #0003; }
-.city-controls-hud:not([open]) { width: max-content; max-width: calc(100% - 48px); }
+.city-interaction-hud { position: absolute; right: 24px; bottom: 24px; z-index: 5; width: min(340px, calc(100% - 48px)); max-height: calc(100dvh - 180px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525f5; box-shadow: 0 4px 20px #0003; }
+.city-interaction-hud:has(#city-issue[hidden]):has(.city-controls-hud:not([open])) { width: max-content; }
+.city-controls-hud { position: static; width: auto; }
+.city-issue { padding: 16px; }
+.city-issue h2 { margin: 0; font-size: 1.125rem; }
+.city-issue p { margin: 8px 0 12px; line-height: 1.5; font-size: .9375rem; }
+.city-issue p:empty { display: none; }
+#city-screen .city-issue button { display: block; width: 100%; min-height: 48px; white-space: normal; font-size: .9375rem; }
+#city-issue-action { background: #b9efd9; color: #17261e; border-color: #b9efd9; font-weight: 700; }
+#city-ask-robot { margin-top: 8px; }
+.city-interaction-hud:has(#city-issue:not([hidden])) > .city-controls-hud { border-top: 1px solid var(--ui-border); }
 .city-controls-hud > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: .8125rem; font-weight: 700; }
 .city-controls-hud[open] > summary .disclosure-chevron { transform: rotate(180deg); }
 #city-screen .city-plan { position: static; inset: auto; width: auto; height: auto; max-height: min(55dvh, 520px); overflow: auto; padding: 12px; border: 0; border-top: 1px solid var(--ui-border); border-radius: 0 0 12px 12px; background: transparent; }
@@ -29,10 +38,10 @@
 .city-robot-name.is-alert { font-size: clamp(1rem, 1.5vw, 1.125rem); font-weight: 600; line-height: 1.4; border-color: #f7bc84; }
 .city-robot-name.is-alert::after { border-top-color: #f7bc84; }
 .city-robot-name.is-detached::after { display: none; }
-[data-theme='light'] #city-screen :is(.city-controls-hud, .city-view-tools, .city-status-hud) { background: #fafafaf5; }
+[data-theme='light'] #city-screen :is(.city-interaction-hud, .city-view-tools, .city-status-hud) { background: #fafafaf5; }
 #city-screen[data-studio-performance] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(180px, 1fr) auto; }
 #city-screen[data-studio-performance] .city-plan { display: block; }
-#city-screen[data-studio-performance] .city-controls-hud { bottom: auto; top: 72px; }
+#city-screen[data-studio-performance] .city-interaction-hud { bottom: auto; top: 72px; }
 :root:not([data-text-size='100']) #city-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
 :root:not([data-text-size='100']) #city-screen .city-toolbar { display: flex; padding-top: 0; }
 @media (max-width: 700px) {
@@ -41,7 +50,7 @@
   #city-screen .city-tools button { flex: 0 0 44px; }
   .city-status-hud { top: 72px; bottom: auto; width: max-content; max-width: calc(100% - 24px); padding: 8px; }
   #city-screen .city-view-tools { top: 8px; left: 8px; }
-  .city-controls-hud[open] { bottom: 24px; }
+  .city-interaction-hud { right: 16px; bottom: 16px; width: min(340px, calc(100% - 32px)); }
   #city-screen .city-plan { max-height: 48dvh; }
   #city-screen:has(.city-controls-hud[open]) .city-status-hud { display: none; }
 }

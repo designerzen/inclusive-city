@@ -68,7 +68,7 @@ app.innerHTML = `
     <section id="attract-screen" aria-labelledby="attract-title"></section>
     <div id="designer-screen" hidden>
     <header class="designer-introduction">
-        <h1 id="designer-title" tabindex="-1">Meet your artbot</h1>
+        <h1 id="designer-title">Personalise your new robot friend!</h1>
     </header>
     <div class="designer-layout"><div class="preview-column">
     <div class="bot-identity">

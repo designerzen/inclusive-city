@@ -10,9 +10,10 @@ import type { RobotMood } from '../audio/robotHarmony';
 import { worldArrangements } from './worldMusicStyles';
 import type { WorldMusicStyle } from './worldMusicStyles';
 import { MusicDevelopment } from './MusicDevelopment';
+import { cityMusicKey } from '../audio/cityMusicKeys';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
-interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; expression?: JourneyExpression; cadence?: boolean }
+interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; keyMood?: RobotMood | null; expression?: JourneyExpression; cadence?: boolean }
 type Voice = Partial<SoundScore['voice']>;
 /** Scale degree, beat position, beat length. Original motifs, never song quotations. */
 type Figure = readonly (readonly [number, number, number])[];
@@ -88,7 +89,7 @@ export class JourneyMusicComposer {
   private section(data: Phrase, studio: boolean) {
     const start = Math.floor(data.phrase / 4) * 4;
     const mood = data.mood ?? (data.expression?.paused ? 'calm' : undefined);
-    const key = JSON.stringify([studio, start, data.blocked, mood]);
+    const key = JSON.stringify([studio, start, data.blocked, mood, data.keyMood]);
     const existing = this.sections.get(key);
     if (existing) return existing;
     const measure = this.beats * 60 / this.bpm;
@@ -187,16 +188,17 @@ export class JourneyMusicComposer {
     if (style === 'funk') { root = slot < 3 ? 60 : 65; minor = false; }
     if (world) { root = world.roots[slot]!; minor = world.minor ?? false; }
     // Different robots choose different keys while retaining each genre's harmonic grammar.
-    const transpose = ((this.seed >>> 5) % 12) - 5;
+    const mood = data.mood ?? (data.expression?.paused ? 'calm' : undefined);
+    const keyMood = data.keyMood === null ? undefined : data.keyMood ?? mood;
+    const transpose = cityMusicKey(this.seed, data.phrase, keyMood, data.cadence).transpose;
     if (data.cadence) { root = 60; minor = false; }
     const tonicRoot = root;
     root += transpose;
-    if (data.blocked) { root = 57 + transpose; minor = true; }
-    const mood = data.mood ?? (data.expression?.paused ? 'calm' : undefined);
+    if (data.blocked) { root = (keyMood === 'frustrated' || keyMood === 'sad' ? 60 : 57) + transpose; minor = true; }
     const colour = mood ? robotHarmonies[mood] : undefined;
     const third = colour?.scale[2] ?? (data.blocked || minor ? 3 : world && !world.scale.includes(4) ? 5 : 4);
     const fifth = colour?.intervals.some(interval => interval === 6) ? 6 : 7;
-    const scale = colour?.scale ?? (world && !data.blocked && !data.cadence ? world.scale : style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
+    const scale = world && !data.blocked && !data.cadence ? world.scale : colour?.scale ?? (style === 'blues' ? [0, 3, 5, 6, 7, 10, 12]
       : style === 'folk' ? [0, minor ? 3 : 2, minor ? 5 : 4, 7, minor ? 10 : 9, 12, 14]
       : [0, 2, third, tonicRoot === 65 && !data.blocked ? 6 : 5, 7,
         minor && (data.blocked || tonicRoot !== 62) ? 8 : 9,
@@ -336,8 +338,8 @@ export class JourneyMusicComposer {
         entry.score.voice.pan = Math.max(-.4, Math.min(.4, expression.turning * .3));
       }
       // A full-measure chord bridges sparse genre motifs, including when waiting or stuck.
-      add('city-bed', { ...this.identity.voice({ waveform: 'sine', attack: .18, sustain: .6, release: .5,
-        cutoff: data.blocked ? 750 : 1200 }), gain: .09, echoGain: .12, echoTime: beat / 2 },
+      add('city-bed', { ...this.identity.voice({ waveform: 'sine', attack: .06, sustain: .25, release: .18,
+        cutoff: data.blocked ? 600 : 900 }), gain: ['ambient', 'cinematic'].includes(style) ? .035 : .018, echoGain: .04, echoTime: beat / 2 },
       notes((colour ? intervals : [0, third, 7, data.harmony ? 14 : 12]).map(interval => [interval, 0, this.beats]), root - 12));
       if (expression.moving) add('travel-pulse', { waveform: 'triangle', gain: .08, attack: .003,
         decay: .04, sustain: .1, release: .08, cutoff: 1100, echoGain: .04 },

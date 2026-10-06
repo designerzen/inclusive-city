@@ -1,4 +1,5 @@
 import { SoundEffect } from './SoundEffect';
+import { seekSequence } from './seekSequence';
 import type { SoundSequenceEntry } from './SoundEffect';
 import { buttonSound, interactionSound, robotMoodSound } from './soundPresets';
 import type { ButtonSound, InteractionSound, RobotMood } from './soundPresets';
@@ -77,19 +78,22 @@ export class CitySounds {
     // This timer only releases bookkeeping; every audible note uses the audio clock.
     setTimeout(() => this.active.delete(handle), (delay + effect.duration + 0.1) * 1000);
   }
-  perform(sequence: readonly SoundSequenceEntry[], origin = sequence[0]?.at ?? 0): MusicPlayback | undefined {
+  perform(sequence: readonly SoundSequenceEntry[], origin = sequence[0]?.at ?? 0, offset = 0): MusicPlayback | undefined {
     if (this.disposed || !sequence.length || !this.context || !this.master || this.muted || document.hidden) return;
     const context = this.context;
     const when = context.currentTime + 0.05;
     // Keep future song entries as score data, just as live city music does.
     // Creating every oscillator up front overwhelms the audio graph on long journeys.
-    const entries = sequence.map(entry => {
+    const duration = Math.max(...sequence.map(entry => Math.max(0, entry.at - origin) + SoundEffect.fromScore(entry.score).duration));
+    const startAt = Math.min(duration, Math.max(0, offset));
+    const remaining = startAt > 0 ? seekSequence(sequence, startAt, origin)
+      : sequence.map(entry => ({ ...entry, at: Math.max(0, entry.at - origin) }));
+    const entries = remaining.map(entry => {
       const effect = SoundEffect.fromScore(entry.score);
-      return { ...entry, score: effect.toScore(), at: Math.max(0, entry.at - origin), duration: effect.duration };
+      return { ...entry, score: effect.toScore(), duration: effect.duration };
     }).sort((a, b) => a.at - b.at);
-    const duration = Math.max(...entries.map(entry => entry.at + entry.duration));
     const pending = new Map<ReturnType<CitySounds['schedule']>, number>();
-    let stopped = false, elapsed = 0, cursor = 0;
+    let stopped = false, elapsed = startAt, cursor = 0;
     const pump = () => {
       if (stopped || context.state !== 'running' || document.hidden) return;
       const now = context.currentTime, base = Math.max(when, now);
@@ -106,7 +110,7 @@ export class CitySounds {
         batchEnd = Math.max(batchEnd, Math.max(base, start) + end - start);
       }
       if (batch.length) pending.set(this.schedule(batch, base), batchEnd);
-      if (now >= when + duration) { clearInterval(timer); this.active.delete(handle); }
+      if (now >= when + duration - startAt) { clearInterval(timer); this.active.delete(handle); }
     };
     const timer = setInterval(pump, 25);
     if (context.state === 'suspended') void context.resume().catch(() => {});
@@ -117,7 +121,7 @@ export class CitySounds {
           const outputTime = timestamp?.contextTime && timestamp.performanceTime
             ? Math.min(context.currentTime, timestamp.contextTime + (performance.now() - timestamp.performanceTime) / 1000)
             : context.currentTime - (context.outputLatency ?? context.baseLatency ?? 0);
-          elapsed = Math.max(elapsed, Math.min(duration, Math.max(0, outputTime - when)));
+          elapsed = Math.max(elapsed, Math.min(duration, startAt + Math.max(0, outputTime - when)));
         }
         return elapsed;
       },

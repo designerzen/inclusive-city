@@ -107,7 +107,8 @@ test('all 55 styles grow across sections, preserve their grooves and replay with
       }
       // The original bass, drums and chord placements stay stable each four-bar cycle.
       if (phrase >= 4 && style.id !== 'blues') {
-        const groove = (entries: typeof score) => entries.filter(entry => !entry.label?.includes('melody') && !entry.label?.includes('counterpoint')).map(entry => entry.score);
+        const groove = (entries: typeof score) => entries.filter(entry => !entry.label?.includes('melody') && !entry.label?.includes('counterpoint'))
+          .map(entry => ({ ...entry.score, notes: entry.score.notes.map(note => ({ ...note, midi: note.midi - entry.score.notes[0]!.midi })) }));
         assert.deepEqual(groove(score), groove(composer.compose({ ...base, phrase: phrase % 4 }, false, false)), style.id);
       }
     }

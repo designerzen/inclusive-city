@@ -11,6 +11,12 @@ import type { PaintStroke } from './ProceduralPainting';
 
 export type ArtMark = PaintStroke;
 
+/** A new journey varies the composition; replay uses the seed already saved with its run. */
+export function freshCompositionSeed(previous?: number, draw = () => crypto.getRandomValues(new Uint32Array(1))[0]!) {
+  const seed = draw() >>> 0;
+  return seed === previous ? (seed + 1) >>> 0 : seed;
+}
+
 /** Event-driven creative modes. Resolved AI accompaniment is captured in the score. */
 export class JourneyCreativity {
   readonly seed: number;
@@ -36,12 +42,13 @@ export class JourneyCreativity {
   private lastSlope = -Infinity;
   private mood: RobotMood | undefined;
   private moodBars = 0;
+  private keyMood: RobotMood | null = null;
   private state: RobotEvent['state'] = 'ready';
-  private scheduledHarmony: { at: number; phrase: number; blocked: boolean; mood?: RobotMood }[] = [];
+  private scheduledHarmony: { at: number; phrase: number; blocked: boolean; mood?: RobotMood; keyMood: RobotMood | null }[] = [];
   readonly artist: ArtistPreferences;
   private readonly composer: JourneyMusicComposer;
 
-  constructor(bot: ArtBot) {
+  constructor(bot: ArtBot, compositionSeed?: number) {
     this.artist = normaliseArtist(bot.creative ? {
       painter: bot.creative.artStyle === 'expressive' ? 'expressionist' : bot.creative.artStyle,
       musician: bot.creative.musicStyle,
@@ -49,11 +56,11 @@ export class JourneyCreativity {
     const identity = JSON.stringify([bot.id, bot.appearance, bot.profile.abilities, bot.profile.enabledFunctions, this.artist]);
     let seed = 2166136261;
     for (const character of identity) seed = Math.imul(seed ^ character.charCodeAt(0), 16777619) >>> 0;
-    this.seed = seed;
-    this.composer = new JourneyMusicComposer(this.artist.musician, seed, bot.profile.abilities.speed);
+    this.seed = compositionSeed === undefined ? seed : compositionSeed >>> 0;
+    this.composer = new JourneyMusicComposer(this.artist.musician, this.seed, bot.profile.abilities.speed);
     this.bpm = this.composer.bpm;
     this.composer.prepareAccompaniment();
-    this.painting = new ProceduralPainting(seed, bot.appearance.width, bot.creative?.artStyle ?? this.artist.painter);
+    this.painting = new ProceduralPainting(this.seed, bot.appearance.width, bot.creative?.artStyle ?? this.artist.painter);
   }
 
   consume(event: RobotEvent) {
@@ -121,23 +128,28 @@ export class JourneyCreativity {
     // Skip unseen measures after an interruption; never emit a catch-up burst.
     if (time - this.nextPhrase > length) this.nextPhrase = time;
     const result: SoundSequenceEntry[] = [];
+    const currentMood = this.blocked ? 'frustrated' : this.expression.paused ? 'calm'
+      : this.moodBars > 0 ? this.mood : this.state === 'waiting' ? 'uncertain'
+      : this.state === 'arrived' ? 'celebrating' : this.expression.moving ? 'determined' : undefined;
+    const plannedKeyMood = this.phrase % 4 === 0 ? currentMood ?? null : this.keyMood;
     if (!ending) this.composer.prepareAccompaniment({ at: this.nextPhrase, phrase: this.phrase,
       steps: this.steps, edge: this.edge, blocked: this.blocked, harmony: this.harmony,
       mood: this.blocked ? 'frustrated' : this.expression.paused ? 'calm' : this.moodBars > 0 ? this.mood
         : this.state === 'waiting' ? 'uncertain' : this.expression.moving ? 'determined' : undefined,
-      expression: this.expression });
+      expression: this.expression, keyMood: plannedKeyMood });
     if (!ending && time + .15 >= this.nextPhrase) {
+      this.keyMood = plannedKeyMood;
       const at = this.nextPhrase;
       this.nextPhrase += length;
       const mood = this.blocked ? 'frustrated' : this.expression.paused ? 'calm'
         : this.moodBars > 0 ? this.mood : this.state === 'waiting' ? 'uncertain'
         : this.state === 'arrived' ? 'celebrating' : this.expression.moving ? 'determined' : undefined;
       result.push(...this.composer.compose({ at, phrase: this.phrase, steps: this.steps, edge: this.edge,
-        blocked: this.blocked, harmony: this.harmony, mood, expression: this.expression }));
+        blocked: this.blocked, harmony: this.harmony, mood, keyMood: this.keyMood, expression: this.expression }));
       this.composer.remember(result);
       this.moodBars = Math.max(0, this.moodBars - 1);
       this.phrase++;
-      this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked, mood });
+      this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked, mood, keyMood: this.keyMood });
       this.scheduledHarmony = this.scheduledHarmony.slice(-2);
     }
     const beat = 60 / this.bpm;
@@ -147,13 +159,15 @@ export class JourneyCreativity {
     const phrase = activeHarmony?.phrase ?? Math.max(0, this.phrase - 1);
     for (const [kind, direction] of this.pending) result.push(this.composer.react(kind, {
       at: Math.max(time, at), phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
-      harmony: this.harmony, mood: ending && kind === 'arrived' ? 'celebrating' : activeHarmony?.mood, expression: this.expression,
+      harmony: this.harmony, mood: ending && kind === 'arrived' ? 'celebrating' : activeHarmony?.mood,
+      keyMood: activeHarmony ? activeHarmony.keyMood : this.keyMood, expression: this.expression,
     }, direction));
     // Each impact leaves its own saved musical answer, even within one frame.
     this.collisions.forEach((event, index) => {
       const reaction = this.composer.react('collision', { at: Math.max(time, at) + index * beat / 4,
         phrase, steps: this.steps, edge: this.edge, blocked: activeHarmony?.blocked ?? this.blocked,
-        harmony: this.harmony, mood: activeHarmony?.mood, expression: this.expression }, Math.min(1, Number(event.data.speed) / 3));
+        harmony: this.harmony, mood: activeHarmony?.mood, keyMood: activeHarmony ? activeHarmony.keyMood : this.keyMood,
+        expression: this.expression }, Math.min(1, Number(event.data.speed) / 3));
       reaction.label = `journey:action:collision:${event.sequence}:${event.data.actor}:${event.data.other}`;
       result.push(reaction);
     });

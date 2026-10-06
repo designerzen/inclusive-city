@@ -15,7 +15,8 @@ export function robotMusicalIdentity(seed: number) {
   const waveform = (['sine', 'triangle', 'square', 'sawtooth'] as const)[Math.floor(random() * 4)]!;
   const voice = (base: Partial<SoundScore['voice']>): Partial<SoundScore['voice']> => ({
     ...base,
-    waveform,
+    // Identity colours the instrument; it must not replace the selected genre's instrument family.
+    waveform: base.waveform ?? waveform,
     attack: Math.max(.001, (base.attack ?? .012) * (.6 + colour * 2)),
     decay: (base.decay ?? .09) * (.65 + colour),
     sustain: Math.min(.8, (base.sustain ?? .35) * (.5 + colour)),

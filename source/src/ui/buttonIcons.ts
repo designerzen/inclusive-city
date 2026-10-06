@@ -5,6 +5,9 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
   if (id.startsWith('function-')) return modules[id.slice(9)] ?? 'robot';
   if (/settings|options/i.test(label)) return 'settings';
   if (id === 'random-name') return 'reset';
+  if (id === 'exhibition-play') return 'play';
+  if (id === 'exhibition-rewind') return 'undo';
+  if (id.startsWith('exhibition-download')) return 'download';
   if (/close|clear|disconnect/i.test(label)) return 'clear';
   if (/unmute/i.test(label)) return 'volume';
   if (/mute/i.test(label)) return 'mute';

@@ -39,6 +39,7 @@ export function interactionSound(name: InteractionSound, overrides: SoundEffectC
 
 /** Each control has its own motif, rather than sharing the generic tap cue. */
 const buttonSignatures = {
+  'exhibition-rewind': { root: 57, intervals: [0, 5, 9, 16], pattern: 'down', stepBeats: .07 },
   'studio-track-play': { root: 65, intervals: [0, 4, 9, 19], pattern: 'up', stepBeats: .1, waveform: 'sine' },
   'studio-track-stop': { root: 53, intervals: [0, 5, 12], pattern: 'down', stepBeats: .08, waveform: 'sine' },
   'city-tool-route': { root: 63, intervals: [0, 2, 9, 17], pattern: 'up', stepBeats: .09 },
@@ -46,6 +47,7 @@ const buttonSignatures = {
   'city-route-undo': { root: 64, intervals: [0, 2, 9, 17], pattern: 'down', stepBeats: .09 },
   'city-route-clear': { root: 62, intervals: [0, 5, 11, 18], pattern: 'down', stepBeats: .09 },
   'city-repair': { root: 59, intervals: [0, 4, 10, 17], pattern: 'up', stepBeats: .11 },
+  'city-issue-action': { root: 60, intervals: [0, 5, 9, 14], pattern: 'up', stepBeats: .11 },
   'city-crossing-cues': { root: 84, intervals: [0, 7], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'city-ask-robot': { root: 76, intervals: [0, 4, 9], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'city-undo': { root: 58, intervals: [0, 4, 10, 17], pattern: 'down', stepBeats: .11 },
