@@ -96,7 +96,7 @@ export class CityMidiOutput {
       end: when + (entry.at + note.start + note.duration) * 1000,
       velocity: Math.max(1, Math.min(127, Math.round(127 * volume * Math.sqrt(entry.score.voice.gain / .5)))),
     })));
-    this.jobs.set(token, notes); this.rebuild();
+    this.jobs.set(token, notes.filter(note => note.start >= performance.now())); this.rebuild();
     if (!this.timer) this.timer = setInterval(() => this.pump(), 25);
     return { stop: () => { if (this.jobs.delete(token)) this.rebuild(); } };
   }
@@ -139,7 +139,9 @@ export class CityMidiOutput {
   private pump() {
     const now = performance.now();
     while (this.messages.length && this.messages[0]!.at <= now + 75) {
-      const message = this.messages.shift()!; this.send(message.data, Math.max(now, message.at));
+      const message = this.messages.shift()!;
+      if ((message.data[0]! & 0xf0) === 0x90 && message.at < now) continue;
+      this.send(message.data, Math.max(now, message.at));
     }
     for (const [token, notes] of this.jobs) if (notes.every(note => note.end <= now)) this.jobs.delete(token);
     if (!this.jobs.size && !this.messages.length && this.timer) { clearInterval(this.timer); this.timer = null; this.timeline = []; }

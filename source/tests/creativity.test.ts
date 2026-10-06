@@ -109,6 +109,9 @@ test('music starts immediately and discoveries enrich reproducible robot and rou
   j.explore('harmony-seed'); j.update(100);
   for (const event of j.events) a.consume(event);
   assert.equal(a.harmony, true);
-  assert.ok(a.advance(100).some(entry => entry.label?.includes(':harmony:')));
+  a.advance(100);
+  // After a long interruption the next phrase retains the original measure grid.
+  const measure = 4 * 60 / a.bpm;
+  assert.ok(a.advance(Math.ceil(100 / measure) * measure).some(entry => entry.label?.includes(':harmony:')));
   assert.deepEqual(JSON.parse(JSON.stringify(a.score)), a.score);
 });

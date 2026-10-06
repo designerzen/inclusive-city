@@ -1,7 +1,7 @@
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createAttractScene } from '../app/createAttractScene';
-import { createAttractScore, attractLoopSeconds } from '../audio/attractMusic';
+import { createAttractScore, attractLoopSeconds, attractBpm } from '../audio/attractMusic';
 import type { CitySounds } from '../audio/CitySounds';
 
 export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, enter: () => void) {
@@ -70,7 +70,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
   music.addEventListener('click', () => {
     sounds.unlock();
     if (stopMusic) { stopMusic(); stopMusic = null; }
-    else stopMusic = sounds.loop(createAttractScore(), attractLoopSeconds);
+    else stopMusic = sounds.loop(createAttractScore(), attractLoopSeconds, attractBpm);
     music.setAttribute('aria-pressed', String(!!stopMusic));
     musicLabel.textContent = stopMusic ? 'Stop soundtrack' : 'Play soundtrack';
     container.classList.toggle('has-music', !!stopMusic);

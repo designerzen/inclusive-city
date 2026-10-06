@@ -335,8 +335,9 @@ const designer = mountAbilityDesigner(document.querySelector('#ability-designer'
   if (previous.musician !== artist.musician) {
     sounds.unlock(); sounds.stop();
     const audition = ++musicAudition, botId = history.current.id;
-    void new JourneyCreativity(history.current).previewEnhancedMusic().then(score => {
-      if (audition === musicAudition && history.current.id === botId && !inCity && !inAttract && !inExhibition) sounds.perform(score);
+    const auditionMusic = new JourneyCreativity(history.current);
+    void auditionMusic.previewEnhancedMusic().then(score => {
+      if (audition === musicAudition && history.current.id === botId && !inCity && !inAttract && !inExhibition) sounds.perform(score, undefined, 0, auditionMusic.bpm);
     });
   } else if (previous.painter !== artist.painter) {
     sounds.play(new SoundEffect({ root: 60 + painterStyles.findIndex(style => style.id === artist.painter), intervals: [0, 4, 7], pattern: 'up', waveform: 'sine', gain: .08 }), `artist:painter:${artist.painter}`);

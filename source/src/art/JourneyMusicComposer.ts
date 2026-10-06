@@ -210,7 +210,7 @@ export class JourneyMusicComposer {
       : style === 'chimes' ? regular([0, 4, 2, 6, 4, 2], 4, .75)
       : style === 'chiptune' ? regular([0, 2, 4, 7, 4, 2, 0, 4, 2, 4, 7, 9, 7, 4, 2, 0], 4, .12)
       : style === 'synthwave' ? regular([0, 4, 7, 4, 0, 4, 7, 6]) : regular([0, 0, 4, 0, 2, 0, 4, 2]));
-    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoTime: beat / 2, echoGain: .1, ...this.identity.voice(recipes[style].voice) }).toScore();
+    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoGain: .1, ...this.identity.voice(recipes[style].voice), echoTime: beat / 2 }).toScore();
     melody.notes = figure.map(([degree, start, duration], i) => {
       const identityNote = (slot * figure.length + i) % 16;
       let resolved = degree + this.identity.contour[identityNote]!;
@@ -224,7 +224,7 @@ export class JourneyMusicComposer {
     });
     const result: SoundSequenceEntry[] = [{ at: data.at, score: melody, label: `journey:melody:${data.phrase}` }];
     const add = (part: string, voice: Voice, notes: SoundScore['notes']) => {
-      const score = new SoundEffect(voice).toScore(); score.notes = notes;
+      const score = new SoundEffect({ echoTime: beat / 2, ...voice }).toScore(); score.notes = notes;
       result.push({ at: data.at, score, label: `journey:${part}:${data.phrase}` });
     };
     const notes = (figure: Figure, base: number) => figure.map(([interval, start, duration]) => ({ midi: base + interval, start: start * beat, duration: duration * beat }));

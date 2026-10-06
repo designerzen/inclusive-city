@@ -131,9 +131,9 @@ export class JourneyCreativity {
   advance(time: number, paused = false, ending = false): SoundSequenceEntry[] {
     if (!this.music || paused || !Number.isFinite(time)) return [];
     const length = this.composer.beats * 60 / this.bpm;
-    if (this.nextPhrase === null) this.nextPhrase = time;
+    if (this.nextPhrase === null) this.nextPhrase = 0;
     // Skip unseen measures after an interruption; never emit a catch-up burst.
-    if (time - this.nextPhrase > length) this.nextPhrase = time;
+    if (time - this.nextPhrase > length) this.nextPhrase += Math.ceil((time - this.nextPhrase) / length) * length;
     const result: SoundSequenceEntry[] = [];
     const plannedKeyMood = this.requestedKey?.mood ?? this.keyMood;
     if (!ending) this.composer.prepareAccompaniment({ at: this.nextPhrase, phrase: this.phrase,

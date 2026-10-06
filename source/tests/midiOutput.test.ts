@@ -123,11 +123,24 @@ test('robot cues and replay translate the same audio start into the performance 
   t.mock.method(SoundEffect, 'scheduleSequence', (_context, _destination, sequence, when) => { audioStarts.push(when!); offsets.push(sequence.map(entry => entry.at)); return { stop() {} }; });
   t.mock.method(sounds.midi, 'schedule', (_sequence, when) => { midiStarts.push(when); return { stop() {} }; });
   sounds.mood('happy'); sounds.perform([{ ...phrase()[0]!, at: 5 }]);
-  assert.deepEqual(audioStarts, [10.015, 10.05]);
-  assert.ok(Math.abs(midiStarts[0]! - 1035) < .001);
+  assert.deepEqual(audioStarts, [10.125, 10.05]);
+  assert.ok(Math.abs(midiStarts[0]! - 1145) < .001);
   assert.ok(Math.abs(midiStarts[1]! - 1070) < .001);
   sounds.perform([{ ...phrase()[0]!, at: 5.1 }, { ...phrase()[0]!, at: 5.4 }], 5);
   assert.ok(Math.abs(offsets[2]![0]! - .1) < 1e-8);
   assert.equal(offsets[2]!.length, 1, 'later phrases stay unscheduled until the lookahead window');
   assert.ok(Math.abs(midiStarts[2]! - 1070) < .001);
+});
+
+
+test('MIDI drops overdue note-ons after a timer stall, while still sending note-offs', async t => {
+  const d = device(t); await d.midi.connect();
+  d.midi.schedule(phrase(1), 1500, 1);
+  d.advance(1700);
+  assert.equal(d.sent.filter(message => (message.data[0]! & 0xf0) === 0x90).length, 0);
+  d.advance(2500);
+  assert.deepEqual(d.sent.at(-1), { data: [0x80, 60, 0], at: 2500 });
+  d.sent.length = 0;
+  d.midi.schedule(phrase(1), 2400, 1);
+  assert.equal(d.sent.length, 0, 'new jobs must not backfill already missed notes');
 });

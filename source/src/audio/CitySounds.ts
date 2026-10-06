@@ -19,6 +19,23 @@ export class CitySounds {
   private disposed = false;
   private capturingVoice = false;
   private active = new Set<ReturnType<SoundEffect['schedule']>>();
+  private musicClock: { audio: number; wall: number; offset: number; bpm: number } | null = null;
+
+  /** One epoch for the song, live batches and every interaction voice. */
+  startMusic(bpm: number, offset = 0) {
+    if (!Number.isFinite(bpm) || bpm < 20 || bpm > 400) throw new RangeError('Invalid music tempo.');
+    this.stop();
+    this.musicClock = { audio: (this.context?.currentTime ?? 0) + .05,
+      wall: performance.now() / 1000 + .05, offset, bpm };
+  }
+
+  musicTime(bpm: number, offset = 0) {
+    if (!this.musicClock) this.startMusic(bpm, offset);
+    const clock = this.musicClock!;
+    return clock.offset + Math.max(0, this.context
+      ? this.context.currentTime - clock.audio : performance.now() / 1000 - clock.wall);
+  }
+
   private lastTune = -Infinity;
   private lastCrossingBeep = -Infinity;
 
@@ -69,19 +86,42 @@ export class CitySounds {
 
   play(effect: SoundEffect, label: string, delay = 0) {
     if (this.disposed) return;
-    this.events.push({ at: (performance.now() - this.origin) / 1000 + delay, score: effect.toScore(), label });
-    if (!this.context || !this.master || this.context.state === 'closed' || document.hidden || this.muted) return;
-    // Bound polyphony during rapid input. The full score remains recorded.
+    if (!Number.isFinite(delay) || delay < 0) return;
+    const wallNow = performance.now() / 1000;
+    const now = this.context?.currentTime ?? wallNow;
+    const clock = this.musicClock;
+    const step = 60 / (clock?.bpm ?? 120) / 4;
+    const epoch = clock ? (this.context ? clock.audio : clock.wall) - clock.offset : 0;
+    const when = epoch + Math.ceil((now + .05 + delay - epoch) / step) * step;
+    const score = effect.toScore();
+    // Quantize the whole motif, including repeats and echoes, not just its first note.
+    score.notes = score.notes.map(note => ({ ...note,
+      start: Math.round(note.start / .125) * step,
+      duration: Math.max(.001, Math.round(note.duration / .125) * step) }));
+    score.voice.echoTime = Math.min(Math.floor(2 / step), Math.max(1, Math.round(score.voice.echoTime / .125))) * step;
+    this.events.push({ at: wallNow - this.origin / 1000 + (when - now), score, label });
+    if (!this.context || !this.master || this.context.state !== 'running' || document.hidden || this.muted || this.capturingVoice) return;
     if (this.active.size >= 12) return;
-    const handle = this.schedule([{ at: 0, score: effect.toScore(), label }], this.context.currentTime + 0.015 + delay);
+    const handle = this.schedule([{ at: 0, score, label }], when);
     this.active.add(handle);
-    // This timer only releases bookkeeping; every audible note uses the audio clock.
-    setTimeout(() => this.active.delete(handle), (delay + effect.duration + 0.1) * 1000);
+    setTimeout(() => this.active.delete(handle), (when - now + SoundEffect.fromScore(score).duration + .1) * 1000);
   }
-  perform(sequence: readonly SoundSequenceEntry[], origin = sequence[0]?.at ?? 0, offset = 0): MusicPlayback | undefined {
+
+  performLive(sequence: readonly SoundSequenceEntry[]) {
+    if (!this.musicClock) return;
+    return this.performAt(sequence, 0, 0, this.musicClock.audio - this.musicClock.offset);
+  }
+
+  perform(sequence: readonly SoundSequenceEntry[], origin = sequence[0]?.at ?? 0, offset = 0, bpm = 120): MusicPlayback | undefined {
+    if (!sequence.length) return;
+    this.startMusic(bpm, offset);
+    return this.performAt(sequence, origin, offset);
+  }
+
+  private performAt(sequence: readonly SoundSequenceEntry[], origin = sequence[0]?.at ?? 0, offset = 0, absoluteWhen?: number): MusicPlayback | undefined {
     if (this.disposed || !sequence.length || !this.context || !this.master || this.muted || document.hidden) return;
     const context = this.context;
-    const when = context.currentTime + 0.05;
+    const when = absoluteWhen ?? this.musicClock?.audio ?? context.currentTime + 0.05;
     // Keep future song entries as score data, just as live city music does.
     // Creating every oscillator up front overwhelms the audio graph on long journeys.
     const duration = Math.max(...sequence.map(entry => Math.max(0, entry.at - origin) + SoundEffect.fromScore(entry.score).duration));
@@ -104,9 +144,12 @@ export class CitySounds {
         const entry = entries[cursor++]!;
         const start = when + entry.at;
         const end = start + entry.duration;
-        // A stalled main thread must not start a burst of expired notes.
-        if (end <= now) continue;
-        batch.push({ ...entry, at: Math.max(0, start - base) });
+        // Preserve future onsets inside a late chord; never move missed notes to now.
+        const notes = entry.score.notes.filter(note => start + note.start >= now + .005);
+        if (!notes.length) continue;
+        const first = Math.min(...notes.map(note => note.start));
+        batch.push({ ...entry, at: start + first - base,
+          score: { ...entry.score, notes: notes.map(note => ({ ...note, start: note.start - first })) } });
         batchEnd = Math.max(batchEnd, Math.max(base, start) + end - start);
       }
       if (batch.length) pending.set(this.schedule(batch, base), batchEnd);
@@ -132,27 +175,33 @@ export class CitySounds {
     return handle;
   }
   /** Look ahead on the audio clock; keep the loop separate from recorded journey events. */
-  loop(sequence: readonly SoundSequenceEntry[], seconds: number) {
-    let next = 0;
-    const handles = new Set<ReturnType<typeof SoundEffect.scheduleSequence>>();
-    const schedule = () => {
-      if (!this.context || !this.master || this.disposed || document.hidden || this.context.state !== 'running') { next = 0; return; }
+  loop(sequence: readonly SoundSequenceEntry[], seconds: number, bpm = 120) {
+    if (!Number.isFinite(seconds) || seconds <= 0) throw new RangeError('Invalid loop duration.');
+    if (!this.musicClock || this.musicClock.bpm !== bpm) this.startMusic(bpm);
+    const clock = this.musicClock!;
+    const epoch = clock.audio - clock.offset;
+    let cycle = Math.max(0, Math.ceil(((this.context?.currentTime ?? 0) + .05 - epoch) / seconds - 1e-8));
+    const handles = new Set<MusicPlayback>();
+    let stopped = false;
+    const pump = () => {
+      if (stopped || !this.context || this.disposed || document.hidden || this.context.state !== 'running') return;
       const now = this.context.currentTime;
-      if (!next || next < now) next = now + .05;
-      if (next > now + .15) return;
-      const handle = this.schedule(sequence, next);
-      handles.add(handle); this.active.add(handle);
-      const tail = Math.max(...sequence.map(entry => entry.at + SoundEffect.fromScore(entry.score).duration));
-      window.setTimeout(() => { handles.delete(handle); this.active.delete(handle); }, (next - now + tail + .1) * 1000);
-      next += seconds;
+      // Keep the original phase after a stalled timer instead of restarting the beat.
+      cycle = Math.max(cycle, Math.floor((now - epoch) / seconds));
+      if (epoch + cycle * seconds > now + .15) return;
+      const when = epoch + cycle++ * seconds;
+      const handle = this.performAt(sequence, 0, 0, when);
+      if (handle) {
+        handles.add(handle);
+        const tail = Math.max(...sequence.map(entry => entry.at + SoundEffect.fromScore(entry.score).duration));
+        setTimeout(() => handles.delete(handle), (when - now + tail + .1) * 1000);
+      }
     };
-    schedule();
-    const timer = window.setInterval(schedule, 50);
-    return () => {
-      window.clearInterval(timer);
-      handles.forEach(handle => { handle.stop(); this.active.delete(handle); });
-      handles.clear();
-    };
+    pump();
+    const timer = setInterval(pump, 25);
+    const control = { stop: () => { stopped = true; clearInterval(timer); handles.forEach(handle => handle.stop()); handles.clear(); this.active.delete(control); } };
+    this.active.add(control);
+    return control.stop;
   }
   interaction(name: InteractionSound) { this.play(interactionSound(name), `interaction:${name}`); }
   button(name: ButtonSound, active = true) { this.play(buttonSound(name, active), `button:${name}:${active ? 'active' : 'inactive'}`); }
@@ -174,6 +223,6 @@ export class CitySounds {
     const index = Math.round(Math.min(100, Math.max(0, value)) / 100 * (scale.length - 1));
     this.play(interactionSound('tune', { root: 60 + scale[index]! }), 'interaction:tune');
   }
-  stop() { this.active.forEach(handle => handle.stop()); this.active.clear(); this.midi.stop(); }
+  stop() { this.musicClock = null; this.active.forEach(handle => handle.stop()); this.active.clear(); this.midi.stop(); }
   dispose() { this.disposed = true; this.stop(); this.midi.dispose(); void this.context?.close().catch(() => {}); }
 }

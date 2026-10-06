@@ -98,7 +98,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     if (position >= duration) updateTime(0);
     sounds.unlock();
     if (sounds.isMuted) { status.textContent = 'Unmute sound to hear this journey.'; return; }
-    playback = sounds.perform(journey.score, journey.score[0]?.at, position);
+    playback = sounds.perform(journey.score, journey.score[0]?.at, position, journey.bpm);
     if (!playback) { status.textContent = 'Playback could not start. Please try again.'; return; }
     playing = true;
     performer?.play(() => playback?.elapsed() ?? 0);

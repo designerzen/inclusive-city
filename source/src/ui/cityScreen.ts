@@ -135,7 +135,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
   let finished: FinishedJourney | null = null;
   let performancePresented = false, studioPreparing = false;
-  let cityMusicTime = 0, lastMusicFrame = performance.now();
+  let cityMusicTime = 0;
   const musicCues = new CityMusicCues();
   let keyCueCursor = 0;
   let stopArrivalBed: (() => void) | undefined;
@@ -162,7 +162,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     stopArrivalMusic(); finished = null; performancePresented = false; studioPreparing = false;
     const compositionSeed = city.journey.machine.run.creative?.seed ?? freshCompositionSeed(creation?.seed);
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot, compositionSeed); renderer = new AsyncPaintingRenderer(creation.painting);
-    cityMusicTime = 0; lastMusicFrame = performance.now();
+    sounds.startMusic(creation.bpm); cityMusicTime = 0;
     city.journey.machine.run.creative = { seed: creation.seed, bpm: creation.bpm, music: creation.music, art: true, harmony: false, colour: false, artist: structuredClone(creation.artist), score: creation.score, marks: creation.marks };
     eventCursor = city.journey.machine.record.events.length; lastPaint = performance.now();
   }
@@ -178,17 +178,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     mode = 'edit'; plan.scrollTop = 0; streetSelect.value = id; city.highlight(id); panelKey = ''; refresh();
   }
   function updateCityMusic() {
-    const now = performance.now();
-    if (!active || document.hidden || !city || !creation || finished || studioPreparing) { lastMusicFrame = now; return; }
-    cityMusicTime += Math.max(0, (now - lastMusicFrame) / 1000);
-    lastMusicFrame = now;
+    if (!active || document.hidden || !city || !creation || finished || studioPreparing) return;
+    cityMusicTime = sounds.musicTime(creation.bpm, cityMusicTime);
     const j = city.journey;
     creation.observeMotion(city.musicPosition, j.heading, cityMusicTime, j.ready || j.paused);
     const score = creation.advance(cityMusicTime, false, j.complete);
     musicCues.add(score);
     for (const change of creation.keyChanges.slice(keyCueCursor)) musicCues.key(change);
     keyCueCursor = creation.keyChanges.length;
-    sounds.perform(score, cityMusicTime);
+    sounds.performLive(score);
     const cue = musicCues.advance(cityMusicTime - .05);
     if (cue.notes) setText('city-music-notes', cue.notes);
     if (cue.key) setText('city-music-key', cue.key);
@@ -366,7 +364,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       studioPreparing = true;
       const currentCreation = creation, currentCity = city;
       const bed = [...creation.score].reverse().find(entry => entry.label?.includes(':city-bed:'));
-      if (bed) stopArrivalBed = sounds.loop([{ ...bed, at: 0 }], (creation.artist.musician === 'waltz' ? 3 : 4) * 60 / creation.bpm);
+      if (bed) stopArrivalBed = sounds.loop([{ ...bed, at: 0 }], (creation.artist.musician === 'waltz' ? 3 : 4) * 60 / creation.bpm, creation.bpm);
       setText('journey-status', 'At the studio. Adding new verses and harmonies for our duet.');
       void currentCreation.extendStudioMusic().then(() => {
         if (creation !== currentCreation || city !== currentCity) return;
@@ -555,7 +553,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   window.addEventListener('keydown', escape);
   function visibilityChanged() {
     if (document.hidden) voicePanel.stop();
-    lastMusicFrame = performance.now();
     if (document.hidden) stopArrivalMusic();
   }
   document.addEventListener('visibilitychange', visibilityChanged);
@@ -570,7 +567,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
     suspend() { voicePanel.stop(); stopArrivalMusic(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
-    resume() { showCanvas(); active = true; lastMusicFrame = performance.now(); engine?.resize(); city?.resize(); refresh(); },
+    resume() { showCanvas(); active = true; engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       showCanvas(); bot = value; robots = remembered; active = true; sounds.unlock();
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }

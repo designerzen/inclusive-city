@@ -59,7 +59,7 @@ export class SoundEffect {
     const duration = beat * range(config.durationBeats ?? 0.5, 0.05, 16, 'durationBeats');
     const repeats = range(config.repeats ?? 1, 1, 8, 'repeats');
     if (!Number.isInteger(repeats)) throw new RangeError('repeats must be an integer.');
-    const voice = { ...defaults };
+    const voice = { ...defaults, echoTime: config.bpm === undefined ? defaults.echoTime : beat / 2 };
     for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
       if (config[key] !== undefined) Object.assign(voice, { [key]: config[key] });
     }
@@ -101,7 +101,7 @@ export class SoundEffect {
 
   /** Schedules against the audio clock, never JS timers. Caller owns the destination. */
   schedule(context: BaseAudioContext, destination: AudioNode, when = context.currentTime) {
-    // Web Audio accepts past starts as immediate; don't reject a time because the clock advanced.
+    // Past onsets must be skipped rather than played immediately off the music clock.
     range(when, 0, Number.MAX_VALUE, 'when');
     const { notes, voice: v } = this.data;
     const output = context.createGain();
@@ -123,6 +123,7 @@ export class SoundEffect {
     tail.start(when); tail.stop(when + this.duration + 0.01);
     for (const note of notes) {
       const start = when + note.start, end = start + note.duration;
+      if (start < context.currentTime) continue;
       for (let layer = 0; layer < v.layers; layer++) {
         const oscillator = context.createOscillator(); oscillator.type = v.waveform;
         const hz = midiFrequency(note.midi);
