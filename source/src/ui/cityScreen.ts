@@ -95,6 +95,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-garage-status" role="status" aria-live="polite"></p>
       </details>
       <div id="city-finished" hidden><p id="city-result"></p></div>
+      <details class="city-route-options"><summary>Line-following settings</summary>
+        <label for="city-turn-radius">Minimum turn radius</label>
+        <select id="city-turn-radius" aria-describedby="city-turn-radius-help">
+          <option value="1">1 metre</option><option value="2">2 metres</option><option value="3" selected>3 metres</option>
+          <option value="4">4 metres</option><option value="6">6 metres</option><option value="8">8 metres</option><option value="12">12 metres</option>
+        </select>
+        <p id="city-turn-radius-help">Set before starting the robot. Larger radii make wider, sweeping turns. The line and robot use the same setting.</p>
+      </details>
       <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
         <div class="city-map-buttons" role="group" aria-label="Zoom and pan controls">
           <button type="button" data-map="zoom-in">Zoom in</button><button type="button" data-map="zoom-out">Zoom out</button>
@@ -126,6 +134,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   statusHud.innerHTML = '<p id="city-hud-status" role="status" aria-live="polite"></p>'; map.append(statusHud);
   const pause = get<HTMLButtonElement>('city-pause'), streetSelect = get<HTMLSelectElement>('city-street');
   const sizeInput = get<HTMLInputElement>('city-size');
+  const turnRadiusInput = get<HTMLSelectElement>('city-turn-radius');
+  let minimumTurnRadius = 3;
+  try {
+    const savedRadius = Number(localStorage.getItem('inclusive-city-turn-radius'));
+    if ([1, 2, 3, 4, 6, 8, 12].includes(savedRadius)) minimumTurnRadius = savedRadius;
+  } catch { /* Settings remain usable when browser storage is unavailable. */ }
   let sizeId: string | null = null;
   let city: ReturnType<typeof createCityScene> | null = null;
   let renderLoopStarted = false;
@@ -199,6 +213,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     voicePanel.update();
     updateRobotConditions(city.robotConditions);
     const j = city.journey;
+    turnRadiusInput.disabled = !j.ready;
+    turnRadiusInput.value = String(j.minimumTurnRadius);
     const bikes = j.world.bicycles ?? [];
     setText('city-garage-status', `Bicycle garage · ${bikes.filter(bike => j.repaired.has(bike.id)).length} / ${bikes.length} bikes stored. Store blocking bikes here, or click them repeatedly to push them aside.`);
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
@@ -396,6 +412,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
     const world = generateCity(seed, robots.length ? robots : [bot]);
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
+    city.journey.setMinimumTurnRadius(minimumTurnRadius); city.sync();
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
     selected = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
     streetSelect.replaceChildren();
@@ -477,6 +494,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     refresh();
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
+  turnRadiusInput.addEventListener('change', () => {
+    if (!city?.journey.setMinimumTurnRadius(Number(turnRadiusInput.value))) { refresh(); return; }
+    minimumTurnRadius = city.journey.minimumTurnRadius;
+    try { localStorage.setItem('inclusive-city-turn-radius', String(minimumTurnRadius)); } catch { /* Keep the session setting. */ }
+    city.sync(); feedback(`Minimum turn radius set to ${minimumTurnRadius} metres.`); refresh();
+  });
   container.querySelector('.city-map-buttons')!.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-map]') : null;
     if (!button || button.disabled || !city) return;

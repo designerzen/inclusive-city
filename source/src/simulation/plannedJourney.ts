@@ -7,6 +7,7 @@ import type { RoutePoint } from '../city/cityLayout';
 import { TURN_RADIANS_PER_SECOND } from './cityJourney';
 import { CityDimensions } from '../city/cityDimensions';
 import { crossingSignal } from '../city/trafficSignals';
+import { RouteTrajectory } from '../city/routeTrajectory';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
@@ -43,6 +44,32 @@ export class PlannedJourney {
   readonly machine: RobotStateMachine;
   readonly bot: ArtBot;
   private path: string[];
+  private lineFollowing = false;
+  private trajectoryKey = '';
+  private trajectoryCache?: RouteTrajectory;
+  private turnRadius = 3;
+  get minimumTurnRadius() { return this.turnRadius; }
+  setMinimumTurnRadius(radius: number) {
+    if (!this.ready || !Number.isFinite(radius) || radius < .5 || radius > 12 || radius === this.turnRadius) return false;
+    this.turnRadius = radius; this.world.minimumTurnRadius = radius; this.savePlan(); return true;
+  }
+  enableLineFollowing() { this.lineFollowing = true; }
+  get trajectory() {
+    const key = this.path.join('|') + ':' + this.turnRadius;
+    if (!this.trajectoryCache || key !== this.trajectoryKey) {
+      const transport = new Map<number, RoutePoint[]>();
+      for (let i = 0; i < this.path.length - 1; i++) {
+        const street = streetBetween(this.world, this.path[i]!, this.path[i + 1]!);
+        if (!street || street.id !== this.world.steamTrain?.street || !this.world.steamTrain) continue;
+        const service = this.world.steamTrain, reverse = street.b === this.path[i];
+        const track = reverse ? { trackStart: service.trackEnd, trackEnd: service.trackStart } : service;
+        transport.set(i, [0, 3, 6, 8, 14, 17, 19, 20, 21, 24].map(t => trainRidePose(this.node(this.path[i]!), this.node(this.path[i + 1]!), t, track).position));
+      }
+      this.trajectoryCache = new RouteTrajectory(this.path.map(id => this.node(id)), transport, this.turnRadius); this.trajectoryKey = key;
+    }
+    return this.trajectoryCache;
+  }
+  private get travelLength() { return this.lineFollowing ? this.trajectory.edgeLength(this.edge) : this.crossingLength(this.currentStreet!); }
   readonly repaired = new Set<string>();
   private history: { id: string; before: boolean | number }[] = [];
   readonly dimensions: CityDimensions;
@@ -87,6 +114,7 @@ export class PlannedJourney {
   private encountered: string | null = null;
   private crossingRequestEdge = -1;
   constructor(bot: ArtBot, readonly world: ProceduralCity) {
+    if (Number.isFinite(world.minimumTurnRadius) && world.minimumTurnRadius! >= .5 && world.minimumTurnRadius! <= 12) this.turnRadius = world.minimumTurnRadius!;
     this.dimensions = new CityDimensions(world);
     this.bot = { ...robotMetadata(bot), record: bot.record };
     this.path = [world.start];
@@ -105,6 +133,7 @@ export class PlannedJourney {
   get currentStreet() { return streetBetween(this.world, this.path[this.edge]!, this.path[this.edge + 1]!); }
   get undoAvailable() { const last = this.history.at(-1); return !!last && this.canEdit(last.id); }
   get routeLength() {
+    if (this.lineFollowing) return this.trajectory.length;
     return this.path.slice(1).reduce((sum, id, i) => { const a = this.node(this.path[i]!), b = this.node(id); return sum + Math.hypot(b.x - a.x, b.z - a.z); }, 0);
   }
   private node(id: string) { return this.world.nodes.find(n => n.id === id)!; }
@@ -126,12 +155,14 @@ export class PlannedJourney {
     this.path.push(...remaining.slice(1));
     const a = this.node(this.path[0]!), b = this.node(this.path[1]!);
     this.heading = Math.atan2(a.x - b.x, a.z - b.z);
+    if (this.lineFollowing) this.heading = this.trajectory.sample(0).heading;
     this.savePlan();
     this.machine.record.condition.direction = this.heading;
     this.machine.depart(); this.collectAt(this.path[0]!); return true;
   }
   get position(): RoutePoint {
     if (this.trainPose) return this.trainPose.position;
+    if (this.lineFollowing) { const p = this.trajectory.atEdge(this.edge, this.distanceOnEdge).position; return { x: p.x, y: p.y, z: p.z }; }
     const a = this.node(this.path[this.edge]!);
     const b = this.world.nodes.find(n => n.id === this.path[this.edge + 1]);
     if (!b) return { x: a.x, y: a.y, z: a.z };
@@ -282,7 +313,7 @@ export class PlannedJourney {
     this.machine.run.cityPlan = { world: structuredClone(this.world), route: [...this.path], improvements: [...this.repaired] };
     this.machine.run.citySnapshot = { ...this.dimensions.snapshot(), ...Object.fromEntries([...this.repaired].map(id => [id, true])) };
   }
-  private telemetry() { this.machine.record.condition.direction = this.heading; this.machine.record.telemetry = { edge: this.edge, position: this.position, speed: this.speed, progress: this.path.length < 2 ? 0 : this.complete ? 1 : (this.edge + this.distanceOnEdge / Math.max(1, this.currentStreet ? Math.hypot(this.node(this.currentStreet.a).x - this.node(this.currentStreet.b).x, this.node(this.currentStreet.a).z - this.node(this.currentStreet.b).z) : 1)) / (this.path.length - 1) }; }
+  private telemetry() { this.machine.record.condition.direction = this.heading; this.machine.record.telemetry = { edge: this.edge, position: this.position, speed: this.speed, progress: this.path.length < 2 ? 0 : this.complete ? 1 : (this.edge + this.distanceOnEdge / Math.max(1, this.currentStreet ? this.travelLength : 1)) / (this.path.length - 1) }; }
   private collectAt(id: string) {
     const node = this.node(id);
     if (!node.discovery || this.machine.run.pickups.some(p => p.id === id)) return;
@@ -308,11 +339,11 @@ export class PlannedJourney {
     while (remaining > 1e-9 && this.edge < this.path.length - 1) {
       const street = this.currentStreet!;
       const bicycle = this.world.bicycles?.find(bike => bike.street === street.id && this.bicycleBlocks(bike.id));
-      const bicycleStop = bicycle ? Math.max(0, this.crossingLength(street) / 2 - 1 - robotFootprint(this.bot) / 2) : Infinity;
+      const bicycleStop = bicycle ? Math.max(0, this.travelLength / 2 - 1 - robotFootprint(this.bot) / 2) : Infinity;
       const bicycleReason = bicycle && this.distanceOnEdge >= bicycleStop - 1e-8
         ? `A bicycle blocks the ${bicycle.location}. Push it out of the way with repeated clicks, or move it into the bicycle garage so the robot can continue.` : null;
       const communication = !this.bot.profile.enabledFunctions.includes('communication') && !this.repaired.has('communication');
-      const entranceStop = this.edge === this.path.length - 2 ? Math.max(0, this.crossingLength(street) - 2 - robotFootprint(this.bot) / 2 - .2) : Infinity;
+      const entranceStop = this.edge === this.path.length - 2 ? Math.max(0, this.travelLength - 2 - robotFootprint(this.bot) / 2 - .2) : Infinity;
       const entranceReason = this.distanceOnEdge >= entranceStop - 1e-8 ? this.entranceProblem : null;
       const reason = bicycleReason ?? entranceReason ?? (communication ? 'This bot needs a way to share its needs. Add a communication board at the workshop before it sets off.' : this.problem(street));
       if (reason) {
@@ -345,7 +376,7 @@ export class PlannedJourney {
         this.heading = this.trainPose!.heading;
         this.machine.advance(duration, 'movingSeconds'); remaining -= duration;
         if (this.trainSeconds >= trainRideDuration) {
-          this.machine.add('distance', this.crossingLength(street));
+          this.machine.add('distance', this.travelLength);
           this.machine.add('stepsTaken', Math.max(0, Math.floor(this.metrics.distance) - this.metrics.stepsTaken));
           this.edge++; this.distanceOnEdge = 0; this.trainSeconds = 0; this.trainRampChoice = null;
           this.machine.add('segmentsCompleted', 1); this.machine.emit('segment', { segment: this.edge - 1, transport: 'steam-train' }); this.collectAt(this.path[this.edge]!);
@@ -353,14 +384,20 @@ export class PlannedJourney {
         this.syncTransport?.();
         this.telemetry(); continue;
       }
-      const target = Math.atan2(a.x - b.x, a.z - b.z);
+      if (this.travelLength <= 1e-8) {
+        this.edge++; this.distanceOnEdge = 0; this.machine.add('segmentsCompleted', 1);
+        this.machine.emit('segment', { segment: this.edge - 1 }); this.collectAt(this.path[this.edge]!);
+        continue;
+      }
+      const pose = this.lineFollowing ? this.trajectory.atEdge(this.edge, this.distanceOnEdge) : undefined;
+      const target = pose?.heading ?? Math.atan2(a.x - b.x, a.z - b.z);
       const delta = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-      if (Math.abs(delta) > 1e-8) {
+      if (!this.lineFollowing && Math.abs(delta) > 1e-8) {
         const time = Math.min(remaining, Math.abs(delta) / TURN_RADIANS_PER_SECOND);
         this.heading += Math.sign(delta) * time * TURN_RADIANS_PER_SECOND;
         this.machine.advance(time, 'movingSeconds'); remaining -= time; continue;
       }
-      const length = Math.hypot(b.x - a.x, b.z - a.z);
+      const length = this.travelLength;
       // Admit only at the kerb, with enough green remaining for the whole crossing.
       // Once admitted, finish the crossing rather than stopping in the road.
       if (street.kind === 'crossing' && this.distanceOnEdge === 0) {
@@ -378,13 +415,15 @@ export class PlannedJourney {
         this.machine.transition('following');
       }
       let distance = Math.min(length - this.distanceOnEdge, remaining * this.speed, this.metrics.stepsTaken + 1 - this.metrics.distance);
+      if (pose && pose.remaining > 1e-10) distance = Math.min(distance, pose.remaining);
       if (this.entranceProblem && this.distanceOnEdge < entranceStop) distance = Math.min(distance, entranceStop - this.distanceOnEdge);
       if (bicycle && this.distanceOnEdge < bicycleStop) distance = Math.min(distance, bicycleStop - this.distanceOnEdge);
       const requestedDuration = distance / this.speed;
       let collision: { id: string; reason: string } | undefined;
       if (this.constrainTravel && distance > 0) {
         const from = this.position;
-        const to = { ...from, x: from.x + (b.x - a.x) / length * distance, z: from.z + (b.z - a.z) / length * distance };
+        const next = this.lineFollowing ? this.trajectory.atEdge(this.edge, this.distanceOnEdge + distance).position : null;
+        const to = next ? { x: next.x, y: next.y, z: next.z } : { ...from, x: from.x + (b.x - a.x) / length * distance, z: from.z + (b.z - a.z) / length * distance };
         const result = this.constrainTravel(from, to, distance / this.speed);
         distance = Number.isFinite(result.distance) ? Math.max(0, Math.min(distance, result.distance)) : 0;
         collision = result.blocker;
@@ -394,6 +433,7 @@ export class PlannedJourney {
       // contact slows it down. Do not retry a tiny remainder in the same tick.
       const duration = this.constrainTravel && !collision ? requestedDuration : distance / this.speed;
       this.distanceOnEdge += distance; this.machine.add('distance', distance); this.machine.advance(duration, 'movingSeconds'); remaining = Math.max(0, remaining - duration);
+      if (this.lineFollowing && distance > 0) this.heading = this.trajectory.atEdge(this.edge, this.distanceOnEdge).heading;
       if (this.metrics.distance >= this.metrics.stepsTaken + 1 - 1e-8) { this.machine.add('stepsTaken', 1); this.machine.emit('step', { step: this.metrics.stepsTaken, distance: this.metrics.distance, speed: this.speed }); }
       if (this.distanceOnEdge >= length - 1e-8) {
         this.edge++; this.distanceOnEdge = 0; this.machine.add('segmentsCompleted', 1);

@@ -71,3 +71,43 @@ test('rendered corners are pickable and regenerate in place for width editing', 
     assert.equal(road.position.x, -1.5);
   } finally { scene.dispose(); engine.dispose(); }
 });
+
+const openBend = [
+  { id: 'east', minX: -9, maxX: 1, minZ: -1, maxZ: 1 },
+  { id: 'north', minX: -1, maxX: 1, minZ: -1, maxZ: 9 },
+];
+
+test('roomy road corners sweep broadly instead of being limited by street width', () => {
+  const data = roadSurfaceData(openBend, 4);
+  const total = [...data.values()].reduce((sum, d) => sum + area(d), 0);
+  assert.ok(Math.abs(total - (36 + 16 * (1 - Math.PI / 4))) < .01);
+  const positions = [...data.values()].flatMap(d => Array.from({ length: d.positions.length / 3 }, (_, i) =>
+    [d.positions[i * 3]!, d.positions[i * 3 + 2]!]));
+  assert.ok(positions.some(([x, z]) => x === -5 && z === 1));
+  assert.ok(positions.some(([x, z]) => Math.abs(x! + 1) < 1e-8 && Math.abs(z! - 5) < 1e-8));
+});
+
+test('building clearance limits a broad return and resizing frees the corner again', () => {
+  const building = { minX: -5, maxX: -2.5, minZ: 2.5, maxZ: 5 };
+  const limited = roadSurfaceData(openBend, 4, [building]);
+  const total = [...limited.values()].reduce((sum, d) => sum + area(d), 0);
+  assert.ok(Math.abs(total - (36 + 1.5 ** 2 * (1 - Math.PI / 4))) < .002);
+  for (const data of limited.values()) for (let i = 0; i < data.positions.length; i += 3) {
+    const x = data.positions[i]!, z = data.positions[i + 2]!;
+    assert.ok(x >= building.maxX || x <= building.minX || z <= building.minZ || z >= building.maxZ);
+  }
+  const freed = roadSurfaceData(openBend, 4, [{ ...building, minX: -8, maxX: -6 }]);
+  assert.ok([...freed.values()].reduce((sum, d) => sum + area(d), 0) > total + 2);
+});
+
+test('broad returns stop at street ends and neighbouring returns stay disjoint', () => {
+  const short = roadSurfaceData(bend, 4);
+  assert.ok(Math.abs([...short.values()].reduce((sum, d) => sum + area(d), 0) - (16 + 9 * (1 - Math.PI / 4))) < .01);
+  const cross = [
+    { id: 'horizontal', minX: -9, maxX: 9, minZ: -1, maxZ: 1 },
+    { id: 'vertical', minX: -1, maxX: 1, minZ: -9, maxZ: 9 },
+  ];
+  const data = roadSurfaceData(cross, 4);
+  // Each of the four empty quadrants can have the full radius independently.
+  assert.ok(Math.abs([...data.values()].reduce((sum, d) => sum + area(d), 0) - (68 + 64 * (1 - Math.PI / 4))) < .03);
+});

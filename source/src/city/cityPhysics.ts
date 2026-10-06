@@ -166,7 +166,8 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   journey.constrainTravel = (from, to, seconds) => {
     const dx = to.x - from.x, dz = to.z - from.z, requested = Math.hypot(dx, dz);
     const before = controller.getPosition().clone();
-    moveRobot(characters[0]!, new Vector3(dx / seconds, 0, dz / seconds), seconds);
+    // Steer toward the next point on the line, correcting any lateral contact drift.
+    moveRobot(characters[0]!, new Vector3((to.x - before.x) / seconds, 0, (to.z - before.z) / seconds), seconds);
     const after = controller.getPosition();
     const distance = Math.max(0, Math.min(requested, ((after.x - before.x) * dx + (after.z - before.z) * dz) / requested));
     stationarySeconds = distance < Math.min(requested * .1, 1e-4) ? stationarySeconds + seconds : 0;

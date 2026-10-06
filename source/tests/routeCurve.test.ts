@@ -51,3 +51,17 @@ test('straight intermediate dots and short platform offsets cannot force tight b
   const train = routeCurve([point(0, 0), point(8, 0), point(8, 2.6), point(20, -2.6), point(20, 0), point(28, 0)]);
   assert.ok(train.every(p => p.z >= -1.3 - 1e-8 && p.z <= 1.3 + 1e-8), 'small station zigzags blend into the wide approach curve');
 });
+
+test('the selected minimum radius is respected even when short bends need blending', () => {
+  for (const minimum of [1, 3, 4, 6, 8, 12]) {
+    const curve = routeCurve([point(0, 0), point(8, 0), point(8, 8), point(16, 8), point(16, 20)], Math.max(6, minimum), true, minimum);
+    for (let i = 1; i < curve.length - 1; i++) {
+      const a = curve[i - 1]!, b = curve[i]!, c = curve[i + 1]!;
+      const ab = Vector3.Distance(a, b), bc = Vector3.Distance(b, c), ac = Vector3.Distance(a, c);
+      const twiceArea = Vector3.Cross(b.subtract(a), c.subtract(a)).length();
+      if (twiceArea < 1e-10) continue;
+      const radius = ab * bc * ac / (2 * twiceArea);
+      assert.ok(radius >= minimum - 1e-6, `${radius} must not be tighter than ${minimum}`);
+    }
+  }
+});

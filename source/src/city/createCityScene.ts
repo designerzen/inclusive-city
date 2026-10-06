@@ -29,11 +29,11 @@ import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from './roadSurface';
 import { createGoalFlag } from './goalFlag';
-import { routeCurve } from './routeCurve';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
   const journey = new PlannedJourney(bot, world);
+  journey.enableLineFollowing();
   scene.metadata = { journey, world };
   const solids: ReturnType<typeof MeshBuilder.CreateBox>[] = [];
   let physics: ReturnType<typeof createCityPhysics> | undefined;
@@ -207,13 +207,24 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale * (street.id === world.steamTrain?.street ? street.width / 2.6 : 1);
     }
+    // Broad kerb returns use vacant lots, with clearance for editable buildings,
+    // the garage and river. Recalculate them whenever street/building sizes change.
+    const occupied = buildingModels.map(({ b }) => ({
+      minX: resizer.value(`wall:${b.name}:left`) - .4, maxX: resizer.value(`wall:${b.name}:right`) + .4,
+      minZ: resizer.value(`wall:${b.name}:front`) - .5, maxZ: resizer.value(`wall:${b.name}:back`) + .4,
+    }));
+    occupied.push({ minX: world.riverX - 3.5, maxX: world.riverX + 3.5, minZ: -22, maxZ: 22 });
+    if (world.bicycleGarage) {
+      const { x, z } = world.bicycleGarage;
+      occupied.push({ minX: x - 3, maxX: x + 3, minZ: z - 2.5, maxZ: z + 2.5 });
+    }
     const roads = roadSurfaceData(streetModels.map(({ street, surface, dx, dz }) => {
       const width = resizer.value(`width:${street.id}`);
       const halfX = (dx || width) / 2 + (dx && !dz ? width / 2 : 0);
       const halfZ = (dz || width) / 2 + (dz && !dx ? width / 2 : 0);
       return { id: street.id, minX: surface.position.x - halfX, maxX: surface.position.x + halfX,
         minZ: surface.position.z - halfZ, maxZ: surface.position.z + halfZ };
-    }));
+    }), 4, occupied);
     for (const { street, road } of streetModels) updateRoadSurface(road, roads.get(street.id)!);
     syncSignals();
     physics?.sync();
@@ -289,10 +300,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   let routeKey = '', revisionKey = '';
   function sync() {
     syncEntrance();
-    const key = journey.route.join('|');
+    const key = journey.route.join('|') + ':' + journey.minimumTurnRadius;
     if (key !== routeKey) {
       routeKey = key; line?.dispose(); line = null;
-      const path = routeCurve(journey.route.map(id => { const n = world.nodes.find(n => n.id === id)!; return new Vector3(n.x, .19, n.z); }));
+      const path = journey.trajectory.points.map(p => new Vector3(p.x, .19, p.z));
       if (path.length > 1) { line = MeshBuilder.CreateTube('drawn-route', { path, radius: .12, tessellation: 12 }, scene); line.material = ink; line.isPickable = false; line.renderingGroupId = 1; }
       const next = journey.nextStops.map(n => n.id);
       nodeModels.forEach(({ node, ring }) => { ring.material = node.id === world.destination ? goalMaterial : next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });

@@ -307,3 +307,25 @@ test('the decorative goal flag remains visible but cannot obstruct arrival from 
     } finally { scene.dispose(); engine.dispose(); }
   }
 });
+
+test('the physical line follower stays centred on sweeping bends and reaches the goal', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  journey.world.nodes[1]!.x = 8; journey.world.nodes[1]!.z = 8;
+  journey.world.nodes.push({ id: 'corner', label: 'Corner', x: 8, y: .16, z: 0 });
+  journey.world.streets = [{ id: 'approach', a: 'a', b: 'corner', kind: 'clear', width: 6, crossingSeconds: 20 },
+    { id: 'turn', a: 'corner', b: 'b', kind: 'clear', width: 6, crossingSeconds: 20 }];
+  journey.enableLineFollowing();
+  const physics = createCityPhysics(scene, journey, [floor], await wasm);
+  try {
+    journey.start(); let curvedPositions = 0;
+    for (let i = 0; i < 1200 && !journey.complete; i++) {
+      physics.update(1 / 60); journey.update(1 / 60);
+      scene.getPhysicsEngine()!._step(1 / 60);
+      const p = journey.position, actual = physics.position;
+      assert.ok(Math.hypot(p.x - actual.x, p.z - actual.z) < .02, 'capsule follows the line through the curve');
+      if (p.x < 7.9 && p.z > .1) curvedPositions++;
+    }
+    assert.ok(curvedPositions > 30);
+    assert.equal(journey.blocked, null); assert.equal(journey.complete, true);
+  } finally { scene.dispose(); engine.dispose(); }
+});

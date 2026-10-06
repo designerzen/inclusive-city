@@ -10,6 +10,7 @@ export type StudioDoorType = typeof studioDoorTypes[number];
 export interface StudioEntrance { width: number; doorType: StudioDoorType }
 export interface CityBicycle { id: string; street: string; location: 'pavement' | 'road'; pushDistance?: number }
 export interface ProceduralCity {
+  minimumTurnRadius?: number;
   seed: number; nodes: CityNode[]; streets: CityStreet[]; buildings: CityBuilding[];
   studioEntrance?: StudioEntrance;
   bicycleGarage?: { x: number; z: number };
