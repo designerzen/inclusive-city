@@ -29,6 +29,7 @@ import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from './roadSurface';
 import { createGoalFlag } from './goalFlag';
+import { routeCurve } from './routeCurve';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -291,7 +292,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const key = journey.route.join('|');
     if (key !== routeKey) {
       routeKey = key; line?.dispose(); line = null;
-      if (journey.route.length > 1) { line = MeshBuilder.CreateTube('drawn-route', { path: journey.route.map(id => { const n = world.nodes.find(n => n.id === id)!; return new Vector3(n.x, .19, n.z); }), radius: .12, tessellation: 8 }, scene); line.material = ink; line.isPickable = false; line.renderingGroupId = 1; }
+      const path = routeCurve(journey.route.map(id => { const n = world.nodes.find(n => n.id === id)!; return new Vector3(n.x, .19, n.z); }));
+      if (path.length > 1) { line = MeshBuilder.CreateTube('drawn-route', { path, radius: .12, tessellation: 12 }, scene); line.material = ink; line.isPickable = false; line.renderingGroupId = 1; }
       const next = journey.nextStops.map(n => n.id);
       nodeModels.forEach(({ node, ring }) => { ring.material = node.id === world.destination ? goalMaterial : next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });
     }
