@@ -275,6 +275,7 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
       for (let i = 0; i < 15000 && !journey.complete; i++) {
         physics.update(1 / 60); autonomous.update(1 / 60, true, journey.signalTime); journey.update(1 / 60);
         scene.getPhysicsEngine()!._step(1 / 60);
+        if (journey.needsTrainRamp && journey.blocked?.id === world.steamTrain?.street) journey.requestTrainRamp('roboramp');
         if (journey.blocked && !journey.blocked.id.startsWith('robot:')) break;
       }
       assert.equal(journey.blocked, null, `seed ${seed}: ${JSON.stringify({ blocked: journey.blocked, street: journey.currentStreet, logical: journey.position, physical: physics.position })}`);

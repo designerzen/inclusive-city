@@ -48,7 +48,7 @@ export function createSteamTrain(scene: Scene, journey: PlannedJourney, metal: S
   });
   const ramps = [0, 1].map((station) => {
     const side = station === 0 ? 1.3 : 3.9, z = station * length;
-    box(`station-platform-${station}`, site, station === 0 ? -.65 : 5.85, .1, z, 1.8, .15, 3.2);
+    box(`station-platform-${station}`, site, station === 0 ? -2.15 : 7.35, .1, z, 4.8, .15, 6);
     for (const x of [-.55, .55]) box(`robot-ramp-rail-${station}-${x}`, site, side + x, .12, z - 2, .06, .1, 4.5, dark);
     box(`ramp-shed-back-${station}`, site, side, .9, z - 5, 2.5, 1.8, .12);
     for (const x of [-1.2, 1.2]) box(`ramp-shed-wall-${station}-${x}`, site, side + x, .9, z - 4.1, .12, 1.8, 1.8);
@@ -72,8 +72,9 @@ export function createSteamTrain(scene: Scene, journey: PlannedJourney, metal: S
   let last = trainRidePose(a, b, 0, journey.world.steamTrain);
   return (reducedMotion: boolean) => {
     if (journey.ready) last = trainRidePose(a, b, 0, journey.world.steamTrain);
+    else if (journey.trainPose) last = journey.trainPose;
     else if (journey.lastTrainPose) last = journey.lastTrainPose;
-    const reverse = journey.trainFrom === street.b;
+    const reverse = (journey.onTrainLink ? journey.route[journey.edge] : journey.trainFrom) === street.b;
     doors[0]!.position.z = last.boardingDoorOpen ? -1.45 : 0;
     doors[1]!.position.z = last.exitDoorOpen ? -1.45 : 0;
     train.position.set(last.train.x, 0, last.train.z);

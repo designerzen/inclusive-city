@@ -49,6 +49,7 @@ const buttonSignatures = {
   'city-repair': { root: 59, intervals: [0, 4, 10, 17], pattern: 'up', stepBeats: .11 },
   'city-issue-action': { root: 60, intervals: [0, 5, 9, 14], pattern: 'up', stepBeats: .11 },
   'city-crossing-cues': { root: 84, intervals: [0, 7], pattern: 'up', stepBeats: .12, waveform: 'sine' },
+  'city-roboramp': { root: 68, intervals: [0, 4, 7, 12], pattern: 'up', stepBeats: .1, waveform: 'triangle' },
   'city-ask-robot': { root: 76, intervals: [0, 4, 9], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'city-undo': { root: 58, intervals: [0, 4, 10, 17], pattern: 'down', stepBeats: .11 },
   'city-new': { root: 70, intervals: [0, 5, 10, 17], pattern: 'up-down', stepBeats: .1 },

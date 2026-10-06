@@ -20,7 +20,7 @@ test('generated building walls and doorways resize, undo together with street re
   assert.equal(j.editDimension(wall, before - 1), true);
   assert.ok(Math.abs(b.w - originalWidth - 1) < 1e-8);
   assert.equal(j.editDimension(`door:${b.name}`, 1.8), true);
-  const bridge = j.world.streets.find(s => s.kind === 'bridge')!;
+  const bridge = j.world.streets.find(s => s.kind === 'bridge' && s.id !== j.world.steamTrain?.street)!;
   assert.equal(j.repair(bridge.id), true);
   assert.equal(j.undoRepair(), true); assert.equal(j.repaired.has(bridge.id), false);
   assert.equal(j.undoRepair(), true); assert.equal(j.dimensions.get(`door:${b.name}`), .65);

@@ -17,7 +17,8 @@ export class CityDimensions {
       });
     }
     for (const street of world.streets) {
-      if (street.kind !== 'width') street.width = 2.6;
+      const stationStreet = street.id === world.steamTrain?.street || street.id === 'train-west-approach' || street.id === 'train-east-approach';
+      if (street.kind !== 'width' && !stationStreet) street.width = 2.6;
       this.values[`width:${street.id}`] = street.width;
       if (street.kind === 'crossing') {
         this.values[`crossing:${street.id}`] = street.crossingSeconds;
@@ -41,7 +42,7 @@ export class CityDimensions {
     if (kind === 'door') return { min: .65, max: 2, step: .05 };
     if (kind === 'crossing') return { min: Math.min(.1, this.originals[id]!), max: 20, step: .1 };
     if (kind === 'panel') return { min: .5, max: 2.2, step: .05 };
-    if (kind === 'width') return { min: Math.min(.3, this.originals[id]!), max: 6, step: .1 };
+    if (kind === 'width') return { min: Math.min(.3, this.originals[id]!), max: Math.max(6, this.originals[id]!), step: .1 };
     const opposite = side === 'front' ? 'back' : side === 'back' ? 'front' : side === 'left' ? 'right' : 'left';
     const low = side === 'front' || side === 'left';
     const origin = this.originals[id]!, other = this.values[`wall:${name}:${opposite}`]!;

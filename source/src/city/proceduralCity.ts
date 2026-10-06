@@ -112,10 +112,18 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const trainStreet = streets.find(s => s.id === 'bridge-2')!;
   trainStreet.a = entry.id; trainStreet.b = exit.id; trainStreet.width = Math.max(8, ...robots.map(robotFootprint));
   streets.push(
-    { id: 'train-west-approach', a: west.id, b: entry.id, kind: 'clear', width: 4, crossingSeconds: 20 },
-    { id: 'train-east-approach', a: exit.id, b: east.id, kind: 'clear', width: 4, crossingSeconds: 20 },
+    { id: 'train-west-approach', a: west.id, b: entry.id, kind: 'clear', width: 6, crossingSeconds: 20 },
+    { id: 'train-east-approach', a: exit.id, b: east.id, kind: 'clear', width: 6, crossingSeconds: 20 },
   );
-  return { steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage: lots[names.length]!, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
+  // Reserve generous forecourts for turning, queuing and ramp deployment.
+  // Check whole footprints, including room for the building editor's 1.5 m expansion.
+  const outsideStations = (lot: { x: number; z: number; w: number; d: number }) => [entry, exit].every(stop =>
+    Math.abs(lot.x - stop.x) >= 6 + lot.w / 2 || Math.abs(lot.z - stop.z) >= 6 + lot.d / 2);
+  const stationBuildings = buildings.filter(building => outsideStations({ ...building, w: building.w + 3, d: building.d + 3 }));
+  const garageLots = lots.filter(lot => outsideStations({ ...lot, w: 5.5, d: 4.5 }));
+  const bicycleGarage = garageLots.find(lot => !stationBuildings.some(building => building.x === lot.x && building.z === lot.z)) ?? garageLots[0]!;
+  const openBuildings = stationBuildings.filter(building => building.x !== bicycleGarage.x || building.z !== bicycleGarage.z);
+  return { steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings: openBuildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {

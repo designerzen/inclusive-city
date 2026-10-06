@@ -51,6 +51,21 @@ export class PlannedJourney {
   distanceOnEdge = 0;
   heading = 0;
   trainSeconds = 0;
+  trainRampChoice: 'wait' | 'roboramp' | null = null;
+  private rampWaitSeconds = 0;
+  get needsTrainRamp() { return this.onTrainLink && this.trainRampChoice === null; }
+  requestTrainRamp(choice: 'wait' | 'roboramp') {
+    if (!this.blocked || !this.needsTrainRamp || this.blocked.id !== this.world.steamTrain?.street) return false;
+    this.trainRampChoice = choice;
+    this.rampWaitSeconds = choice === 'wait' ? 8 : 0;
+    const failure = this.machine.record.failures.find(f => f.runId === this.machine.run.id && f.barrier === this.blocked!.id && f.resolvedAt === null);
+    if (failure) failure.resolvedAt = this.machine.record.clock;
+    this.machine.add('interventions', 1);
+    this.machine.emit('intervention', { action: choice === 'wait' ? 'wait-for-ramp' : 'roboramp' }, this.blocked.id);
+    this.blocked = null; this.encountered = null;
+    if (!this.paused) { this.machine.transition('following'); if (this.rampWaitSeconds) this.machine.transition('waiting'); }
+    return true;
+  }
   trainFrom: string | null = null;
   lastTrainPose: ReturnType<typeof trainRidePose> | null = null;
   get onTrainLink() { return !!this.world.steamTrain && !this.ready && !this.complete && this.currentStreet?.id === this.world.steamTrain.street; }
@@ -60,7 +75,13 @@ export class PlannedJourney {
     return reverse ? { trackStart: service?.trackEnd, trackEnd: service?.trackStart } : service;
   }
   get trainPose() { return this.onTrainLink ? trainRidePose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.trainSeconds, this.trainTrack()) : null; }
-  get trainStatus() { return this.trainPose ? trainPhaseText[this.trainPose.phase] : null; }
+  get trainStatus() {
+    if (this.rampWaitSeconds > 0) return 'Waiting for a ramp to be brought to the train.';
+    const pose = this.trainPose;
+    if (!pose) return null;
+    if (this.trainRampChoice === 'wait' && pose.phase === 'deploying') return 'The ramp is being brought out and positioned for boarding.';
+    return trainPhaseText[pose.phase];
+  }
   paused = false;
   blocked: { id: string; reason: string } | null = null;
   private encountered: string | null = null;
@@ -133,6 +154,8 @@ export class PlannedJourney {
     return this.bot.profile.enabledFunctions.includes('hearing') ? 'audible' : 'tactile';
   }
   problem(street: CityStreet) {
+    if (street.id === this.world.steamTrain?.street) return this.needsTrainRamp
+      ? 'A ramp must be brought out before boarding the train. Choose Wait for ramp or Roboramp.' : null;
     // A helper's button press lasts for this traversal; city settings stay intact.
     const crossing = street.kind === 'crossing' && this.hasRequestedCrossing(street)
       ? { ...street, buttonHeight: Math.min(crossingButtonHeight(street), robotButtonReach(this.bot)) } : street;
@@ -197,6 +220,7 @@ export class PlannedJourney {
     this.savePlan();
   }
   repair(id: string): boolean {
+    if (id === this.world.steamTrain?.street) return this.requestTrainRamp('roboramp');
     if (this.world.bicycleGarage && this.world.bicycles?.some(bike => bike.id === id)) {
       if (this.complete || this.repaired.has(id)) return false;
       this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
@@ -222,6 +246,7 @@ export class PlannedJourney {
   }
   /** Set either exclusive state directly, keeping every change in undo history. */
   setFeature(id: string, enabled: boolean): boolean {
+    if (id === this.world.steamTrain?.street) return false;
     const street = this.world.streets.find(s => s.id === id);
     const signal = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
     if (id !== 'communication' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind))) return false;
@@ -304,6 +329,14 @@ export class PlannedJourney {
       if ((!this.constrainTravel || this.machine.state !== 'blocked') && !this.waiting) this.machine.transition('following');
       const a = this.node(this.path[this.edge]!), b = this.node(this.path[this.edge + 1]!);
       if (this.onTrainLink) {
+        if (this.rampWaitSeconds > 0) {
+          this.machine.transition('waiting');
+          const duration = Math.min(remaining, this.rampWaitSeconds);
+          this.rampWaitSeconds -= duration; remaining -= duration;
+          this.machine.advance(duration, 'waitingSeconds'); this.telemetry();
+          continue;
+        }
+        this.machine.transition('following');
         const duration = Math.min(remaining, trainRideDuration - this.trainSeconds);
         this.trainFrom = a.id;
         this.trainSeconds += duration;
@@ -314,7 +347,7 @@ export class PlannedJourney {
         if (this.trainSeconds >= trainRideDuration) {
           this.machine.add('distance', this.crossingLength(street));
           this.machine.add('stepsTaken', Math.max(0, Math.floor(this.metrics.distance) - this.metrics.stepsTaken));
-          this.edge++; this.distanceOnEdge = 0; this.trainSeconds = 0;
+          this.edge++; this.distanceOnEdge = 0; this.trainSeconds = 0; this.trainRampChoice = null;
           this.machine.add('segmentsCompleted', 1); this.machine.emit('segment', { segment: this.edge - 1, transport: 'steam-train' }); this.collectAt(this.path[this.edge]!);
         }
         this.syncTransport?.();
@@ -390,6 +423,7 @@ export class PlannedJourney {
   }
   restart() {
     this.machine.end('interrupted'); this.machine.transition('designer');
+    this.trainRampChoice = null; this.rampWaitSeconds = 0;
     this.edge = 0; this.distanceOnEdge = 0; this.trainSeconds = 0; this.lastTrainPose = null; this.trainFrom = null; this.paused = false; this.blocked = null; this.encountered = null; this.crossingRequestEdge = -1;
     this.machine.start(robotMetadata(this.bot), [...this.repaired], true);
     this.machine.run.environment.routeId = `procedural-${this.world.seed}`; this.savePlan(); this.telemetry();

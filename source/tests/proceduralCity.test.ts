@@ -136,7 +136,9 @@ test('discovery choices change the journey; there are no invisible automatic det
   for (const bike of world.bicycles ?? []) j.repair(bike.id);
   j.repair('studio-entrance'); j.repair('studio-entrance');
   for (const street of world.streets) if (street.kind !== 'clear') j.repair(street.id);
-  j.start(); j.update(10000); assert.equal(j.complete, true);
+  j.start(); j.update(10000);
+  if (j.needsTrainRamp) { j.requestTrainRamp('roboramp'); j.update(10000); }
+  assert.equal(j.complete, true);
   assert.ok(j.machine.run.pickups.some(p => p.id === visit.id));
   assert.ok(j.machine.run.pickups.every(p => route.includes(p.id)));
   assert.ok(Math.abs(j.metrics.distance - j.routeLength) < 1e-6);

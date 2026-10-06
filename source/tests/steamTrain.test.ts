@@ -26,6 +26,7 @@ test('train journey supports pause, reverse, restart and continuation past the t
     const world: ProceduralCity = { seed: 1, nodes: [{id:'a',label:'A',x:0,y:.16,z:0},{id:'b',label:'B',x:0,y:.16,z:8},{id:'c',label:'C',x:8,y:.16,z:8}], streets: [{id:'rail',a:'a',b:'b',kind:'clear',width:4,crossingSeconds:20},{id:'walk',a:ids[1]!,b:'c',kind:'clear',width:4,crossingSeconds:20}], buildings: [], steamTrain: { street: 'rail' }, start:ids[0]!,destination:'c',riverX:20,rememberedRobots:1 };
     const j = new PlannedJourney(bot, world); j.repair('communication'); j.setRoute(ids); j.start();
     let sweeps = 0; j.constrainTravel = (from, to) => { sweeps++; return { distance: Math.hypot(to.x-from.x,to.z-from.z) }; };
+    j.update(.1); assert.equal(j.needsTrainRamp, true); j.requestTrainRamp('roboramp');
     j.update(10); assert.equal(j.trainPose!.phase, 'travelling'); assert.equal(sweeps, 0);
     j.setPaused(true); const p = j.position; j.update(30); assert.deepEqual(j.position,p);
     j.setPaused(false); j.update(100); assert.equal(j.complete,true); assert.ok(sweeps > 0);
@@ -70,5 +71,67 @@ test('central railway carries riders across town and exits directly onto the opp
     assert.equal(trainRidePose(a,b,17,track).boardingDoorOpen,false);
     assert.deepEqual(trainRidePose(a,b,19,track).position,{ x:b.x,y:b.y,z:b.z });
     assert.deepEqual(trainRidePose(a,b,24,track).position,{ x:b.x,y:b.y,z:b.z });
+  }
+});
+
+
+test('train boarding requires a fresh ramp choice on both sides and after restart', () => {
+  for (const choice of ['wait', 'roboramp'] as const) {
+    const bot = new BotHistory(['Curie', 'Einstein']).current;
+    const world: ProceduralCity = { seed: 1, nodes: [
+      { id: 'a', label: 'A', x: 0, y: .16, z: 0 },
+      { id: 'b', label: 'B', x: 0, y: .16, z: 8 },
+      { id: 'c', label: 'C', x: 8, y: .16, z: 0 },
+    ], streets: [
+      { id: 'rail', a: 'a', b: 'b', kind: 'bridge', width: 8, crossingSeconds: 20 },
+      { id: 'walk', a: 'a', b: 'c', kind: 'clear', width: 4, crossingSeconds: 20 },
+    ], buildings: [], steamTrain: { street: 'rail' }, start: 'a', destination: 'c', riverX: 20, rememberedRobots: 1 };
+    const j = new PlannedJourney(bot, world);
+    j.repair('communication'); j.setRoute(['a', 'b', 'a', 'c']); j.start();
+    j.update(30);
+    assert.equal(j.blocked?.id, 'rail'); assert.match(j.blocked!.reason, /ramp/);
+    assert.equal(j.trainSeconds, 0); assert.equal(j.position.y, .16);
+    assert.equal(j.setFeature('rail', false), false);
+    assert.equal(j.requestTrainRamp(choice), true);
+    assert.equal(j.requestTrainRamp(choice), false);
+    j.setPaused(true); j.update(30); assert.equal(j.trainSeconds, 0);
+    j.setPaused(false);
+    if (choice === 'wait') {
+      j.update(7); assert.equal(j.trainSeconds, 0); assert.equal(j.metrics.waitingSeconds, 7);
+      j.update(1); assert.equal(j.trainSeconds, 0);
+    }
+    j.update(2); assert.equal(j.trainPose!.phase, 'deploying'); assert.equal(j.position.y, .16);
+    j.update(3); assert.equal(j.trainPose!.phase, 'boarding'); assert.ok(j.position.y > .16);
+    j.update(20); assert.equal(j.blocked?.id, 'rail'); assert.equal(j.trainSeconds, 0);
+    assert.equal(j.requestTrainRamp('roboramp'), true);
+    j.update(100); assert.equal(j.complete, true);
+    j.restart(); j.start(); j.update(1); assert.equal(j.needsTrainRamp, true);
+  }
+});
+
+
+test('station forecourts stay clear of buildings and the garage across generated layouts', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  for (const seed of [...Array.from({ length: 250 }, (_, i) => i), 381, 394, 1128]) {
+    const city = generateCity(seed, [bot]);
+    const stops = city.nodes.filter(node => node.id === 'train-west' || node.id === 'train-east');
+    assert.equal(stops.length, 2);
+    assert.ok(city.bicycleGarage);
+    assert.ok(city.buildings.length > 0);
+    assert.ok(!city.buildings.some(building => building.x === city.bicycleGarage!.x && building.z === city.bicycleGarage!.z));
+    for (const stop of stops) {
+      for (const building of city.buildings) {
+        assert.ok(Math.abs(building.x - stop.x) >= 6 + building.w / 2 + 1.5
+          || Math.abs(building.z - stop.z) >= 6 + building.d / 2 + 1.5);
+      }
+      const garage = city.bicycleGarage!;
+      assert.ok(Math.abs(garage.x - stop.x) >= 8.75 || Math.abs(garage.z - stop.z) >= 8.25);
+    }
+    const journey = new PlannedJourney(bot, city);
+    for (const id of ['train-west-approach', 'train-east-approach']) {
+      assert.equal(city.streets.find(street => street.id === id)!.width, 6);
+      assert.equal(journey.dimensions.get(`width:${id}`), 6);
+    }
+    assert.ok(city.streets.find(street => street.id === city.steamTrain!.street)!.width >= 8);
   }
 });

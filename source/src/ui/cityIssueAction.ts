@@ -5,6 +5,7 @@ import { robotFootprint, streetActions } from '../city/proceduralCity';
 export function cityIssueAction(journey: PlannedJourney): string | null {
   const block = journey.blocked;
   if (!block) return null;
+  if (journey.needsTrainRamp && block.id === journey.world.steamTrain?.street) return 'Wait for ramp';
   if (block.id.startsWith('bicycle-')) return 'Move bicycle out of the way';
   if (block.id === 'communication') return 'Add a symbol board';
   if (block.id === 'studio-entrance' && journey.world.studioEntrance) {

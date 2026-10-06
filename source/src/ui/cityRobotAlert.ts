@@ -5,6 +5,7 @@ import { robotFootprint } from '../city/proceduralCity';
 export function cityRobotAlert(journey: PlannedJourney): string | null {
   const block = journey.blocked;
   if (!block) return null;
+  if (journey.needsTrainRamp && block.id === journey.world.steamTrain?.street) return 'A ramp must be brought out before I can board the train.';
   if (block.id.startsWith('wall:')) return 'There is a wall in the way.';
   if (block.id.startsWith('robot:')) return 'The path is occupied.';
   if (block.id.startsWith('bicycle-')) return 'There is a bicycle in the way';

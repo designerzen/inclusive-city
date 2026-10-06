@@ -79,12 +79,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     road.position.set(x, 0, z); road.material = pavement;
     road.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' };
     const parts: ReturnType<typeof box>[] = [];
-    if (street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
+    if (street.id !== world.steamTrain?.street && street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
       const mark = box(`issue-${street.id}`, x, .34, z, dx ? .28 : 2.6, .55, dx ? 2.6 : .28, obstruction);
       mark.metadata = { street: street.id }; mark.isPickable = true; parts.push(mark);
       if (street.kind === 'stairs') for (let i = -1; i <= 1; i++) { const step = box(`step-${street.id}-${i}`, x + (dx ? i * .45 : 0), .16 + (i + 1) * .07, z + (dz ? i * .45 : 0), dx ? .4 : 2.6, .12 + (i + 1) * .14, dx ? 2.6 : .4, obstruction); step.metadata = { street: street.id }; step.isPickable = true; parts.push(step); }
     }
-    const bridge = street.kind === 'bridge' ? box(`bridge-deck-${street.id}`, x, .65, z, dx, .16, 2.6, walls) : null;
+    const bridge = street.kind === 'bridge' ? box(`bridge-deck-${street.id}`, x, street.id === world.steamTrain?.street ? .06 : .65, z, dx, .16, 2.6, walls) : null;
     if (bridge && street.id === world.steamTrain?.street && world.steamTrain.trackStart && world.steamTrain.trackEnd) {
       const start = world.steamTrain.trackStart, end = world.steamTrain.trackEnd;
       bridge.position.x = (start.x + end.x) / 2; bridge.position.z = (start.z + end.z) / 2;
@@ -301,7 +301,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       syncDimensions();
       syncBicycles();
       streetModels.forEach(({ street, road, parts, bridge, dx }) => {
-        const repaired = journey.repaired.has(street.id);
+        const repaired = street.id === world.steamTrain?.street || journey.repaired.has(street.id);
         parts.forEach(m => m.setEnabled(!repaired));
         if (bridge) { bridge.rotation.z = repaired ? 0 : .22; bridge.position.y = repaired ? .06 : .65; }
         if (street.kind === 'guidance' || street.kind === 'crossing') road.material = repaired ? details : pavement;
