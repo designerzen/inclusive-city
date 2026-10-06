@@ -19,9 +19,9 @@ export const cityMoodKeys: Record<RobotMood, { offset: number; mode: string }> =
 export function cityMusicKey(seed: number, phrase: number, mood?: RobotMood, cadence = false) {
   const home = ((seed >>> 5) % 12) - 5;
   const section = Math.max(0, Math.floor(phrase / 4));
-  const excursion = [0, 5, 7, 0][section % 4]!;
-  const offset = cadence ? 0 : excursion + (mood ? cityMoodKeys[mood].offset : 0);
+  // Neither elapsed sections nor a closing cadence may initiate a modulation.
+  const offset = mood ? cityMoodKeys[mood].offset : 0;
   const shift = ((offset + 6) % 12 + 12) % 12 - 6;
   return { transpose: home + shift, tonic: ((60 + home + shift) % 12 + 12) % 12,
-    mode: cadence ? 'major' : mood ? cityMoodKeys[mood].mode : 'genre', section };
+    mode: mood ? cityMoodKeys[mood].mode : 'genre', section };
 }

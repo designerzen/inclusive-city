@@ -8,6 +8,7 @@ import type { RobotEvent } from '../robot/robotState';
 import type { RobotMood } from '../audio/robotHarmony';
 import { PaintingRenderer, ProceduralPainting } from './ProceduralPainting';
 import type { PaintStroke } from './ProceduralPainting';
+import { cityMusicKey } from '../audio/cityMusicKeys';
 
 export type ArtMark = PaintStroke;
 
@@ -41,7 +42,8 @@ export class JourneyCreativity {
   private lastTurn = -Infinity;
   private lastSlope = -Infinity;
   private mood: RobotMood | undefined;
-  private moodBars = 0;
+  private requestedKey: { mood: RobotMood; cause: string } | null = null;
+  readonly keyChanges: { at: number; tonic: number; mode: string; cause: string }[] = [];
   private keyMood: RobotMood | null = null;
   private state: RobotEvent['state'] = 'ready';
   private scheduledHarmony: { at: number; phrase: number; blocked: boolean; mood?: RobotMood; keyMood: RobotMood | null }[] = [];
@@ -74,7 +76,12 @@ export class JourneyCreativity {
       crossing_requested: 'uncertain', achievement: 'celebrating', arrived: 'celebrating',
       journey_ended: event.state === 'arrived' ? 'celebrating' : 'sad',
     };
-    if (moods[event.type]) { this.mood = moods[event.type]; this.moodBars = 2; }
+    const eventMood = moods[event.type] ?? (event.type === 'state_changed'
+      ? event.state === 'paused' ? 'calm' : event.state === 'following' ? 'determined' : undefined : undefined);
+    if (eventMood) {
+      this.mood = eventMood;
+      this.requestedKey = { mood: eventMood, cause: event.type === 'state_changed' ? event.state : event.type };
+    }
     // Coalesce repeated events within one frame; the phrase still reflects every state change.
     if (event.type === 'collision') this.collisions.push(structuredClone(event));
     else this.pending.set(event.type, 0);
@@ -128,26 +135,27 @@ export class JourneyCreativity {
     // Skip unseen measures after an interruption; never emit a catch-up burst.
     if (time - this.nextPhrase > length) this.nextPhrase = time;
     const result: SoundSequenceEntry[] = [];
-    const currentMood = this.blocked ? 'frustrated' : this.expression.paused ? 'calm'
-      : this.moodBars > 0 ? this.mood : this.state === 'waiting' ? 'uncertain'
-      : this.state === 'arrived' ? 'celebrating' : this.expression.moving ? 'determined' : undefined;
-    const plannedKeyMood = this.phrase % 4 === 0 ? currentMood ?? null : this.keyMood;
+    const plannedKeyMood = this.requestedKey?.mood ?? this.keyMood;
     if (!ending) this.composer.prepareAccompaniment({ at: this.nextPhrase, phrase: this.phrase,
       steps: this.steps, edge: this.edge, blocked: this.blocked, harmony: this.harmony,
-      mood: this.blocked ? 'frustrated' : this.expression.paused ? 'calm' : this.moodBars > 0 ? this.mood
-        : this.state === 'waiting' ? 'uncertain' : this.expression.moving ? 'determined' : undefined,
+      mood: this.mood,
       expression: this.expression, keyMood: plannedKeyMood });
     if (!ending && time + .15 >= this.nextPhrase) {
+      if (this.requestedKey) {
+        const before = cityMusicKey(this.seed, this.phrase, this.keyMood ?? undefined);
+        const after = cityMusicKey(this.seed, this.phrase, this.requestedKey.mood);
+        if (before.tonic !== after.tonic || before.mode !== after.mode) this.keyChanges.push({
+          at: this.nextPhrase, tonic: after.tonic, mode: after.mode, cause: this.requestedKey.cause,
+        });
+        this.requestedKey = null;
+      }
       this.keyMood = plannedKeyMood;
       const at = this.nextPhrase;
       this.nextPhrase += length;
-      const mood = this.blocked ? 'frustrated' : this.expression.paused ? 'calm'
-        : this.moodBars > 0 ? this.mood : this.state === 'waiting' ? 'uncertain'
-        : this.state === 'arrived' ? 'celebrating' : this.expression.moving ? 'determined' : undefined;
+      const mood = this.mood;
       result.push(...this.composer.compose({ at, phrase: this.phrase, steps: this.steps, edge: this.edge,
         blocked: this.blocked, harmony: this.harmony, mood, keyMood: this.keyMood, expression: this.expression }));
       this.composer.remember(result);
-      this.moodBars = Math.max(0, this.moodBars - 1);
       this.phrase++;
       this.scheduledHarmony.push({ at, phrase: this.phrase - 1, blocked: this.blocked, mood, keyMood: this.keyMood });
       this.scheduledHarmony = this.scheduledHarmony.slice(-2);

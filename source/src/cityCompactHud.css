@@ -20,7 +20,8 @@
 .city-issue p { margin: 8px 0 12px; line-height: 1.5; font-size: .9375rem; }
 .city-issue p:empty { display: none; }
 #city-screen .city-issue button { display: block; width: 100%; min-height: 48px; white-space: normal; font-size: .9375rem; }
-#city-issue-action { background: #b9efd9; color: #17261e; border-color: #b9efd9; font-weight: 700; }
+#city-screen #city-issue-action:enabled { background: var(--ui-primary); color: var(--ui-primary-ink); border-color: var(--ui-primary); font-weight: 700; }
+#city-screen #city-issue-action:hover:enabled { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); }
 #city-ask-robot { margin-top: 8px; }
 .city-interaction-hud:has(#city-issue:not([hidden])) > .city-controls-hud { border-top: 1px solid var(--ui-border); }
 .city-controls-hud > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: .8125rem; font-weight: 700; }

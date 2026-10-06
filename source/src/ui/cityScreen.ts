@@ -21,6 +21,8 @@ import { mountCityVoicePanel } from './cityVoicePanel';
 import { interpretCityReply, applyCityReply } from './cityReply';
 import { cityRobotAlert } from './cityRobotAlert';
 import { cityIssueAction } from './cityIssueAction';
+import { CityMusicCues } from './cityMusicCues';
+import './cityMusicCues.css';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
@@ -33,6 +35,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       </div>
       <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
       <button id="back-to-designer" type="button">Edit robot</button>
+      <div class="city-music-feedback" aria-label="Live music cues">
+        <p id="city-music-key" role="status" aria-live="polite">Music follows city actions.</p>
+        <p id="city-music-notes" aria-live="off">Journey music ready.</p>
+      </div>
     </header>
     <div class="city-map">
       <div id="city-robot-name" class="city-robot-name" role="status" aria-live="polite" aria-atomic="true" hidden></div>
@@ -130,6 +136,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let finished: FinishedJourney | null = null;
   let performancePresented = false, studioPreparing = false;
   let cityMusicTime = 0, lastMusicFrame = performance.now();
+  const musicCues = new CityMusicCues();
+  let keyCueCursor = 0;
   let stopArrivalBed: (() => void) | undefined;
   function stopArrivalMusic() {
     stopArrivalBed?.(); stopArrivalBed = undefined;
@@ -149,6 +157,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   });
   function beginCreation() {
     if (!city) return;
+    musicCues.clear(); keyCueCursor = 0;
+    setText('city-music-key', 'Music follows city actions.'); setText('city-music-notes', 'Journey music ready.');
     stopArrivalMusic(); finished = null; performancePresented = false; studioPreparing = false;
     const compositionSeed = city.journey.machine.run.creative?.seed ?? freshCompositionSeed(creation?.seed);
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot, compositionSeed); renderer = new AsyncPaintingRenderer(creation.painting);
@@ -174,7 +184,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     lastMusicFrame = now;
     const j = city.journey;
     creation.observeMotion(city.musicPosition, j.heading, cityMusicTime, j.ready || j.paused);
-    sounds.perform(creation.advance(cityMusicTime, false, j.complete), cityMusicTime);
+    const score = creation.advance(cityMusicTime, false, j.complete);
+    musicCues.add(score);
+    for (const change of creation.keyChanges.slice(keyCueCursor)) musicCues.key(change);
+    keyCueCursor = creation.keyChanges.length;
+    sounds.perform(score, cityMusicTime);
+    const cue = musicCues.advance(cityMusicTime - .05);
+    if (cue.notes) setText('city-music-notes', cue.notes);
+    if (cue.key) setText('city-music-key', cue.key);
   }
   // Audio keeps its beat even when rendering is slow or animation frames are throttled.
   const musicTimer = window.setInterval(updateCityMusic, 50);

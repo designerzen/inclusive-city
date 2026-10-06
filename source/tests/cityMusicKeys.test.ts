@@ -13,15 +13,14 @@ const harmony = (score: ReturnType<JourneyMusicComposer['compose']>) => score.fi
   ?? score.find(entry => entry.label?.includes(':city-bed:'))!;
 const root = (score: ReturnType<JourneyMusicComposer['compose']>) => harmony(score).score.notes[0]!.midi;
 
-test('related keys hold for four bars, vary across sections and return home at a cadence', () => {
+test('time, section numbers and cadences never initiate a key change', () => {
   const home = cityMusicKey(seed, 0);
-  for (let phrase = 0; phrase < 4; phrase++) assert.equal(cityMusicKey(seed, phrase).tonic, home.tonic);
-  assert.equal(cityMusicKey(seed, 4).tonic, (home.tonic + 5) % 12);
-  assert.equal(cityMusicKey(seed, 8).tonic, (home.tonic + 7) % 12);
-  assert.equal(cityMusicKey(seed, 12).tonic, home.tonic);
-  assert.equal(cityMusicKey(seed, 11, 'celebrating', true).tonic, home.tonic);
+  for (let phrase = 0; phrase < 1000; phrase++) {
+    assert.equal(cityMusicKey(seed, phrase).tonic, home.tonic);
+    assert.equal(cityMusicKey(seed, phrase, 'sad').tonic, cityMusicKey(seed, 0, 'sad').tonic);
+    assert.equal(cityMusicKey(seed, phrase, 'sad', true).tonic, cityMusicKey(seed, 0, 'sad').tonic);
+  }
   assert.equal(cityMusicKey(seed + 32, 0).tonic, (home.tonic + 1) % 12);
-  for (let phrase = 0; phrase < 1000; phrase++) assert.ok(Math.abs(cityMusicKey(seed, phrase, 'wonder').transpose - home.transpose) <= 6);
 });
 
 test('city moods select relative key areas and harmonic modes without overriding world melody palettes', () => {
@@ -50,26 +49,31 @@ test('Magenta chord requests and action notes follow the modulated key, and the 
   const reaction = composer.react('pickup', { ...data, phrase: 4, keyMood: 'calm', mood: 'calm' });
   assert.ok(reaction.score.notes.every(note => classes.has(note.midi % 12)));
   const ending = composer.compose({ ...data, phrase: 11, mood: 'celebrating', cadence: true });
-  assert.equal(ending[0]!.score.notes.at(-1)!.midi % 12, cityMusicKey(seed, 0).tonic);
+  assert.equal(ending[0]!.score.notes.at(-1)!.midi % 12, cityMusicKey(seed, 0, 'celebrating').tonic);
 });
 
-test('live mood changes keep the section key until its boundary and reactions use the audible key', () => {
+test('only consumed city actions request keys, and each applied change has a timed visual cause', () => {
   const creation = new JourneyCreativity(new BotHistory(['Curie', 'Einstein']).current, seed);
   const measure = 4 * 60 / creation.bpm;
-  const first = creation.advance(0);
-  const homeRoot = root(first);
-  const event: RobotEvent = { type: 'pickup', sequence: 1, state: 'following', botId: 1, runId: 1,
-    time: .2, runTime: .2, edge: 0, position: { x: 0, y: 0, z: 0 }, data: { kind: 'music' } };
+  creation.advance(0);
+  for (let bar = 1; bar <= 12; bar++) {
+    creation.observeMotion({ x: bar, y: 0, z: 0 }, 0, bar * measure, bar > 6);
+    creation.advance(bar * measure - .1);
+  }
+  assert.deepEqual(creation.keyChanges, [], 'elapsed time, movement samples and inferred pause cannot modulate');
+  const event: RobotEvent = { type: 'state_changed', sequence: 1, state: 'paused', botId: 1, runId: 1,
+    time: 12 * measure, runTime: 12 * measure, edge: 0, position: { x: 12, y: 0, z: 0 }, data: {} };
   creation.consume(event);
-  const reaction = creation.advance(.2).find(entry => entry.label?.includes('action:pickup'))!;
-  const originalClasses = new Set(harmony(first).score.notes.map(note => note.midi % 12));
-  assert.ok(reaction.score.notes.every(note => originalClasses.has(note.midi % 12)));
-  // A pause changes colour immediately but must not change tonic in the middle of a section.
-  creation.observeMotion({ x: 0, y: 0, z: 0 }, 0, .3, true);
-  assert.equal(root(creation.advance(measure - .1)) - 7, homeRoot);
-  creation.advance(2 * measure - .1);
-  creation.advance(3 * measure - .1);
-  const changed = creation.advance(4 * measure - .1);
-  assert.equal(root(changed) % 12, cityMusicKey(seed, 4, 'calm').tonic);
-  assert.notEqual(root(changed) % 12, homeRoot % 12);
+  creation.advance(12 * measure + .2);
+  assert.equal(creation.keyChanges.length, 0, 'wait for the next unplayed bar');
+  const changed = creation.advance(13 * measure - .1);
+  assert.equal(root(changed) % 12, (cityMusicKey(seed, 13, 'calm').tonic + 7) % 12);
+  assert.ok(Math.abs(creation.keyChanges[0]!.at - 13 * measure) < 1e-8);
+  assert.deepEqual({ ...creation.keyChanges[0], at: 0 }, { at: 0, tonic: cityMusicKey(seed, 13, 'calm').tonic, mode: 'major', cause: 'paused' });
+  for (let bar = 14; bar <= 24; bar++) creation.advance(bar * measure - .1);
+  assert.equal(creation.keyChanges.length, 1, 'no automatic return or mood expiry');
+  creation.consume({ ...event, sequence: 2, type: 'intervention', state: 'following', time: 24 * measure });
+  creation.advance(25 * measure - .1);
+  assert.equal(creation.keyChanges.at(-1)!.cause, 'intervention');
+  assert.equal(creation.keyChanges.at(-1)!.tonic, cityMusicKey(seed, 0).tonic);
 });

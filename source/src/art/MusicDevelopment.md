@@ -23,9 +23,11 @@ Final notes and voices use the existing `SoundScore` format. Exhibition playback
 
 ## City keys and modulation
 
-`cityMusicKeys.ts` keeps the composition's seeded home key and visits related key areas in four-bar sections: home, subdominant, dominant, home. Mood shifts are added relative to that form, rather than forcing every composition into a fixed named key. The live city samples its mood at a section boundary and holds that key for the section; emotional chord colours can still respond at bar boundaries. Actions use the key of the audible scheduled bar, including during lookahead. Magenta chord requests receive the same transposed harmony as the procedural lead, bass and accompaniment. The final studio cadence returns to the composition's home tonic.
+`cityMusicKeys.ts` keeps the composition's seeded home key. Only a consumed city action requests a new key: starting/resuming, pausing, encountering an obstacle or collision, requesting a crossing, collecting a discovery, exploring, improving access, achieving a milestone or reaching the studio. The request is applied at the next unplayed bar and held until another action requests a change. Elapsed sections, inferred movement, mood expiry and closing cadences never initiate modulation. Actions use the key of the audible scheduled bar during lookahead. Magenta chord requests receive the same transposed harmony as the procedural lead, bass and accompaniment.
 
-| City mood | Key area relative to the section | Harmonic colour |
+The always-visible toolbar music readout displays note onsets from the scheduled score, including chords, percussion and action responses. A persistent key cue names the city action and resulting key/mode when the change is played. The cue timeline resets with a new journey and remains useful when sound is muted. Existing studio keyboard visuals show the recorded performance.
+
+| City mood | Key area relative to home | Harmonic colour |
 | --- | --- | --- |
 | Calm | Up a fourth | Major |
 | Curious | Up a tone | Major with suspended colour |
