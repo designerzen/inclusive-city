@@ -276,6 +276,16 @@ export class JourneyMusicComposer {
       add('counterpoint', { waveform: 'triangle', gain: .11, attack: .002, release: .08, pan: -.25, echoGain: .02 },
         regular([4, 3, 2, 1, 0, 1, 2, 4]).map(([degree, start, duration]) => ({ midi: root + pitch(degree), start: start * beat, duration: duration * beat })));
     }
+    if (style === 'argentineTango') {
+      // Orchestral contrast: marked piano attacks against a longer bowed answer.
+      add('tango-piano', { waveform: 'triangle', gain: .1, attack: .003, decay: .12,
+        sustain: .08, release: .16, cutoff: 3200, echoGain: .02 },
+      notes([[0,0,.18],[third,.5,.14],[7,.5,.14],[0,1,.18],[third,1.75,.12],
+        [7,1.75,.12],[0,2,.18],[third,2.5,.14],[7,2.5,.14],[0,3,.18]], root - 12));
+      add('tango-strings', { waveform: 'sawtooth', gain: .055, attack: .07, decay: .12,
+        sustain: .35, release: .24, cutoff: 1800, vibratoDepth: 3, echoGain: .03, pan: -.25 },
+      notes([[7,.5,.85],[third,1.5,.85],[0,2.5,1.1]], root));
+    }
     const extended = ['jazz', 'lofi', 'latin', 'funk', 'disco', 'ragtime'].includes(style);
     const intervals = colour ? [...colour.intervals] : [0, third, 7, ...(extended ? [seventh] : data.harmony ? [12] : []), ...(extended && data.harmony ? [14] : [])];
     if (colour || data.harmony || !['melodic', 'classical', 'baroque', 'blues', 'techno', 'chiptune', 'folk'].includes(style)) {

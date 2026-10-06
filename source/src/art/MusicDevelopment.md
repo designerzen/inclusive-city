@@ -1,6 +1,6 @@
 # Musical development
 
-`MusicDevelopment` develops all 55 styles after the opening four bars, alongside Magenta or with procedural fallback. It preserves the genre's bass, drums and chord placement while adding evolving melodic detail.
+`MusicDevelopment` develops all 56 styles after the opening four bars, alongside Magenta or with procedural fallback. It preserves the genre's bass, drums and chord placement while adding evolving melodic detail.
 
 ## Algorithms
 

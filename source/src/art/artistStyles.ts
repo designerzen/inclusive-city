@@ -12,6 +12,13 @@ export const painterStyles = [
   { id: 'pop', label: 'Pop artist', description: 'Bright graphic shapes, comic outlines and halftone dots.', colours: ['#198bcb', '#f0447e', '#f1c933', '#4d3a99'] },
   { id: 'minimalist', label: 'Minimalist', description: 'Restrained marks, spare lines and space to breathe.', colours: ['#344b56', '#ad7968', '#b7a481', '#738c7a'] },
   { id: 'collage', label: 'Collage artist', description: 'Layered paper-like fragments, torn edges and printed textures.', colours: ['#456776', '#bb775f', '#c6b487', '#8e947c'] },
+  { id: 'dada', label: 'Dada', description: 'Chance arrangements of cut-out letters, paper scraps and absurd juxtapositions.', colours: ['#272727', '#b84032', '#c2a675', '#686e65'] },
+  { id: 'bauhaus', label: 'Bauhaus', description: 'Primary-colour circles, squares and triangles with crisp structural lines.', colours: ['#2255a4', '#cf3932', '#edc531', '#252525'] },
+  { id: 'artnouveau', label: 'Art Nouveau', description: 'Flowing botanical tendrils, paired leaves and graceful whiplash curves.', colours: ['#487163', '#a87966', '#c8a451', '#778a55'] },
+  { id: 'artdeco', label: 'Art Deco', description: 'Stepped silhouettes, golden fan motifs and symmetrical ornament.', colours: ['#254b52', '#26313e', '#cba653', '#94745b'] },
+  { id: 'suprematist', label: 'Suprematism', description: 'Floating tilted rectangles, stark crosses and spare fields of colour.', colours: ['#252525', '#c53e32', '#dfbd53', '#f7f1e6'] },
+  { id: 'opart', label: 'Op Art', description: 'High-contrast rippling stripes and concentric rings that tease the eye.', colours: ['#20252b', '#f8f5ed', '#f8f5ed', '#20252b'] },
+  { id: 'abstractexpressionist', label: 'Abstract Expressionism', description: 'Sweeping gestures, looping drips and energetic scattered paint.', colours: ['#283d48', '#bd4b36', '#d7b564', '#eee4cd'] },
 ] as const;
 
 export const musicianStyles = [

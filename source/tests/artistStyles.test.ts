@@ -8,6 +8,7 @@ import { BotHistory } from '../src/robot/botHistory';
 import { defaultAbilities } from '../src/robot/abilities';
 import { createRobotProfile, defaultFunctions } from '../src/robot/functions';
 import { SoundEffect } from '../src/audio/SoundEffect';
+import { loadDesigns, saveDesigns } from '../src/robot/designStorage';
 import type { RobotEvent } from '../src/robot/robotState';
 
 function events(): RobotEvent[] {
@@ -16,7 +17,7 @@ function events(): RobotEvent[] {
     position: { x: i, y: 0, z: Math.sin(i) * 8 }, data: i === 0 ? { kind: 'colour' } : { step: i } }));
 }
 
-function drawingTrace(painting: ProceduralPainting) {
+function drawingTrace(painting: ProceduralPainting, progress = 1) {
   const trace: unknown[] = [];
   const context = new Proxy({}, {
     get(_target, property) {
@@ -27,7 +28,7 @@ function drawingTrace(painting: ProceduralPainting) {
     },
     set(_target, property, value) { trace.push([property, typeof value === 'object' ? 'gradient' : value]); return true; },
   }) as CanvasRenderingContext2D;
-  PaintingRenderer.render(context, 480, 240, painting);
+  for (const mark of painting.marks) PaintingRenderer.stroke(context, 480, 240, mark, progress);
   return JSON.stringify(trace);
 }
 
@@ -41,9 +42,24 @@ test('every painter uses a distinct brush language and replays its saved strokes
     assert.equal(painting.marks[0]!.style, style.id);
     const trace = drawingTrace(painting);
     assert.equal(drawingTrace(replay), trace, `${style.label} replay`);
+    assert.equal(drawingTrace(replay, .4), drawingTrace(painting, .4), `${style.label} progressive replay`);
+    assert.equal(drawingTrace(painting, 0), '[]', `${style.label} unstarted stroke`);
     languages.add(trace);
   }
   assert.equal(languages.size, painterStyles.length);
+});
+
+test('every painter selection survives saved design storage and profile normalisation', () => {
+  let saved = '';
+  const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+  for (const style of painterStyles) {
+    const history = new BotHistory(['Curie', 'Einstein'], () => .5);
+    history.updateProfile(createRobotProfile(defaultAbilities(), defaultFunctions(), { painter: style.id, musician: 'ambient' }));
+    saveDesigns(storage, [history.current], 0);
+    const restored = loadDesigns(storage)!;
+    assert.equal(restored.bots[0]!.profile.artist.painter, style.id, style.label);
+    assert.equal(restored.bots[0]!.creative!.artStyle, style.id, style.label);
+  }
 });
 
 test('every musician produces a distinct valid reproducible score within its measure', () => {

@@ -112,6 +112,96 @@ export function renderArtistStroke(ctx: Context, width: number, height: number, 
         ctx.fillStyle = mark.accent; ctx.globalAlpha = .5 * progress; ctx.beginPath(); ctx.arc(tip.x, start.y, Math.max(1, breadth * .18), 0, Math.PI * 2); ctx.fill();
       } else { ctx.globalAlpha = .2 * progress; ctx.fillRect(tip.x, tip.y, 1, 1); }
       break;
+    case 'dada': {
+      ctx.translate(centre.x, centre.y); ctx.rotate((random() - .5) * Math.PI);
+      const radius = Math.max(scale * .018, breadth * (event ? 2 : 1.2));
+      polygon([{ x: -radius, y: -radius * .6 }, { x: radius * .8, y: -radius * .8 },
+        { x: radius, y: radius * .5 }, { x: -radius * .7, y: radius * .7 }], '#e5d9be', .85 * progress);
+      ctx.fillStyle = mark.pigment; ctx.globalAlpha = .9 * progress;
+      ctx.font = `bold ${Math.max(10, radius * 1.4)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const letters = 'DADA!?0123456789';
+      ctx.fillText(letters[Math.floor(random() * letters.length)]!, 0, 0);
+      ctx.fillStyle = mark.accent; ctx.fillRect(-radius * 1.2, radius * .3, radius * 2.4, radius * .16);
+      ctx.strokeStyle = '#272727'; ctx.lineWidth = .8; ctx.setLineDash([2, 3]);
+      ctx.strokeRect(-radius, -radius * .7, radius * 2, radius * 1.4);
+      break;
+    }
+    case 'bauhaus': {
+      const unit = scale / 16, x = Math.round(centre.x / unit) * unit, y = Math.round(centre.y / unit) * unit;
+      const radius = unit * (event ? 1.7 : 1), shape = mark.sequence % 3;
+      ctx.globalAlpha = .9 * progress;
+      if (shape === 0) { ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); }
+      else if (shape === 1) ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      else polygon([{ x, y: y - radius }, { x: x + radius, y: y + radius }, { x: x - radius, y: y + radius }], mark.accent, .9 * progress);
+      ctx.strokeStyle = '#252525'; ctx.lineWidth = Math.max(1, scale * .004); ctx.globalAlpha = .8 * progress;
+      ctx.beginPath(); ctx.moveTo(x - radius * 1.6, y + radius); ctx.lineTo(x + radius * 1.6, y + radius); ctx.stroke();
+      break;
+    }
+    case 'artnouveau': {
+      ctx.lineWidth = Math.max(.8, breadth * .08); ctx.globalAlpha = .65; line(48);
+      for (let i = 0; i < 6; i++) {
+        const t = (i + 1) / 7, p = point(t), before = point(t - .02), after = point(t + .02);
+        const angle = Math.atan2(after.y - before.y, after.x - before.x), radius = breadth * (.35 + random() * .35);
+        if (t > progress) continue;
+        for (const side of [-1, 1]) {
+          ctx.fillStyle = side === 1 ? mark.pigment : mark.accent; ctx.globalAlpha = .45;
+          ctx.beginPath(); ctx.ellipse(p.x - Math.sin(angle) * radius * side, p.y + Math.cos(angle) * radius * side,
+            radius, radius * .3, angle + side * .65, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = .65 * progress; ctx.strokeStyle = mark.accent;
+      ctx.beginPath(); ctx.arc(tip.x, tip.y, Math.max(1, breadth * .4), 0, Math.PI * 1.6 * progress); ctx.stroke();
+      break;
+    }
+    case 'artdeco': {
+      const radius = Math.max(scale * .025, breadth * (event ? 2.4 : 1.4));
+      ctx.translate(centre.x, centre.y); ctx.strokeStyle = mark.accent; ctx.lineWidth = Math.max(1, scale * .003);
+      for (let i = 0; i < 7; i++) {
+        const angle = Math.PI + i / 6 * Math.PI;
+        polygon([{ x: 0, y: radius * .4 }, { x: Math.cos(angle - .1) * radius, y: Math.sin(angle - .1) * radius },
+          { x: Math.cos(angle + .1) * radius, y: Math.sin(angle + .1) * radius }], i % 2 ? mark.pigment : mark.accent, .8 * progress);
+      }
+      ctx.globalAlpha = .8 * progress;
+      for (let i = 0; i < 3; i++) { const w = radius * (1 - i * .25); ctx.strokeRect(-w, radius * (.4 + i * .2), w * 2, radius * .2); }
+      break;
+    }
+    case 'suprematist': {
+      const radius = Math.max(scale * .018, breadth * (event ? 2 : 1.1));
+      ctx.translate(centre.x, centre.y); ctx.rotate((random() - .5) * Math.PI);
+      ctx.globalAlpha = .92 * progress; ctx.fillRect(-radius * 1.5, -radius * .35, radius * 3, radius * .7);
+      if (mark.sequence % 4 === 0) ctx.fillRect(-radius * .35, -radius * 1.5, radius * .7, radius * 3);
+      else { ctx.fillStyle = mark.accent; ctx.fillRect(radius * .6, -radius * 1.3, radius * .65, radius * .65); }
+      break;
+    }
+    case 'opart': {
+      const radius = Math.max(scale * .025, breadth * (event ? 2 : 1.2));
+      ctx.translate(centre.x, centre.y); ctx.rotate(mark.expression?.tilt ?? 0);
+      ctx.globalAlpha = .9 * progress; ctx.fillStyle = '#f8f5ed'; ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+      ctx.strokeStyle = '#20252b'; ctx.lineWidth = Math.max(.6, radius * .07);
+      ctx.beginPath(); ctx.rect(-radius, -radius, radius * 2, radius * 2); ctx.clip();
+      for (let i = -7; i <= 7; i++) {
+        ctx.beginPath();
+        if (event) ctx.arc(0, 0, (i + 8) * radius * .14, 0, Math.PI * 2);
+        else { ctx.moveTo(i * radius * .17, -radius); ctx.bezierCurveTo(i * radius * .17 + radius * .5, -radius * .3,
+          i * radius * .17 - radius * .5, radius * .3, i * radius * .17, radius); }
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'abstractexpressionist':
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = i === 1 ? mark.accent : mark.pigment; ctx.globalAlpha = .55;
+        ctx.lineWidth = Math.max(.7, breadth * (.12 + random() * .3)); line(40, breadth * 2.5);
+      }
+      for (let i = 0; i < 45; i++) {
+        const t = random(), p = point(t), x = p.x + (random() - .5) * breadth * 7, y = p.y + (random() - .5) * breadth * 7;
+        const radius = Math.max(.4, random() ** 2 * breadth * .18), drip = random() * breadth * 1.5;
+        if (t > progress) continue;
+        ctx.fillStyle = i % 3 ? mark.pigment : mark.accent; ctx.globalAlpha = .7;
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+        if (i % 5 === 0) { ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = radius * .5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + drip); ctx.stroke(); }
+      }
+      break;
     case 'collage': {
       const radius = breadth * (event ? 2.2 : 1.3), angle = random() * Math.PI;
       ctx.translate(centre.x, centre.y); ctx.rotate(angle);

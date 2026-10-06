@@ -143,16 +143,25 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
     const p = controller.getPosition();
     const other = characters.find(c => c.controller !== controller && Math.hypot(c.controller.getPosition().x - p.x, c.controller.getPosition().z - p.z) < radius + c.radius + .1);
     if (other) return { id: `robot:${other.id}`, reason: 'Another robot is crossing the path. Waiting for it to move.' };
-    let nearest: Mesh | undefined, best = Infinity;
+    let nearest: Mesh | undefined, best = radius + .15;
     for (const mesh of colliders.keys()) {
-      if (!mesh.metadata?.building) continue;
       const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+      // Identify the actual obstruction, including features on adjacent streets.
+      // Floors and walkable tops are support, not barriers to repair.
+      const feet = p.y - height / 2;
+      if (max.y <= feet + controller.maxStepHeight || min.y >= p.y + height / 2) continue;
       const distance = Math.hypot(Math.max(min.x - p.x, 0, p.x - max.x), Math.max(min.z - p.z, 0, p.z - max.z));
       if (distance < best) { nearest = mesh; best = distance; }
     }
-    return nearest && best < radius + .15
-      ? { id: `wall:${nearest.metadata.building}:${nearest.metadata.side ?? 'front'}`, reason: 'This building blocks the robot’s path. Move its wall to make room, then resume.' }
-      : { id: journey.currentStreet!.id, reason: 'A solid object blocks this street. Move the nearby wall or widen the passage, then resume.' };
+    const street = journey.world.streets.find(s => s.id === nearest?.metadata?.street);
+    if (street && ['curb', 'stairs', 'bridge'].includes(street.kind) && !journey.repaired.has(street.id)) {
+      return { id: street.id, reason: journey.problem(street)! };
+    }
+    if (nearest?.metadata?.building) return {
+      id: `wall:${nearest.metadata.building}:${nearest.metadata.side ?? 'front'}`,
+      reason: 'This building blocks the robot’s path. Move its wall to make room, then resume.',
+    };
+    return { id: journey.currentStreet!.id, reason: 'A solid object blocks this street. Move the nearby wall or widen the passage, then resume.' };
   }
   journey.constrainTravel = (from, to, seconds) => {
     const dx = to.x - from.x, dz = to.z - from.z, requested = Math.hypot(dx, dz);

@@ -17,6 +17,8 @@ import { createCityPhysics } from '../src/city/cityPhysics';
 import { createAutonomousBots } from '../src/city/autonomousBots';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 import { generateCity, routeToGoal } from '../src/city/proceduralCity';
+import { cityIssueAction } from '../src/ui/cityIssueAction';
+import { cityRobotAlert } from '../src/ui/cityRobotAlert';
 
 const wasm = readFile(createRequire(import.meta.url).resolve('@babylonjs/havok/lib/esm/HavokPhysics.wasm')).then(wasmBinary => HavokPhysics({ wasmBinary }));
 function fixture() {
@@ -28,6 +30,38 @@ function fixture() {
   const floor = MeshBuilder.CreateBox('floor', { width: 30, height: .1, depth: 30 }, scene); floor.position.y = .025;
   return { engine, scene, journey, floor };
 }
+
+test('a barrier on an adjacent street offers its own repair and clears the travelled street', async () => {
+  for (const kind of ['stairs', 'curb', 'bridge'] as const) {
+    const { engine, scene, journey, floor } = fixture();
+    journey.world.nodes.push({ id: 'c', label: 'North', x: 3, y: .16, z: 5 }, { id: 'd', label: 'South', x: 3, y: .16, z: -5 });
+    journey.world.streets.push({ id: 'adjacent', a: 'c', b: 'd', kind, width: 2.6, crossingSeconds: 20 });
+    const obstacle = MeshBuilder.CreateBox('adjacent-feature', { width: .28, height: .55, depth: 2.6 }, scene);
+    obstacle.position.set(3, .34, 0); obstacle.metadata = { street: 'adjacent' };
+    // A nearby building must not steal the identity of the closer street feature.
+    const wall = MeshBuilder.CreateBox('nearby-wall', { width: .2, height: 4, depth: 2 }, scene);
+    wall.position.set(3.8, 2, 2); wall.metadata = { building: 'Library', side: 'front' };
+    const physics = createCityPhysics(scene, journey, [floor, obstacle, wall], await wasm);
+    try {
+      journey.start();
+      for (let i = 0; i < 600 && !journey.blocked; i++) {
+        physics.update(1 / 60); journey.update(1 / 60); scene.getPhysicsEngine()!._step(1 / 60);
+      }
+      assert.equal(journey.currentStreet!.id, 'street');
+      assert.equal(journey.blocked?.id, 'adjacent');
+      assert.equal(cityIssueAction(journey), kind === 'stairs' ? 'Add ramp' : kind === 'curb' ? 'Lower curb' : 'Lower bridge');
+      assert.doesNotMatch(cityRobotAlert(journey)!, /object|wall/);
+      assert.equal(journey.canEdit('adjacent'), true);
+      assert.equal(journey.repair('adjacent'), true);
+      obstacle.setEnabled(false); physics.sync();
+      for (let i = 0; i < 900 && !journey.complete; i++) {
+        physics.update(1 / 60); journey.update(1 / 60); scene.getPhysicsEngine()!._step(1 / 60);
+      }
+      assert.equal(journey.complete, true);
+      assert.ok(journey.machine.record.failures[0]!.resolvedAt !== null);
+    } finally { scene.dispose(); engine.dispose(); }
+  }
+});
 
 test('robot sweeps stop the player and autonomous robots at each other, including large moves', async () => {
   const { engine, scene, journey, floor } = fixture();
