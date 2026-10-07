@@ -9,7 +9,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
     <div class="attract-cloud attract-cloud-pink" aria-hidden="true"></div>
     <div class="attract-cloud attract-cloud-mint" aria-hidden="true"></div>
     <div class="attract-grid" aria-hidden="true"></div>
-    <header class="attract-brand"><span class="attract-brand-mark" aria-hidden="true">✳</span> INCLUSIVE CITY</header>
+    <header class="attract-brand"><span class="attract-brand-mark" aria-hidden="true">✳</span> Making a city inclusive</header>
     <div class="attract-layout">
       <div class="attract-copy">
         <h1 id="attract-title">Inaccessible<br><span class="attract-title-bot">Robot City</span></h1>
