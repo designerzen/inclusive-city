@@ -7,8 +7,8 @@ export class RouteTrajectory {
   readonly points: Vector3[] = [];
   readonly distances: number[] = [];
   readonly milestones: number[] = [];
-  constructor(stops: readonly RoutePoint[], transportEdges: ReadonlyMap<number, readonly RoutePoint[]> = new Map(), minimumRadius = 3,
-    segmentIsClear?: (a: RoutePoint, b: RoutePoint) => boolean) {
+  constructor(stops: readonly RoutePoint[], transportEdges: ReadonlyMap<number, readonly RoutePoint[]> = new Map(), readonly minimumRadius = 3,
+    segmentIsClear?: (a: RoutePoint, b: RoutePoint) => boolean, endpointNeighbours?: { start?: RoutePoint; end?: RoutePoint }) {
     const streetCurve = (waypoints: readonly RoutePoint[]): Vector3[] => {
       const curve = routeCurve(waypoints.map(p => new Vector3(p.x, p.y, p.z)), minimumRadius, true, minimumRadius);
       // Obstacles must not change the line into a right angle. The city reserves
@@ -18,6 +18,7 @@ export class RouteTrajectory {
     // Transport changes timing and height, not continuity of the visible line.
     // Smooth the complete horizontal itinerary, including boarding and exit.
     const itinerary: RoutePoint[] = [];
+    if (endpointNeighbours?.start) itinerary.push(endpointNeighbours.start);
     for (let edge = 0; edge < stops.length; edge++) {
       const stop = stops[edge]!;
       if (!itinerary.length || Math.hypot(stop.x - itinerary.at(-1)!.x, stop.z - itinerary.at(-1)!.z) > 1e-8) itinerary.push(stop);
@@ -25,7 +26,25 @@ export class RouteTrajectory {
         if (Math.hypot(p.x - itinerary.at(-1)!.x, p.z - itinerary.at(-1)!.z) > 1e-8)
           itinerary.push({ ...p, y: stops[edge]!.y });
     }
+    if (endpointNeighbours?.end) itinerary.push(endpointNeighbours.end);
     this.points.push(...streetCurve(itinerary));
+    const trimEndpoint = (point: RoutePoint, start: boolean) => {
+      let best = Infinity, index = 0, projected = this.points[0]!;
+      for (let i = 1; i < this.points.length; i++) {
+        const a = this.points[i - 1]!, b = this.points[i]!, dx = b.x - a.x, dz = b.z - a.z;
+        const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / (dx * dx + dz * dz)));
+        const p = Vector3.Lerp(a, b, t), distance = (p.x - point.x) ** 2 + (p.z - point.z) ** 2;
+        if (distance < best || !start && Math.abs(distance - best) < 1e-10) { best = distance; index = i; projected = p; }
+      }
+      if (start) this.points.splice(0, index, projected);
+      else this.points.splice(index, this.points.length - index, projected);
+    };
+    if (endpointNeighbours?.start) trimEndpoint(stops[0]!, true);
+    if (endpointNeighbours?.end) trimEndpoint(stops.at(-1)!, false);
+    for (let i = 1; i < this.points.length;) {
+      if (Vector3.DistanceSquared(this.points[i - 1]!, this.points[i]!) < 1e-12) this.points.splice(i, 1);
+      else i++;
+    }
     this.distances.push(0);
     for (let i = 1; i < this.points.length; i++) this.distances.push(this.distances[i - 1]! + Vector3.Distance(this.points[i - 1]!, this.points[i]!));
     let previous = 0;

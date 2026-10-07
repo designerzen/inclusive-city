@@ -3,6 +3,7 @@ import type { ProceduralCity, CityStreet } from './proceduralCity';
 import { RouteTrajectory } from './routeTrajectory';
 import { routeRoadPolygons } from './routeRoad';
 import type { RoadPolygon } from './roadPolygonUnion';
+import { isHumpbackBridge } from './humpbackBridge';
 
 /** Straight street spans joined by circular bends, including both kerb edges. */
 export function cityRoadNetwork(world: ProceduralCity, radius: number, width = (s: CityStreet) => s.width) {
@@ -43,7 +44,19 @@ export function cityRoadNetwork(world: ProceduralCity, radius: number, width = (
   }
   for (const street of world.streets) {
     const a = ends.get(`${street.id}:${street.a}`) ?? node(street.a), b = ends.get(`${street.id}:${street.b}`) ?? node(street.b);
-    spans.set(street.id, { a: new Vector3(a.x, a.y, a.z), b: new Vector3(b.x, b.y, b.z) });
+    let deckA = new Vector3(a.x, a.y, a.z), deckB = new Vector3(b.x, b.y, b.z);
+    if (isHumpbackBridge(street, world)) {
+      const originalA = node(street.a), originalB = node(street.b);
+      const direction = new Vector3(originalB.x - originalA.x, 0, originalB.z - originalA.z).normalize();
+      // A straight-through junction still has turning branches. Start raised
+      // ramps beyond every branch's tangent so a curved approach cannot hit
+      // the side of a ramp that begins at the old square intersection.
+      if (world.streets.some(s => s !== street && s.id !== world.steamTrain?.street && (s.a === street.a || s.b === street.a)))
+        deckA = new Vector3(originalA.x, originalA.y, originalA.z).add(direction.scale(radius));
+      if (world.streets.some(s => s !== street && s.id !== world.steamTrain?.street && (s.a === street.b || s.b === street.b)))
+        deckB = new Vector3(originalB.x, originalB.y, originalB.z).subtract(direction.scale(radius));
+    }
+    spans.set(street.id, { a: deckA, b: deckB });
     if (street.id === world.steamTrain?.street) continue;
     const originalA = node(street.a), originalB = node(street.b);
     // Adjacent bends may meet without leaving a straight section between them.

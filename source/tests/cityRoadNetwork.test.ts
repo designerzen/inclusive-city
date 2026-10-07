@@ -103,3 +103,26 @@ test('a full city and its route produce a bounded road mesh for rendering and ph
     assert.ok(triangles > 0);
   }
 });
+
+test('complete ground itineraries stay on the road network, including curved bridge approaches', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  for (const seed of [109, 204063043]) {
+    const world = generateCity(seed, [bot]); world.minimumTurnRadius = 8;
+    const journey = new PlannedJourney(bot, world); journey.enableLineFollowing(); journey.setRoute(routeToGoal(world)!);
+    const engine = new NullEngine(), scene = new Scene(engine);
+    try {
+      for (const [id, data] of roadPolygonUnion(cityRoadNetwork(world, 8).polygons)) {
+        const road = createRoadSurface(id, scene); updateRoadSurface(road, data); road.computeWorldMatrix(true);
+      }
+      const path = journey.trajectory;
+      for (let edge = 0; edge < journey.route.length - 1; edge++) {
+        const street = world.streets.find(s => [s.a, s.b].includes(journey.route[edge]!) && [s.a, s.b].includes(journey.route[edge + 1]!))!;
+        if (street.id === world.steamTrain?.street) continue;
+        for (let distance = .1; distance < path.edgeLength(edge); distance += .5) {
+          const p = path.atEdge(edge, distance).position;
+          assert.ok(scene.pickWithRay(new Ray(new Vector3(p.x, 3, p.z), new Vector3(0, -1, 0)))?.hit, `seed ${seed}, ${street.id}, ${distance}, ${p.x}, ${p.z}: line follows the actual road instead of cutting across a block`);
+        }
+      }
+    } finally { scene.dispose(); engine.dispose(); }
+  }
+});

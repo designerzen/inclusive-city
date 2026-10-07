@@ -34,6 +34,7 @@ import { routeRoadPolygons } from './routeRoad';
 import { cityRoadNetwork } from './cityRoadNetwork';
 import { roadPolygonUnion } from './roadPolygonUnion';
 import { createGoalFlag } from './goalFlag';
+import { studioApproach } from './studioApproach';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -240,6 +241,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     return { node, ring };
   });
   const goal = world.nodes.find(node => node.id === world.destination)!;
+  let markerGoal = { ...goal };
   const entranceRoot = new TransformNode('studio-entrance', scene);
   const studio = createStudioBuilding(scene, entranceRoot, walls, roofs, pavement);
   solids.push(...studio.parts);
@@ -252,12 +254,16 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function syncEntrance() {
     entranceRoot.setEnabled(!!world.studioEntrance);
     if (!world.studioEntrance) return;
-    const incoming = world.streets.find(s => s.a === goal.id || s.b === goal.id);
-    const neighbour = incoming?.a === goal.id ? incoming.b : incoming?.a;
-    const previous = world.nodes.find(n => n.id === journey.route.at(-2)) ?? world.nodes.find(n => n.id === neighbour) ?? world.nodes.find(n => n.id !== goal.id)!;
-    const dx = goal.x - previous.x, dz = goal.z - previous.z, length = Math.hypot(dx, dz);
-    entranceRoot.position.set(goal.x - dx / length * 2, .15, goal.z - dz / length * 2);
-    entranceRoot.rotation.y = Math.atan2(dx, dz);
+    const approach = studioApproach(journey);
+    const dx = Math.sin(approach.heading), dz = Math.cos(approach.heading);
+    entranceRoot.position.set(approach.x, .15, approach.z);
+    entranceRoot.rotation.y = approach.heading;
+    if (markerGoal.x !== approach.goal.x || markerGoal.z !== approach.goal.z) {
+      for (const mesh of flagParts) { mesh.position.x += approach.goal.x - markerGoal.x; mesh.position.z += approach.goal.z - markerGoal.z; }
+      markerGoal = { ...approach.goal };
+      goalRing.position.set(markerGoal.x, .25, markerGoal.z);
+      nodeModels.find(n => n.node.id === goal.id)!.ring.position.set(markerGoal.x, .17, markerGoal.z);
+    }
     const width = resizer.value('studio:width');
     studio.sync(width, journey.complete);
     const place = (i: number, x: number, y: number, w: number, h: number, d: number, rotation = 0) => {
@@ -288,6 +294,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const goalRing = MeshBuilder.CreateTorus('goal-finish-ring', { diameter: 4.2, thickness: .35, tessellation: 32 }, scene);
   goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
   createGoalFlag(scene, goal, goalMaterial, flagBlack, flagWhite);
+  const flagParts = scene.meshes.filter(m => m.name.startsWith('goal-flag'));
   const robot = createRobot(scene); robot.setName(bot.name); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);
   instruments.root.scaling.set(bot.appearance.width * .5, .5, .5);
@@ -360,7 +367,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     camera.update(seconds, reducedMotionPreference().matches);
   }
   function projectNode(id: string) {
-    const node = world.nodes.find(n => n.id === id)!;
+    const node = id === world.destination ? markerGoal : world.nodes.find(n => n.id === id)!;
     scene.updateTransformMatrix();
     const p = Vector3.Project(new Vector3(node.x, .17, node.z), Matrix.Identity(), scene.getTransformMatrix(), scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()));
     return { x: p.x * engine.getHardwareScalingLevel(), y: p.y * engine.getHardwareScalingLevel(), z: p.z };

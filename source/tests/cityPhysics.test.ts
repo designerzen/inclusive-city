@@ -23,6 +23,7 @@ import { createHumpbackBridge } from '../src/city/createHumpbackBridge';
 import { isHumpbackBridge } from '../src/city/humpbackBridge';
 import { cityRoadNetwork } from '../src/city/cityRoadNetwork';
 import { roadPolygonUnion } from '../src/city/roadPolygonUnion';
+import { studioApproach } from '../src/city/studioApproach';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from '../src/city/roadSurface';
 import { routeRoadPolygons } from '../src/city/routeRoad';
 
@@ -308,11 +309,10 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
     for (const bike of world.bicycles ?? []) journey.repair(bike.id);
     journey.repair('studio-entrance'); journey.repair('studio-entrance');
     const route = routeToGoal(world)!, goal = world.nodes.find(n => n.id === world.destination)!;
-    const previous = world.nodes.find(n => n.id === route.at(-2))!;
-    const dx = goal.x - previous.x, dz = goal.z - previous.z, length = Math.hypot(dx, dz);
+    const approach = studioApproach(journey);
     const entrance = new TransformNode('studio-entrance', scene);
-    entrance.position.set(goal.x - dx / length * 2, .15, goal.z - dz / length * 2);
-    entrance.rotation.y = Math.atan2(dx, dz);
+    entrance.position.set(approach.x, .15, approach.z);
+    entrance.rotation.y = approach.heading;
     const material = new StandardMaterial('studio', scene);
     const studio = createStudioBuilding(scene, entrance, material, material, material);
     studio.sync(world.studioEntrance!.width, false); solids.push(...studio.parts);

@@ -27,7 +27,15 @@ export function fitCurveLayout(world: ProceduralCity, radius: number, moveBuildi
       // to the track's own grid dot forced a reversal at the boarding station.
       const outside = world.nodes.filter(n => !n.id.startsWith('train-') && Math.abs(n.x - station.x) < 1e-6 && (n.z - station.z) * sign > .1)
         .sort((a, b) => Math.abs(a.z - station.z) - Math.abs(b.z - station.z))[0];
-      if (outside) { if (approach.a === station.id) approach.b = outside.id; else approach.a = outside.id; }
+      if (outside) {
+        if (approach.a === station.id) approach.b = outside.id; else approach.a = outside.id;
+        // The old grid span overlapped this access road. Keeping it let a route
+        // walk past the platform, reverse, and retrace the same painted line.
+        world.streets = world.streets.filter(s => s === approach || ![s.a, s.b].includes(outside.id) || ![s.a, s.b].some(other => {
+          const n = world.nodes.find(p => p.id === other)!;
+          return n !== outside && Math.abs(n.x - station.x) < 1e-6 && (n.z - station.z) * sign < 0;
+        }));
+      }
     }
   }
 }

@@ -77,8 +77,21 @@ export class PlannedJourney {
         const track = reverse ? { trackStart: service.trackEnd, trackEnd: service.trackStart } : service;
         transport.set(i, [0, 3, 6, 8, 14, 17, 19, 20, 21, 24].map(t => trainRidePose(this.node(this.path[i]!), this.node(this.path[i + 1]!), t, track).position));
       }
+      const endpointNeighbour = (id: string, next: string | undefined) => {
+        if (!next) return undefined;
+        const streets = this.world.streets.filter(s => s.id !== this.world.steamTrain?.street && (s.a === id || s.b === id));
+        if (streets.length !== 2) return undefined;
+        const other = streets.find(s => s.a !== next && s.b !== next);
+        if (!other) return undefined;
+        const corner = this.node(id), a = this.node(next), b = this.node(other.a === id ? other.b : other.a);
+        const cross = (a.x - corner.x) * (b.z - corner.z) - (a.z - corner.z) * (b.x - corner.x);
+        return Math.abs(cross) > 1e-6 ? b : undefined;
+      };
       this.trajectoryCache = new RouteTrajectory(this.path.map(id => this.node(id)), transport, this.turnRadius,
-        cityRouteClearance(this.world, Math.max(.25, robotFootprint(this.bot) / 2) + .12)); this.trajectoryKey = key;
+        cityRouteClearance(this.world, Math.max(.25, robotFootprint(this.bot) / 2) + .12), {
+          start: endpointNeighbour(this.path[0]!, this.path[1]),
+          end: endpointNeighbour(this.path.at(-1)!, this.path.at(-2)),
+        }); this.trajectoryKey = key;
     }
     return this.trajectoryCache;
   }
@@ -212,7 +225,7 @@ export class PlannedJourney {
     if (this.lineFollowing) this.heading = this.trajectory.sample(0).heading;
     this.savePlan();
     this.machine.record.condition.direction = this.heading;
-    this.machine.depart(); this.collectAt(this.path[0]!); return true;
+    this.machine.depart(); this.syncTransport?.(); this.collectAt(this.path[0]!); return true;
   }
   get position(): RoutePoint {
     if (this.trainPose) return this.trainPose.position;

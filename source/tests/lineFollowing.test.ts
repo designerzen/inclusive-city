@@ -75,10 +75,15 @@ test('collision sweeps receive successive samples of the same curved line', () =
 
 test('the complete generated line has no sharp joins at bridges or train platforms', () => {
   const bot = new BotHistory(['Curie', 'Einstein']).current;
-  for (const seed of [42, 204063043]) for (const radius of [1, 3, 8, 12]) {
+  for (const seed of [42, 109, 204063043]) for (const radius of [1, 3, 8, 12]) {
     const world = generateCity(seed, [bot]); world.minimumTurnRadius = radius;
     const j = new PlannedJourney(bot, world); j.enableLineFollowing(); j.setRoute(routeToGoal(world)!);
     const points = j.trajectory.points;
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i]!.x - points[i - 1]!.x, dz = points[i]!.z - points[i - 1]!.z;
+      if (Math.hypot(dx, dz) > radius / 2)
+        assert.ok(Math.abs(dx) < 1e-6 || Math.abs(dz) < 1e-6, 'platform reversals must not collapse the route into a diagonal shortcut across town');
+    }
     for (let i = 2; i < points.length; i++) {
       const a = points[i - 1]!.subtract(points[i - 2]!).normalize(), b = points[i]!.subtract(points[i - 1]!).normalize();
       assert.ok(a.x * b.x + a.z * b.z > .998, `seed ${seed}, radius ${radius}, sample ${i}: ground and transport joins are tangent`);
