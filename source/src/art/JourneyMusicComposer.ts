@@ -11,6 +11,7 @@ import { worldArrangements } from './worldMusicStyles';
 import type { WorldMusicStyle } from './worldMusicStyles';
 import { MusicDevelopment } from './MusicDevelopment';
 import { cityMusicKey } from '../audio/cityMusicKeys';
+import { fmPatches } from '../audio/fmSynth';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
 interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; keyMood?: RobotMood | null; expression?: JourneyExpression; cadence?: boolean }
@@ -22,17 +23,17 @@ const recipes: Record<MusicianStyle, { bpm: number; voice: Voice }> = {
   ambient: { bpm: 64, voice: { waveform: 'sine', attack: .3, release: 1.8, cutoff: 1400 } },
   classical: { bpm: 102, voice: { waveform: 'triangle', attack: .004, decay: .12, sustain: .12, release: .3, cutoff: 3200 } },
   minimalist: { bpm: 112, voice: { waveform: 'sine', attack: .008, release: .13 } },
-  jazz: { bpm: 116, voice: { waveform: 'triangle', release: .25, cutoff: 2100 } },
+  jazz: { bpm: 116, voice: { waveform: 'sine', fm: fmPatches.electricPiano, release: .25, cutoff: 2100 } },
   blues: { bpm: 94, voice: { waveform: 'triangle', pitchBend: .12, release: .2, cutoff: 2400 } },
-  electronic: { bpm: 124, voice: { waveform: 'sawtooth', attack: .004, release: .07, cutoff: 1800, resonance: 2 } },
+  electronic: { bpm: 124, voice: { waveform: 'sine', fm: fmPatches.bright, attack: .004, release: .07, cutoff: 3800, resonance: 2 } },
   techno: { bpm: 140, voice: { waveform: 'square', attack: .002, release: .06, cutoff: 1200 } },
-  chimes: { bpm: 88, voice: { waveform: 'sine', decay: .15, sustain: .12, release: .8 } },
+  chimes: { bpm: 88, voice: { waveform: 'sine', fm: fmPatches.bell, decay: .15, sustain: .12, release: .8 } },
   chiptune: { bpm: 136, voice: { waveform: 'square', attack: .001, release: .025, echoGain: 0, cutoff: 7500 } },
   folk: { bpm: 90, voice: { waveform: 'triangle', decay: .1, sustain: .18, release: .35 } },
   waltz: { bpm: 96, voice: { waveform: 'triangle', release: .25, cutoff: 2800 } },
   latin: { bpm: 118, voice: { waveform: 'triangle', decay: .08, sustain: .15, release: .12 } },
   cinematic: { bpm: 76, voice: { waveform: 'sine', layers: 2, spread: 9, attack: .2, release: 1.2 } },
-  lofi: { bpm: 78, voice: { waveform: 'triangle', cutoff: 950, attack: .02, release: .45, echoGain: .1 } },
+  lofi: { bpm: 78, voice: { waveform: 'sine', fm: fmPatches.electricPiano, cutoff: 950, attack: .02, release: .45, echoGain: .1 } },
   baroque: { bpm: 108, voice: { waveform: 'triangle', attack: .002, decay: .06, sustain: .15, release: .08, echoGain: .03 } },
   romantic: { bpm: 74, voice: { waveform: 'triangle', attack: .006, decay: .2, sustain: .15, release: .65 } },
   ragtime: { bpm: 108, voice: { waveform: 'triangle', attack: .002, decay: .09, sustain: .08, release: .09, echoGain: .02 } },
@@ -298,7 +299,7 @@ export class JourneyMusicComposer {
       if (style === 'disco' || style === 'electronic') { offsets = [.5, 1.5, 2.5, 3.5]; length = .3; }
       if (['ambient', 'cinematic', 'synthwave'].includes(style)) length = 3.5;
       if (world) { offsets = [...world.chords]; length = world.chordLength; }
-      add('harmony', { ...this.identity.voice({ waveform: style === 'synthwave' ? 'sawtooth' : 'sine', attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300 }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
+      add('harmony', { ...this.identity.voice({ waveform: 'sine', fm: style === 'synthwave' ? fmPatches.bright : fmPatches.warm, attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300 }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
         offsets.flatMap(at => notes(intervals.map(interval => [interval, at, length]), root - 12)));
     }
     if (enhance) {

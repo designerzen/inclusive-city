@@ -1,4 +1,6 @@
 import { AudioMix, instrumentGain, mixTailSeconds, mixLatencySeconds } from './AudioMix';
+import { scheduleFm } from './fmSynth';
+import type { FmPatch } from './fmSynth';
 
 /** A versioned, JSON-safe score. Times are seconds relative to the effect start. */
 export interface SoundScore {
@@ -10,6 +12,7 @@ export interface SoundScore {
     detune: number; layers: number; spread: number; pitchBend: number;
     vibratoRate: number; vibratoDepth: number; cutoff: number; resonance: number;
     pan: number; echoTime: number; echoGain: number;
+    fm?: FmPatch;
   };
 }
 
@@ -65,6 +68,7 @@ export class SoundEffect {
     for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
       if (config[key] !== undefined) Object.assign(voice, { [key]: config[key] });
     }
+    if (config.fm !== undefined) voice.fm = { ...config.fm };
     const notes = Array.from({ length: repeats }, (_, repeat) => pitches.map((pitch, i) => ({
       midi: root + pitch,
       start: repeat * (pattern === 'chord' ? duration : pitches.length * step) + (pattern === 'chord' ? 0 : i * step),
@@ -87,7 +91,7 @@ export class SoundEffect {
     }
     const v = score.voice;
     if (!['sine', 'triangle', 'square', 'sawtooth'].includes(v.waveform)) throw new RangeError('Unknown waveform.');
-    const bounds: Record<Exclude<keyof typeof v, 'waveform'>, [number, number]> = {
+    const bounds: Record<Exclude<keyof typeof v, 'waveform' | 'fm'>, [number, number]> = {
       gain: [0, 0.5], attack: [0.001, 4], decay: [0.001, 4], sustain: [0, 1], release: [0.005, 8],
       detune: [-1200, 1200], layers: [1, 4], spread: [0, 100], pitchBend: [-24, 24],
       vibratoRate: [0.1, 20], vibratoDepth: [0, 100], cutoff: [40, 20000], resonance: [0, 12],
@@ -95,6 +99,13 @@ export class SoundEffect {
     };
     for (const [key, bound] of Object.entries(bounds)) range(v[key as keyof typeof bounds], ...bound, key);
     if (!Number.isInteger(v.layers)) throw new RangeError('layers must be an integer.');
+    if (v.fm !== undefined) {
+      const fmBounds: Record<keyof FmPatch, [number, number]> = {
+        ratio: [.125, 16], index: [0, 8], attack: [.001, 4], decay: [.001, 4], sustain: [0, 1], release: [.005, 8],
+      };
+      if (!v.fm || typeof v.fm !== 'object') throw new RangeError('Invalid FM patch.');
+      for (const [key, bound] of Object.entries(fmBounds)) range(v.fm[key as keyof FmPatch], ...bound, `fm.${key}`);
+    }
     return JSON.parse(JSON.stringify(score)) as SoundScore;
   }
 
@@ -132,6 +143,10 @@ export class SoundEffect {
         oscillator.frequency.setValueAtTime(hz, start);
         oscillator.frequency.exponentialRampToValueAtTime(hz * 2 ** (v.pitchBend / 12), end);
         oscillator.detune.value = v.detune + (layer - (v.layers - 1) / 2) * v.spread;
+        if (v.fm) {
+          const { modulator, depth } = scheduleFm(context, oscillator, v.fm, hz, start, end, v.release, v.pitchBend);
+          nodes.push(modulator, depth); sources.push(modulator);
+        }
         const envelope = context.createGain();
         const attack = Math.min(v.attack, note.duration * 0.4), decay = Math.min(v.decay, note.duration * 0.4);
         envelope.gain.setValueAtTime(0, start);
