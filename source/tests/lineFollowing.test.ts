@@ -102,11 +102,12 @@ test('blocked travel can return to a junction, unlock undo and resume without lo
 
 test('restart for a different route keeps city edits and undo history', () => {
   const j = fixture();
-  j.restart(); j.editDimension('width:ab', 7); j.start(); j.update(1);
+  j.restart(); const before = j.dimensions.get('width:ab')!;
+  assert.equal(j.editDimension('width:ab', before + 1), true); j.start(); j.update(1);
   j.blocked = { id: 'ab', reason: 'A solid object blocks this street.' };
   j.restart(); j.clearRoute();
   assert.equal(j.ready, true); assert.deepEqual(j.route, ['a']);
-  assert.equal(j.dimensions.get('width:ab'), 7);
+  assert.equal(j.dimensions.get('width:ab'), before + 1);
   assert.equal(j.undoRepair(), true);
-  assert.equal(j.dimensions.get('width:ab'), 6);
+  assert.equal(j.dimensions.get('width:ab'), before);
 });
