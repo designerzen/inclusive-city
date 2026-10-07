@@ -1,2 +1,8 @@
 .city-music-feedback { flex: 1 0 100%; min-width: 0; font-size: .8125rem; line-height: 1.4; }
 .city-music-feedback p { margin: 0; overflow-wrap: anywhere; }
+.city-music-feedback[hidden], #city-music-notes[hidden], #city-music-notation[hidden] { display: none; }
+#city-music-notation { max-width: 640px; }
+#city-music-notation svg { display: block; width: 100%; height: auto; }
+.music-monitor-controls { display: grid; gap: 8px; min-width: 0; }
+.music-monitor-controls select { width: 100%; min-width: 44px; min-height: 44px; box-sizing: border-box; }
+.music-monitor-controls p { margin: 4px 0; font-size: .8125rem; line-height: 1.5; }

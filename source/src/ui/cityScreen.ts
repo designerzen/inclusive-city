@@ -23,6 +23,9 @@ import { interpretCityReply, applyCityReply } from './cityReply';
 import { cityRobotAlert } from './cityRobotAlert';
 import { cityIssueAction } from './cityIssueAction';
 import { CityMusicCues } from './cityMusicCues';
+import { musicMonitorChanges, musicMonitorPreferences } from '../app/musicMonitorPreferences';
+import { mountMusicMonitorControls } from './musicMonitorControls';
+import { musicNotation, type MonitorNote } from './musicNotation';
 import './cityMusicCues.css';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
@@ -36,9 +39,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       </div>
       <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
       <button id="back-to-designer" type="button">Edit robot</button>
-      <div class="city-music-feedback" aria-label="Live music cues">
+      <div class="city-music-feedback" aria-label="Live music cues" hidden>
         <p id="city-music-key" role="status" aria-live="polite">Music follows city actions.</p>
         <p id="city-music-notes" aria-live="off">Journey music ready.</p>
+        <div id="city-music-notation" hidden></div>
       </div>
     </header>
     <div class="city-map">
@@ -105,6 +109,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         </select>
         <p id="city-turn-radius-help">Set before starting the robot. Larger radii make wider, sweeping turns. The line and robot use the same setting.</p>
       </details>
+      <details class="city-music-options"><summary>Music monitor settings</summary><div id="city-music-monitor-controls" class="music-monitor-controls"></div></details>
       <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
         <div class="city-map-buttons" role="group" aria-label="Zoom and pan controls">
           <button type="button" data-map="zoom-in">Zoom in</button><button type="button" data-map="zoom-out">Zoom out</button>
@@ -154,6 +159,23 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let performancePresented = false, studioPreparing = false;
   let cityMusicTime = 0;
   const musicCues = new CityMusicCues();
+  let monitorNotes: MonitorNote[] = [];
+  const disposeMonitorControls = mountMusicMonitorControls(get('city-music-monitor-controls'), 'city-monitor');
+  function syncMusicMonitor() {
+    const preference = musicMonitorPreferences();
+    container.querySelector<HTMLElement>('.city-music-feedback')!.hidden = !preference.enabled;
+    get('city-music-notes').hidden = preference.mode !== 'notes';
+    get('city-music-notation').hidden = preference.mode !== 'notation';
+    if (!preference.enabled) {
+      monitorNotes = [];
+      get('city-music-notes').textContent = 'Journey music ready.';
+      get('city-music-key').textContent = 'Music follows city actions.';
+      get('city-music-notation').replaceChildren();
+    } else if (preference.mode === 'notation') {
+      get('city-music-notation').innerHTML = musicNotation(monitorNotes, creation?.bpm ?? 120);
+    }
+  }
+  musicMonitorChanges.addEventListener('change', syncMusicMonitor); syncMusicMonitor();
   let keyCueCursor = 0;
   let stopArrivalBed: (() => void) | undefined;
   function stopArrivalMusic() {
@@ -175,6 +197,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   function beginCreation() {
     if (!city) return;
     musicCues.clear(); keyCueCursor = 0;
+    monitorNotes = []; syncMusicMonitor();
     setText('city-music-key', 'Music follows city actions.'); setText('city-music-notes', 'Journey music ready.');
     stopArrivalMusic(); finished = null; performancePresented = false; studioPreparing = false;
     const compositionSeed = city.journey.machine.run.creative?.seed ?? freshCompositionSeed(creation?.seed);
@@ -205,8 +228,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     keyCueCursor = creation.keyChanges.length;
     sounds.performLive(score);
     const cue = musicCues.advance(cityMusicTime - .05);
+    if (!musicMonitorPreferences().enabled) return;
     if (cue.notes) setText('city-music-notes', cue.notes);
     if (cue.key) setText('city-music-key', cue.key);
+    if (cue.onsets.length) {
+      monitorNotes.push(...cue.onsets);
+      const times = [...new Set(monitorNotes.map(note => note.at))].sort((a, b) => a - b).slice(-12);
+      monitorNotes = monitorNotes.filter(note => times.includes(note.at));
+      if (musicMonitorPreferences().mode === 'notation') get('city-music-notation').innerHTML = musicNotation(monitorNotes, creation.bpm);
+    }
   }
   // Audio keeps its beat even when rendering is slow or animation frames are throttled.
   const musicTimer = window.setInterval(updateCityMusic, 50);
@@ -621,6 +651,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { voicePanel.dispose(); stopArrivalMusic(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
+    dispose() { disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); stopArrivalMusic(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }
