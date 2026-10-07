@@ -11,6 +11,8 @@ export type StudioDoorType = typeof studioDoorTypes[number];
 export interface StudioEntrance { width: number; doorType: StudioDoorType }
 export interface CityBicycle { id: string; street: string; location: 'pavement' | 'road'; pushDistance?: number }
 export interface ProceduralCity {
+  curvedRoadLayout?: boolean;
+  curvedRoadScale?: number;
   minimumTurnRadius?: number;
   seed: number; nodes: CityNode[]; streets: CityStreet[]; buildings: CityBuilding[];
   studioEntrance?: StudioEntrance;
@@ -129,7 +131,7 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const garageLots = lots.filter(lot => outsideStations({ ...lot, w: 5.5, d: 4.5 }));
   const bicycleGarage = garageLots.find(lot => !stationBuildings.some(building => building.x === lot.x && building.z === lot.z)) ?? garageLots[0]!;
   const openBuildings = stationBuildings.filter(building => building.x !== bicycleGarage.x || building.z !== bicycleGarage.z);
-  return { steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings: openBuildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
+  return { curvedRoadLayout: true, steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings: openBuildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {

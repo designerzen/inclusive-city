@@ -29,8 +29,10 @@ import { createAutonomousBots } from './autonomousBots';
 import { createStudioInstruments } from '../app/createStudioInstruments';
 import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
-import { createRoadSurface, roadSurfaceData, updateRoadSurface } from './roadSurface';
+import { createRoadSurface, updateRoadSurface } from './roadSurface';
 import { routeRoadPolygons } from './routeRoad';
+import { cityRoadNetwork } from './cityRoadNetwork';
+import { roadPolygonUnion } from './roadPolygonUnion';
 import { createGoalFlag } from './goalFlag';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
@@ -69,8 +71,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, mat: StandardMaterial) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene); mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
   }
-  solids.push(box('ground', 0, -.12, 0, 56, .15, 44, ground));
-  box('river', world.riverX, -.025, 0, 7, .05, 44, water);
+  const groundMesh = box('ground', 0, -.12, 0, 1, .15, 1, ground); solids.push(groundMesh);
+  const riverMesh = box('river', world.riverX, -.025, 0, 7, .05, 1, water);
   const streetModels = world.streets.map(street => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
     const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
@@ -213,31 +215,18 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale * (street.id === world.steamTrain?.street ? street.width / 2.6 : 1);
     }
-    // Broad kerb returns use vacant lots, with clearance for editable buildings,
-    // the garage and river. Recalculate them whenever street/building sizes change.
-    const occupied = buildingModels.map(({ b }) => ({
-      minX: resizer.value(`wall:${b.name}:left`) - .4, maxX: resizer.value(`wall:${b.name}:right`) + .4,
-      minZ: resizer.value(`wall:${b.name}:front`) - .5, maxZ: resizer.value(`wall:${b.name}:back`) + .4,
-    }));
-    occupied.push({ minX: world.riverX - 3.5, maxX: world.riverX + 3.5, minZ: -22, maxZ: 22 });
-    if (world.bicycleGarage) {
-      const { x, z } = world.bicycleGarage;
-      occupied.push({ minX: x - 3, maxX: x + 3, minZ: z - 2.5, maxZ: z + 2.5 });
-    }
     const routeStreets = journey.route.slice(1).map((id, i) => world.streets.find(s =>
       s.a === id && s.b === journey.route[i] || s.b === id && s.a === journey.route[i])!);
     const corridors = routeRoadPolygons(journey.trajectory, routeStreets.map(street => ({
       id: street.id, width: resizer.value(`width:${street.id}`),
       transport: street.kind === 'bridge',
     })));
-    const roads = roadSurfaceData(streetModels.map(({ street, surface, dx, dz }) => {
-      const width = resizer.value(`width:${street.id}`);
-      const halfX = (dx || width) / 2 + (dx && !dz ? width / 2 : 0);
-      const halfZ = (dz || width) / 2 + (dz && !dx ? width / 2 : 0);
-      return { id: street.id, minX: surface.position.x - halfX, maxX: surface.position.x + halfX,
-        minZ: surface.position.z - halfZ, maxZ: surface.position.z + halfZ };
-    }), journey.minimumTurnRadius, occupied, corridors);
-    for (const { street, road } of streetModels) updateRoadSurface(road, roads.get(street.id)!);
+    const network = cityRoadNetwork(world, journey.minimumTurnRadius, street => resizer.value(`width:${street.id}`));
+    const roads = roadPolygonUnion([...network.polygons, ...corridors]);
+    for (const { street, road } of streetModels) updateRoadSurface(road, roads.get(street.id) ?? { positions: [], normals: [], indices: [] });
+    const extentX = Math.max(28, ...world.nodes.map(n => Math.abs(n.x) + 5), ...world.buildings.map(b => Math.abs(b.x) + b.w / 2 + 4), Math.abs(world.bicycleGarage?.x ?? 0) + 6);
+    const extentZ = Math.max(22, ...world.nodes.map(n => Math.abs(n.z) + 5), ...world.buildings.map(b => Math.abs(b.z) + b.d / 2 + 4), Math.abs(world.bicycleGarage?.z ?? 0) + 6);
+    groundMesh.scaling.set(extentX * 2, 1, extentZ * 2); riverMesh.scaling.z = extentZ * 2;
     syncSignals();
     physics?.sync();
   }
@@ -301,7 +290,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);
   instruments.root.scaling.set(bot.appearance.width * .5, .5, .5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
-  const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }));
+  const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }), () => ({ width: groundMesh.scaling.x, depth: groundMesh.scaling.z }));
   let dance: JourneyDance | null = null, musicClock: (() => number) | null = null;
   const rig = scene.getTransformNodeByName('character-rig')!;
   const head = scene.getTransformNodeByName('head-rig')!;

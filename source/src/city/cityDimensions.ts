@@ -29,6 +29,15 @@ export class CityDimensions {
     this.originals = { ...this.values };
   }
   get(id: string) { return this.values[id]; }
+  relocateBuilding(name: string, x: number, z: number) {
+    const b = this.world.buildings.find(b => b.name === name)!;
+    const dx = x - b.x, dz = z - b.z;
+    for (const side of sides) {
+      const key = `wall:${name}:${side}`, delta = side === 'left' || side === 'right' ? dx : dz;
+      this.values[key]! += delta; this.originals[key]! += delta;
+    }
+    b.x = x; b.z = z;
+  }
   snapshot() { return { ...this.values }; }
   name(id: string) {
     const [kind, name, side] = id.split(':');

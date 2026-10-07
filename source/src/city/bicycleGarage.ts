@@ -8,9 +8,11 @@ import type { PlannedJourney } from '../simulation/plannedJourney';
 export function createBicycleGarage(scene: Scene, journey: PlannedJourney, frame: StandardMaterial, tyres: StandardMaterial, walls: StandardMaterial) {
   const garage = journey.world.bicycleGarage;
   if (!garage) return () => {};
+  const buildingParts: { mesh: ReturnType<typeof MeshBuilder.CreateBox>; x: number; z: number }[] = [];
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
     mesh.position.set(garage!.x + x, y, garage!.z + z); mesh.material = walls; mesh.isPickable = false;
+    buildingParts.push({ mesh, x, z });
   }
   box('bicycle-garage-floor', 0, .1, 0, 5.5, .15, 4.5);
   box('bicycle-garage-back', 0, 1, 2.2, 5.5, 1.8, .15);
@@ -40,6 +42,9 @@ export function createBicycleGarage(scene: Scene, journey: PlannedJourney, frame
     return { root, bike, index, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, rotation: Math.atan2(b.x - a.x, b.z - a.z) };
   });
   return () => {
+    for (const { mesh, x, z } of buildingParts) { mesh.position.x = garage.x + x; mesh.position.z = garage.z + z; }
+    const sign = scene.getMeshByName('label-BICYCLE GARAGE');
+    if (sign) { sign.position.x = garage.x; sign.position.z = garage.z + 2.2; }
     for (const { root, bike, index, x, z, rotation } of bikes) {
       const parked = journey.repaired.has(bike.id);
       const push = parked ? 0 : bike.pushDistance ?? 0;

@@ -9,6 +9,8 @@ import { TURN_RADIANS_PER_SECOND } from './cityJourney';
 import { CityDimensions } from '../city/cityDimensions';
 import { crossingSignal } from '../city/trafficSignals';
 import { RouteTrajectory } from '../city/routeTrajectory';
+import { reserveRoadSpace } from '../city/reserveRoadSpace';
+import { fitCurveLayout } from '../city/curveLayout';
 import { cityRouteClearance } from '../city/routeClearance';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
@@ -55,9 +57,15 @@ export class PlannedJourney {
   get minimumTurnRadius() { return this.turnRadius; }
   setMinimumTurnRadius(radius: number) {
     if (!this.ready || !Number.isFinite(radius) || radius < .5 || radius > 12 || radius === this.turnRadius) return false;
-    this.turnRadius = radius; this.world.minimumTurnRadius = radius; this.savePlan(); return true;
+    this.turnRadius = radius; this.world.minimumTurnRadius = radius;
+    if (this.lineFollowing) this.reserveBends();
+    this.savePlan(); return true;
   }
-  enableLineFollowing() { this.lineFollowing = true; }
+  private reserveBends() {
+    fitCurveLayout(this.world, this.turnRadius, (name, x, z) => this.dimensions.relocateBuilding(name, x, z));
+    if (reserveRoadSpace(this.world, this.turnRadius, (name, x, z) => this.dimensions.relocateBuilding(name, x, z))) this.dimensionRevision++;
+  }
+  enableLineFollowing() { this.lineFollowing = true; this.reserveBends(); }
   get trajectory() {
     const key = this.path.join('|') + ':' + this.turnRadius + ':' + this.routeGeometryRevision;
     if (!this.trajectoryCache || key !== this.trajectoryKey) {

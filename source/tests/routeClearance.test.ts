@@ -7,14 +7,14 @@ import { generateCity } from '../src/city/proceduralCity';
 
 const point = (x: number, z: number) => ({ x, y: .16, z });
 
-test('corner routing clears the whole robot footprint while retaining safe bends', () => {
+test('an obstructed corner never substitutes a sharp junction for the physical follower line', () => {
   const stops = [point(0, 0), point(8, 0), point(8, 8), point(16, 8), point(16, 16)];
   const clear = buildingRouteClearance([{ name: 'Corner building', x: 5.6, z: 2.4, w: 2, d: 2, h: 3 }], .7);
   const unsafe = new RouteTrajectory(stops);
   assert.ok(unsafe.points.some((p, i) => i > 0 && !clear(unsafe.points[i - 1]!, p)), 'old smoothing intersects the expanded building');
   const safe = new RouteTrajectory(stops, new Map(), 3, clear);
-  assert.ok(safe.points.every((p, i) => i === 0 || clear(safe.points[i - 1]!, p)));
-  assert.ok(safe.points.some(p => p.x === 8 && p.z === 0), 'tight corner retains its street junction');
+  assert.deepEqual(safe.points, unsafe.points, 'a wall does not secretly reshape the line into a right angle');
+  assert.ok(!safe.points.some(p => p.x === 8 && p.z === 0), 'the turn stays on the circular bend');
   assert.ok(safe.points.length > stops.length, 'roomy corners remain curved');
   assert.deepEqual(safe.atEdge(0, 0).position.asArray(), [0, .16, 0]);
   assert.deepEqual(safe.sample(safe.length).position.asArray(), [16, .16, 16]);

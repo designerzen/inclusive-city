@@ -3,6 +3,7 @@ import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { mountRobotConditionHud } from './robotConditionHud';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
+import type { ProceduralCity } from '../city/proceduralCity';
 import type { CityView } from '../city/cityCamera';
 import { sides } from '../city/cityDimensions';
 import { generateCity, streetActions, streetNames, streetBetween } from '../city/proceduralCity';
@@ -442,7 +443,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
     if (mood !== lastMood) lastMood = mood;
   }
-  function newCity(reset = false) {
+  function newCity(reset = false, savedWorld?: ProceduralCity) {
     voicePanel.stop();
     speech?.stop(); lastAlert = null;
     if (!bot || !engine) return;
@@ -451,7 +452,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!reset && seed === previousSeed) seed = (seed + 1) >>> 0;
     city?.resizer.finish(false);
     pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
-    const world = generateCity(seed, robots.length ? robots : [bot]);
+    const world = savedWorld ?? generateCity(seed, robots.length ? robots : [bot]);
+    world.minimumTurnRadius = minimumTurnRadius;
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
     city.journey.setMinimumTurnRadius(minimumTurnRadius); city.sync();
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
@@ -545,9 +547,16 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
   function setMinimumTurnRadius(radius: number) {
     if (![1, 2, 3, 4, 6, 8, 12].includes(radius) || (city && !city.journey.ready)) { refresh(); return; }
-    city?.journey.setMinimumTurnRadius(radius);
+    const route = city?.journey.route;
+    const repaired = city ? [...city.journey.repaired] : [];
+    const world = city ? structuredClone(city.journey.world) : undefined;
     minimumTurnRadius = radius;
     try { localStorage.setItem('inclusive-city-turn-radius', String(minimumTurnRadius)); } catch { /* Keep the session setting. */ }
+    if (world) {
+      newCity(true, world);
+      city!.journey.setRoute(route!);
+      repaired.forEach(id => city!.journey.repaired.add(id));
+    }
     city?.sync(); feedback(`Minimum turn radius set to ${minimumTurnRadius} metres.`); refresh();
   }
   turnRadiusInput.addEventListener('change', () => {

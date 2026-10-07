@@ -272,7 +272,7 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
     journey.setMinimumTurnRadius(8);
     for (const bicycle of world.bicycles ?? []) journey.repair(bicycle.id);
     const engine = new NullEngine(), scene = new Scene(engine);
-    const floor = MeshBuilder.CreateBox('floor', { width: 56, height: .15, depth: 44 }, scene); floor.position.y = -.12;
+    const floor = MeshBuilder.CreateBox('floor', { width: Math.max(56, ...world.nodes.map(n => Math.abs(n.x) * 2 + 10)), height: .15, depth: Math.max(44, ...world.nodes.map(n => Math.abs(n.z) * 2 + 10)) }, scene); floor.position.y = -.12;
     const solids = [floor];
     for (const street of world.streets) {
       if (street.kind !== 'clear') journey.repair(street.id);
@@ -310,7 +310,7 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
     const autonomous = createAutonomousBots(scene, world, physics);
     try {
       journey.start();
-      for (let i = 0; i < 15000 && !journey.complete; i++) {
+      for (let i = 0; i < Math.max(15000, Math.ceil(journey.routeLength / journey.speed * 60) + 5000) && !journey.complete; i++) {
         physics.update(1 / 60); autonomous.update(1 / 60, true, journey.signalTime); journey.update(1 / 60);
         scene.getPhysicsEngine()!._step(1 / 60);
         if (journey.needsTrainRamp && journey.blocked?.id === world.steamTrain?.street) journey.requestTrainRamp('roboramp');

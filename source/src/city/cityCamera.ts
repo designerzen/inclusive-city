@@ -6,7 +6,7 @@ import type { Scene } from '@babylonjs/core/scene';
 
 export type CityView = 'overhead' | 'angled' | 'follow' | 'robot-eye';
 
-export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => { position: Vector3; heading: number; eyeHeight: number }) {
+export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => { position: Vector3; heading: number; eyeHeight: number }, bounds = () => ({ width: 58, depth: 48 })) {
   const camera = new UniversalCamera('city-camera', new Vector3(0, 55, -0.01), scene);
   camera.minZ = 0.05;
   camera.maxZ = 200;
@@ -38,7 +38,8 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
       camera.setTarget(Vector3.Lerp(arrival.target, eyes, approach));
       return;
     }
-    const halfHeight = Math.max(24, 29 / aspect) * zoom;
+    const extent = bounds();
+    const halfHeight = Math.max(24, extent.depth / 2, Math.max(29, extent.width / 2) / aspect) * zoom;
     camera.orthoTop = halfHeight;
     camera.orthoBottom = -halfHeight;
     camera.orthoLeft = -halfHeight * aspect;

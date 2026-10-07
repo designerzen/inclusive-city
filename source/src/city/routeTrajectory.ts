@@ -15,18 +15,9 @@ export class RouteTrajectory {
     };
     const streetCurve = (waypoints: readonly RoutePoint[]): Vector3[] => {
       const curve = routeCurve(waypoints.map(p => new Vector3(p.x, p.y, p.z)), minimumRadius, true, minimumRadius);
-      const collision = segmentIsClear ? curve.findIndex((p, i) => i > 0 && !segmentIsClear(curve[i - 1]!, p)) : -1;
-      if (collision < 0 || waypoints.length < 3) return curve;
-      // A broad bend (or blended short waypoint) can cut through a solid feature.
-      // Keep the street junction nearest that bend and turn there instead.
-      // Recursing retains safe sweeping bends elsewhere on the route.
-      const hit = Vector3.Center(curve[collision - 1]!, curve[collision]!);
-      let split = 1, best = Infinity;
-      for (let i = 1; i < waypoints.length - 1; i++) {
-        const p = waypoints[i]!, distance = Math.hypot(p.x - hit.x, p.z - hit.z);
-        if (distance < best) { best = distance; split = i; }
-      }
-      return [...streetCurve(waypoints.slice(0, split + 1)), ...streetCurve(waypoints.slice(split))];
+      // Obstacles must not change the line into a right angle. The city reserves
+      // bend clearance; physical obstructions remain visible, repairable barriers.
+      return curve;
     };
     for (let edge = 0; edge < stops.length - 1; edge++) if (transportEdges.has(edge)) {
       append(streetCurve(stops.slice(start, edge + 1)));
