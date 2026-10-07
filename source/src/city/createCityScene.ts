@@ -30,6 +30,7 @@ import { createStudioInstruments } from '../app/createStudioInstruments';
 import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from './roadSurface';
+import { routeRoadPolygons } from './routeRoad';
 import { createGoalFlag } from './goalFlag';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
@@ -79,6 +80,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     // Invisible boxes retain the existing collision support. Only the union is rendered.
     surface.isVisible = false;
     const road = createRoadSurface(`road-${street.id}`, scene);
+    solids.push(road);
     road.position.set(x, 0, z); road.material = pavement;
     road.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' };
     const humpback = isHumpbackBridge(street, world) ? createHumpbackBridge(scene, street.id, a, b, walls, details) : null;
@@ -222,13 +224,19 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const { x, z } = world.bicycleGarage;
       occupied.push({ minX: x - 3, maxX: x + 3, minZ: z - 2.5, maxZ: z + 2.5 });
     }
+    const routeStreets = journey.route.slice(1).map((id, i) => world.streets.find(s =>
+      s.a === id && s.b === journey.route[i] || s.b === id && s.a === journey.route[i])!);
+    const corridors = routeRoadPolygons(journey.trajectory, routeStreets.map(street => ({
+      id: street.id, width: resizer.value(`width:${street.id}`),
+      transport: street.kind === 'bridge',
+    })));
     const roads = roadSurfaceData(streetModels.map(({ street, surface, dx, dz }) => {
       const width = resizer.value(`width:${street.id}`);
       const halfX = (dx || width) / 2 + (dx && !dz ? width / 2 : 0);
       const halfZ = (dz || width) / 2 + (dz && !dx ? width / 2 : 0);
       return { id: street.id, minX: surface.position.x - halfX, maxX: surface.position.x + halfX,
         minZ: surface.position.z - halfZ, maxZ: surface.position.z + halfZ };
-    }), 4, occupied);
+    }), journey.minimumTurnRadius, occupied, corridors);
     for (const { street, road } of streetModels) updateRoadSurface(road, roads.get(street.id)!);
     syncSignals();
     physics?.sync();
@@ -312,7 +320,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const next = journey.nextStops.map(n => n.id);
       nodeModels.forEach(({ node, ring }) => { ring.material = node.id === world.destination ? goalMaterial : next.includes(node.id) || node.id === journey.route.at(-1) ? ink : muted; ring.scaling.setAll(next.includes(node.id) ? 1.25 : 1); });
     }
-    const edits = [...journey.repaired].join('|') + journey.dimensionRevision + ':' + world.bicycles?.map(bike => bike.pushDistance ?? 0).join(',');
+    const edits = key + ':' + [...journey.repaired].join('|') + journey.dimensionRevision + ':' + world.bicycles?.map(bike => bike.pushDistance ?? 0).join(',');
     if (revisionKey !== edits) {
       revisionKey = edits;
       syncDimensions();

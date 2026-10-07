@@ -7,17 +7,33 @@ export class RouteTrajectory {
   readonly points: Vector3[] = [];
   readonly distances: number[] = [];
   readonly milestones: number[] = [];
-  constructor(stops: readonly RoutePoint[], transportEdges: ReadonlyMap<number, readonly RoutePoint[]> = new Map(), minimumRadius = 3) {
+  constructor(stops: readonly RoutePoint[], transportEdges: ReadonlyMap<number, readonly RoutePoint[]> = new Map(), minimumRadius = 3,
+    segmentIsClear?: (a: RoutePoint, b: RoutePoint) => boolean) {
     let start = 0;
     const append = (points: Vector3[]) => {
       for (const p of points) if (!this.points.length || Vector3.DistanceSquared(this.points.at(-1)!, p) > 1e-12) this.points.push(p);
     };
+    const streetCurve = (waypoints: readonly RoutePoint[]): Vector3[] => {
+      const curve = routeCurve(waypoints.map(p => new Vector3(p.x, p.y, p.z)), minimumRadius, true, minimumRadius);
+      const collision = segmentIsClear ? curve.findIndex((p, i) => i > 0 && !segmentIsClear(curve[i - 1]!, p)) : -1;
+      if (collision < 0 || waypoints.length < 3) return curve;
+      // A broad bend (or blended short waypoint) can cut through a building.
+      // Keep the street junction nearest that bend and turn there instead.
+      // Recursing retains safe sweeping bends elsewhere on the route.
+      const hit = Vector3.Center(curve[collision - 1]!, curve[collision]!);
+      let split = 1, best = Infinity;
+      for (let i = 1; i < waypoints.length - 1; i++) {
+        const p = waypoints[i]!, distance = Math.hypot(p.x - hit.x, p.z - hit.z);
+        if (distance < best) { best = distance; split = i; }
+      }
+      return [...streetCurve(waypoints.slice(0, split + 1)), ...streetCurve(waypoints.slice(split))];
+    };
     for (let edge = 0; edge < stops.length - 1; edge++) if (transportEdges.has(edge)) {
-      append(routeCurve(stops.slice(start, edge + 1).map(p => new Vector3(p.x, p.y, p.z)), Math.max(6, minimumRadius), true, minimumRadius));
+      append(streetCurve(stops.slice(start, edge + 1)));
       append(transportEdges.get(edge)!.map(p => new Vector3(p.x, p.y, p.z)));
       start = edge + 1;
     }
-    append(routeCurve(stops.slice(start).map(p => new Vector3(p.x, p.y, p.z)), Math.max(6, minimumRadius), true, minimumRadius));
+    append(streetCurve(stops.slice(start)));
     this.distances.push(0);
     for (let i = 1; i < this.points.length; i++) this.distances.push(this.distances[i - 1]! + Vector3.Distance(this.points[i - 1]!, this.points[i]!));
     let previous = 0;

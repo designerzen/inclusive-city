@@ -58,11 +58,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <button id="city-bridge-elevator" type="button" hidden>Add elevators</button>
       <button id="city-roboramp" type="button" hidden>Roboramp</button>
       <button id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
-      <div class="city-recovery-actions" role="group" aria-label="Recover your journey">
-        <button id="city-issue-back" type="button">Back to last junction</button>
-        <button id="city-issue-undo" type="button" disabled>Undo last city change</button>
-        <button id="city-issue-restart" type="button">Restart and redraw route</button>
-      </div>
       <p id="city-issue-feedback" role="status" aria-live="polite"></p>
     </section>
     <details class="city-controls-hud" id="city-controls-hud"><summary><span id="city-controls-label">City controls</span> <span class="disclosure-chevron" aria-hidden="true">&#8964;</span></summary>
@@ -112,7 +107,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
           <option value="1">1 metre</option><option value="2">2 metres</option><option value="3" selected>3 metres</option>
           <option value="4">4 metres</option><option value="6">6 metres</option><option value="8">8 metres</option><option value="12">12 metres</option>
         </select>
-        <p id="city-turn-radius-help">Set before starting the robot. Larger radii make wider, sweeping turns. The line and robot use the same setting.</p>
+        <p id="city-turn-radius-help">Set before starting the robot. Larger radii make wider road curves. The roads, white line and robot use the same setting.</p>
       </details>
       <details class="city-music-options"><summary>Music monitor settings</summary><div id="city-music-monitor-controls" class="music-monitor-controls"></div></details>
       <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
@@ -327,14 +322,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('city-issue').hidden = !j.blocked;
     setText('city-controls-label', j.blocked ? 'More options' : 'City controls');
     const issueAction = cityIssueAction(j);
-    get<HTMLButtonElement>('city-issue-undo').disabled = !j.hasCityChanges;
-    setText('city-issue-undo', j.hasCityChanges && !j.undoAvailable ? 'Return to start and undo last change' : 'Undo last city change');
     const blockedBridge = j.world.streets.find(s => s.id === j.blocked?.id);
     get('city-bridge-elevator').hidden = !blockedBridge || !isHumpbackBridge(blockedBridge, j.world) || j.bridgeAccess(blockedBridge) !== 'steps';
     get<HTMLButtonElement>('city-bridge-elevator').disabled = !blockedBridge || !j.canEdit(blockedBridge.id);
     get('city-roboramp').hidden = !(j.needsTrainRamp && j.blocked?.id === j.world.steamTrain?.street);
     if (j.blocked) {
-      setText('city-issue-description', `${alert ?? j.blocked.reason}${issueAction ? '' : j.blocked.id.startsWith('robot:') ? ' Wait for the other robot to move, or use the recovery controls below.' : ' Go back to the last junction to change this passage, undo a city change, or restart and draw another route.'}`);
+      setText('city-issue-description', `${alert ?? j.blocked.reason}${issueAction ? '' : j.blocked.id.startsWith('robot:') ? ' Wait for the other robot to move.' : ' Move the obstacle on the map, or open the city settings.'}`);
       setText('city-issue-action', issueAction ?? 'Open city settings');
       get<HTMLButtonElement>('city-issue-action').disabled = !!issueAction && !j.canEdit(j.blocked.id);
     }
@@ -487,32 +480,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   get('city-tool-route').addEventListener('click', () => setMode('route'));
   get('city-tool-edit').addEventListener('click', () => setMode('edit'));
-  get('city-issue-back').addEventListener('click', () => {
-    if (!city) return;
-    city.resizer.finish(false);
-    if (!city.journey.backToJunction()) return;
-    city.sync(); panelKey = ''; setMode('edit');
-    feedback('Back at the last junction. Change the passage, then press Resume robot.');
-    get('city-feature-name').focus({ preventScroll: true });
-  });
-  get('city-issue-undo').addEventListener('click', () => {
-    if (!city?.journey.hasCityChanges) return;
-    city.resizer.finish(false);
-    const restarted = !city.journey.undoAvailable;
-    if (restarted) { city.journey.restart(); city.journey.syncTransport?.(); beginCreation(); }
-    if (!city.journey.undoRepair()) return;
-    if (!city.journey.ready) city.journey.setPaused(true);
-    city.sync(); panelKey = ''; setMode('edit');
-    feedback(restarted ? 'Returned to the start and undid the last city change. Other changes are kept.' : 'City change undone. Resume when you’re ready.');
-    pause.focus({ preventScroll: true });
-  });
-  get('city-issue-restart').addEventListener('click', () => {
-    if (!city) return;
-    city.resizer.finish(false); city.journey.restart(); city.journey.clearRoute(); city.journey.syncTransport?.();
-    city.sync(); panelKey = ''; routeKey = ''; beginCreation(); setMode('route');
-    feedback('Returned to the start. City changes are kept. Draw another route, then press Start robot.');
-    get('city-heading').focus({ preventScroll: true });
-  });
   get('city-issue-action').addEventListener('click', () => {
     if (!city?.journey.blocked) return;
     if (!cityIssueAction(city.journey)) {
@@ -576,11 +543,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     refresh();
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
-  turnRadiusInput.addEventListener('change', () => {
-    if (!city?.journey.setMinimumTurnRadius(Number(turnRadiusInput.value))) { refresh(); return; }
-    minimumTurnRadius = city.journey.minimumTurnRadius;
+  function setMinimumTurnRadius(radius: number) {
+    if (![1, 2, 3, 4, 6, 8, 12].includes(radius) || (city && !city.journey.ready)) { refresh(); return; }
+    city?.journey.setMinimumTurnRadius(radius);
+    minimumTurnRadius = radius;
     try { localStorage.setItem('inclusive-city-turn-radius', String(minimumTurnRadius)); } catch { /* Keep the session setting. */ }
-    city.sync(); feedback(`Minimum turn radius set to ${minimumTurnRadius} metres.`); refresh();
+    city?.sync(); feedback(`Minimum turn radius set to ${minimumTurnRadius} metres.`); refresh();
+  }
+  turnRadiusInput.addEventListener('change', () => {
+    setMinimumTurnRadius(Number(turnRadiusInput.value));
   });
   container.querySelector('.city-map-buttons')!.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-map]') : null;
@@ -677,6 +648,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   const renderCity = () => { if (!active || !city || !engine || document.hidden) return; city.update(Math.min(.1, engine.getDeltaTime() / 1000)); refresh(); city.scene.render(); };
   return {
+    get turnRadiusSettings() { return { radius: city?.journey.minimumTurnRadius ?? minimumTurnRadius, locked: !!city && !city.journey.ready }; },
+    setMinimumTurnRadius,
     exhibitionPerformer(value: FinishedJourney) { return city?.exhibitionPerformer(canvas, value) ?? null; },
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },

@@ -57,6 +57,14 @@ app.innerHTML = `
     <dialog id="options-dialog" class="options-dialog" aria-labelledby="options-title">
       <div class="options-heading"><h2 id="options-title">Settings</h2><button id="options-close" type="button" aria-label="Close settings">✕</button></div>
       <section class="options-appearance" aria-labelledby="options-appearance-title"><h3 id="options-appearance-title">Appearance</h3><label for="app-theme">Colour mode</label><select id="app-theme"><option value="dark">Dark</option><option value="light">Light</option></select></section>
+      <section aria-labelledby="options-route-title"><h3 id="options-route-title">Line-following curves</h3>
+        <label for="app-turn-radius">Minimum turn radius</label>
+        <select id="app-turn-radius" aria-describedby="app-turn-radius-help">
+          <option value="1">1 metre</option><option value="2">2 metres</option><option value="3">3 metres</option>
+          <option value="4">4 metres</option><option value="6">6 metres</option><option value="8">8 metres</option><option value="12">12 metres</option>
+        </select>
+        <p id="app-turn-radius-help" class="accessibility-hint">Larger radii make wider road curves. The roads, white line and robot use the same setting. Set before starting the robot.</p>
+      </section>
       <section id="accessibility-controls" aria-labelledby="options-accessibility-title"></section>
       <section class="options-audio" aria-labelledby="options-audio-title"><h3 id="options-audio-title">Sound</h3>
       <button id="sound-mute" type="button" aria-pressed="false">Mute sound</button>
@@ -156,13 +164,13 @@ mountMidiControls(document.querySelector<HTMLElement>('#midi-controls')!, sounds
 const optionsDialog = document.querySelector<HTMLDialogElement>('#options-dialog')!;
 const optionsButton = document.querySelector<HTMLButtonElement>('#app-options')!;
 optionsButton.addEventListener('click', () => {
-  if (!inAttract) return;
+  refreshTurnRadiusSettings();
   optionsDialog.showModal(); optionsButton.setAttribute('aria-expanded', 'true');
 });
 document.querySelector('#options-close')!.addEventListener('click', () => optionsDialog.close());
 optionsDialog.addEventListener('close', () => {
   optionsButton.setAttribute('aria-expanded', 'false');
-  if (inAttract) optionsButton.focus();
+  optionsButton.focus();
 });
 optionsDialog.addEventListener('click', event => {
   if (event.target !== optionsDialog) return;
@@ -271,6 +279,20 @@ function startCity() {
 }
 import.meta.hot?.dispose(() => cityScreen.dispose());
 cityScreen.setTheme(theme);
+const appTurnRadius = document.querySelector<HTMLSelectElement>('#app-turn-radius')!;
+function refreshTurnRadiusSettings() {
+  const setting = cityScreen.turnRadiusSettings;
+  appTurnRadius.value = String(setting.radius);
+  appTurnRadius.disabled = setting.locked;
+  document.querySelector('#app-turn-radius-help')!.textContent = setting.locked
+    ? 'Restart the city to change the radius. The roads, white line and robot keep the same curve while a journey is in progress.'
+    : 'Larger radii make wider road curves. The roads, white line and robot use the same setting. Set before starting the robot.';
+}
+appTurnRadius.addEventListener('change', () => {
+  cityScreen.setMinimumTurnRadius(Number(appTurnRadius.value));
+  refreshTurnRadiusSettings();
+});
+refreshTurnRadiusSettings();
 document.querySelector('#back-to-designer')!.addEventListener('click', () => {
   cityScreen.suspend();
   void screenTransition.run(cityContainer, designerScreen, () => {

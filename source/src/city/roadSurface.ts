@@ -1,13 +1,16 @@
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import type { Scene } from '@babylonjs/core/scene';
+import { roadPolygonUnion } from './roadPolygonUnion';
+import type { RoadPolygon } from './roadPolygonUnion';
 
 export interface RoadRectangle { id: string; minX: number; maxX: number; minZ: number; maxZ: number }
 export type RoadClearance = Omit<RoadRectangle, 'id'>;
 export interface RoadSurfaceData { positions: number[]; indices: number[]; normals: number[] }
 
 /** Partition the union before triangulating: no two streets draw the same face. */
-export function roadSurfaceData(rectangles: readonly RoadRectangle[], radius = .65, occupied: readonly RoadClearance[] = []) {
+export function roadSurfaceData(rectangles: readonly RoadRectangle[], radius = .65, occupied: readonly RoadClearance[] = [], corridors: readonly RoadPolygon[] = []) {
+  const polygons: RoadPolygon[] = rectangles.map(r => ({ id: r.id, points: [[r.minX, r.minZ], [r.maxX, r.minZ], [r.maxX, r.maxZ], [r.minX, r.maxZ]] }));
   const result = new Map<string, RoadSurfaceData>(rectangles.map(r => [r.id, { positions: [], indices: [], normals: [] }]));
   const xs = [...new Set(rectangles.flatMap(r => [r.minX, r.maxX]))].sort((a, b) => a - b);
   const zs = [...new Set(rectangles.flatMap(r => [r.minZ, r.maxZ]))].sort((a, b) => a - b);
@@ -28,7 +31,7 @@ export function roadSurfaceData(rectangles: readonly RoadRectangle[], radius = .
       const x = (xs[i]! + xs[i + 1]!) / 2, z = (zs[j]! + zs[j + 1]!) / 2;
       const road = rectangles.find(r => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ);
       cells[i]![j] = road;
-      if (road) polygon(road, [[xs[i]!, zs[j]!], [xs[i + 1]!, zs[j]!], [xs[i + 1]!, zs[j + 1]!], [xs[i]!, zs[j + 1]!]]);
+      if (road && !corridors.length) polygon(road, [[xs[i]!, zs[j]!], [xs[i + 1]!, zs[j]!], [xs[i + 1]!, zs[j + 1]!], [xs[i]!, zs[j + 1]!]]);
     }
   }
   const corners: { x: number; z: number; sx: number; sz: number; road: RoadRectangle }[] = [];
@@ -78,12 +81,14 @@ export function roadSurfaceData(rectangles: readonly RoadRectangle[], radius = .
       const angle = -Math.PI / 2 - step * Math.PI / (2 * segments);
       points.push([x + sx * r * (1 + Math.cos(angle)), z + sz * r * (1 + Math.sin(angle))]);
     }
-    polygon(road, points);
+    if (corridors.length) polygons.push({ id: road.id, points });
+    else polygon(road, points);
   }
-  return result;
+  return corridors.length ? roadPolygonUnion([...polygons, ...corridors], occupied) : result;
 }
 
 export function updateRoadSurface(mesh: Mesh, data: RoadSurfaceData) {
+  mesh.metadata = { ...mesh.metadata, roadSurface: true, surfaceRevision: (mesh.metadata?.surfaceRevision ?? 0) + 1 };
   mesh.setEnabled(data.indices.length > 0);
   if (!data.indices.length) return;
   const vertices = new VertexData();

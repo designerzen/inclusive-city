@@ -19,8 +19,37 @@ import type { ProceduralCity } from '../src/city/proceduralCity';
 import { generateCity, routeToGoal } from '../src/city/proceduralCity';
 import { cityIssueAction } from '../src/ui/cityIssueAction';
 import { cityRobotAlert } from '../src/ui/cityRobotAlert';
+import { createRoadSurface, roadSurfaceData, updateRoadSurface } from '../src/city/roadSurface';
+import { routeRoadPolygons } from '../src/city/routeRoad';
 
 const wasm = readFile(createRequire(import.meta.url).resolve('@babylonjs/havok/lib/esm/HavokPhysics.wasm')).then(wasmBinary => HavokPhysics({ wasmBinary }));
+
+test('curved asphalt supports the physical follower outside the original rectangular streets', async () => {
+  const { engine, scene, journey, floor } = fixture();
+  floor.dispose();
+  journey.world.destination = 'c';
+  journey.world.nodes.push({ id: 'c', label: 'Studio', x: 8, y: .16, z: 8 });
+  journey.world.streets[0]!.width = 1;
+  journey.world.streets.push({ id: 'turn', a: 'b', b: 'c', kind: 'clear', width: 1, crossingSeconds: 20 });
+  journey.enableLineFollowing(); journey.setRoute(['a', 'b', 'c']); journey.setMinimumTurnRadius(4);
+  const data = roadSurfaceData([
+    { id: 'street', minX: -.5, maxX: 8.5, minZ: -.5, maxZ: .5 },
+    { id: 'turn', minX: 7.5, maxX: 8.5, minZ: -.5, maxZ: 8.5 },
+  ], 4, [], routeRoadPolygons(journey.trajectory, journey.world.streets));
+  const roads = [...data].map(([id, data]) => { const mesh = createRoadSurface(id, scene); updateRoadSurface(mesh, data); return mesh; });
+  const physics = createCityPhysics(scene, journey, roads, await wasm);
+  try {
+    journey.start(); let outside = 0;
+    for (let frame = 0; frame < 1200 && !journey.complete && !journey.blocked; frame++) {
+      physics.update(1 / 60); journey.update(1 / 60); scene.getPhysicsEngine()!._step(1 / 60);
+      const p = physics.position;
+      if (p.x < 7.4 && p.z > .6) { outside++; assert.ok(p.y > .025, 'curved road mesh supports the wheels without a rectangular floor'); }
+    }
+    assert.ok(outside > 30);
+    assert.equal(journey.blocked, null);
+    assert.equal(journey.complete, true);
+  } finally { scene.dispose(); engine.dispose(); }
+});
 function fixture() {
   const bot = new BotHistory(['Curie', 'Einstein']).current;
   const world: ProceduralCity = { seed: 1, start: 'a', destination: 'b', riverX: 30, rememberedRobots: 1, buildings: [],
@@ -234,15 +263,18 @@ test('resizing, moving, undoing and disabling colliders updates Havok immediatel
 });
 
 test('repaired generated routes cross street joins, corners and lowered bridge decks without false obstructions', async () => {
-  for (const seed of [8, 42, 109]) {
+  for (const seed of [1, 2, 3, 4, 5, 8, 42, 109]) {
     const bot = new BotHistory(['Curie', 'Einstein']).current;
     const world = generateCity(seed, [bot]), journey = new PlannedJourney(bot, world);
+    journey.enableLineFollowing();
+    journey.setMinimumTurnRadius(8);
     for (const bicycle of world.bicycles ?? []) journey.repair(bicycle.id);
     const engine = new NullEngine(), scene = new Scene(engine);
     const floor = MeshBuilder.CreateBox('floor', { width: 56, height: .15, depth: 44 }, scene); floor.position.y = -.12;
     const solids = [floor];
     for (const street of world.streets) {
       if (street.kind !== 'clear') journey.repair(street.id);
+      if (street.kind === 'crossing') journey.editDimension(`crossing:${street.id}`, 20);
       const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
       const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z);
       const surface = MeshBuilder.CreateBox(street.id, { width: dx || street.width, height: .1, depth: dz || street.width }, scene);
@@ -278,8 +310,8 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
         if (journey.needsTrainRamp && journey.blocked?.id === world.steamTrain?.street) journey.requestTrainRamp('roboramp');
         if (journey.blocked && !journey.blocked.id.startsWith('robot:')) break;
       }
-      assert.equal(journey.blocked, null, `seed ${seed}: ${JSON.stringify({ blocked: journey.blocked, street: journey.currentStreet, logical: journey.position, physical: physics.position })}`);
-      assert.equal(journey.complete, true, `seed ${seed} reaches the studio`);
+      assert.equal(journey.blocked, null, `seed ${seed}: ${JSON.stringify({ blocked: journey.blocked, street: journey.currentStreet, logical: journey.position, physical: physics.position, collisions:journey.machine.record.events.filter(e=>e.type==='collision').slice(-3), buildings:world.buildings })}`);
+      assert.equal(journey.complete, true, `seed ${seed} reaches the studio: ${JSON.stringify({edge:journey.edge, distance:journey.distanceOnEdge, state:journey.machine.state, logical:journey.position, physical:physics.position, street:journey.currentStreet})}`);
       assert.ok(Math.hypot(physics.position.x - journey.position.x, physics.position.z - journey.position.z) < .02);
     } finally { scene.dispose(); engine.dispose(); }
   }

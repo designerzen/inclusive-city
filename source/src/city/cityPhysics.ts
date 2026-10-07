@@ -23,12 +23,12 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
       const old = colliders.get(mesh);
       const enabled = mesh.isEnabled() && !mesh.isDisposed() && !mesh.metadata?.decorative;
       mesh.computeWorldMatrix(true);
-      const key = Array.from(mesh.getWorldMatrix().m).join('|');
+      const key = Array.from(mesh.getWorldMatrix().m).join('|') + ':' + (mesh.metadata?.surfaceRevision ?? '');
       if (enabled && old?.key === key) continue;
       old?.aggregate.dispose(); colliders.delete(mesh);
       if (enabled) {
         mesh.computeWorldMatrix(true);
-        colliders.set(mesh, { key, aggregate: new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 0, friction: .8, restitution: 0 }, scene) });
+        colliders.set(mesh, { key, aggregate: new PhysicsAggregate(mesh, mesh.metadata?.roadSurface ? PhysicsShapeType.MESH : PhysicsShapeType.BOX, { mass: 0, friction: .8, restitution: 0 }, scene) });
       }
     }
   }

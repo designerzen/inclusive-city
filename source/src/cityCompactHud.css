@@ -6,7 +6,7 @@
 #city-screen .city-new-actions button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
 #city-screen button { padding: 8px 10px; border-radius: 8px; font-size: .8125rem; }
 #city-screen .city-map { position: relative; inset: auto; grid-column: 1; grid-row: 2; width: 100%; min-height: 0; }
-.city-mode > .sound-controls { top: 12px; right: 12px; }
+.workshop.city-mode > .sound-controls { display: flex; top: 12px; right: 12px; }
 .city-mode .settings-label { display: none; }
 .city-mode #app-options { width: 44px; height: 44px; padding: 0; justify-content: center; }
 #city-screen .city-view-tools { position: absolute; top: 12px; left: 12px; bottom: auto; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 24px); margin: 0; padding: 4px; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525ee; z-index: 4; }
@@ -19,7 +19,6 @@
 .city-issue h2 { margin: 0; font-size: 1.125rem; }
 .city-issue p { margin: 8px 0 12px; line-height: 1.5; font-size: .9375rem; }
 .city-issue p:empty { display: none; }
-.city-recovery-actions { display: grid; gap: 8px; margin-top: 12px; }
 #city-screen .city-issue button { display: block; width: 100%; min-height: 48px; white-space: normal; font-size: .9375rem; }
 #city-screen #city-issue-action:enabled { background: var(--ui-primary); color: var(--ui-primary-ink); border-color: var(--ui-primary); font-weight: 700; }
 #city-screen #city-issue-action:hover:enabled { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); }

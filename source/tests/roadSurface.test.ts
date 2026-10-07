@@ -7,6 +7,9 @@ import { Ray } from '@babylonjs/core/Culling/ray';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from '../src/city/roadSurface';
 import type { RoadSurfaceData } from '../src/city/roadSurface';
+import { RouteTrajectory } from '../src/city/routeTrajectory';
+import { routeRoadPolygons } from '../src/city/routeRoad';
+import { roadPolygonUnion } from '../src/city/roadPolygonUnion';
 
 function area(data: RoadSurfaceData) {
   let sum = 0;
@@ -110,4 +113,53 @@ test('broad returns stop at street ends and neighbouring returns stay disjoint',
   const data = roadSurfaceData(cross, 4);
   // Each of the four empty quadrants can have the full radius independently.
   assert.ok(Math.abs([...data.values()].reduce((sum, d) => sum + area(d), 0) - (68 + 64 * (1 - Math.PI / 4))) < .03);
+});
+
+function coveringFaces(data: Iterable<RoadSurfaceData>, x: number, z: number) {
+  let count = 0;
+  for (const d of data) for (let i = 0; i < d.indices.length; i += 3) {
+    const p = d.indices.slice(i, i + 3).map(n => [d.positions[n * 3]!, d.positions[n * 3 + 2]!]);
+    const crosses = p.map((a, n) => { const b = p[(n + 1) % 3]!; return (b[0]! - a[0]!) * (z - a[1]!) - (b[1]! - a[1]!) * (x - a[0]!); });
+    if (crosses.every(c => c >= -1e-9)) count++;
+  }
+  return count;
+}
+
+test('radius changes reshape the asphalt around the exact follower path without overlapping faces', () => {
+  const stops = [{ x: -9, y: .16, z: 0 }, { x: 0, y: .16, z: 0 }, { x: 0, y: .16, z: 9 }];
+  const streets = [{ id: 'east', width: 1 }, { id: 'north', width: 1 }];
+  const rectangles = openBend.map(r => ({ ...r, minX: r.id === 'north' ? -.5 : r.minX, maxX: .5, minZ: -.5, maxZ: r.id === 'east' ? .5 : r.maxZ }));
+  const areas: number[] = [];
+  for (const radius of [1, 3, 6, 12]) {
+    const path = new RouteTrajectory(stops, new Map(), radius);
+    const road = roadSurfaceData(rectangles, radius, [], routeRoadPolygons(path, streets));
+    areas.push([...road.values()].reduce((sum, d) => sum + area(d), 0));
+    for (let distance = .17; distance < path.length; distance += .13) {
+      const p = path.sample(distance).position;
+      assert.ok(coveringFaces(road.values(), p.x, p.z) >= 1, `radius ${radius}: the white line stays on asphalt`);
+    }
+    for (let x = -8.973; x < .5; x += .317) for (let z = -.471; z < 9; z += .293)
+      assert.ok(coveringFaces(road.values(), x, z) <= 1, 'the merged roads never draw two coplanar faces');
+  }
+  assert.ok(new Set(areas.map(a => a.toFixed(3))).size === 4, 'every radius changes road geometry');
+});
+
+test('polygon union clips only added asphalt to building and river clearances', () => {
+  const base = { id: 'road', points: [[0, 0], [2, 0], [2, 2], [0, 2]] };
+  const added = { id: 'road', needsClearance: true, points: [[1, 0], [4, 0], [4, 2], [1, 2]] };
+  const clear = roadPolygonUnion([base, added]);
+  assert.equal(area(clear.get('road')!), 8);
+  const blocked = roadPolygonUnion([base, added], [{ minX: 3, maxX: 5, minZ: -1, maxZ: 3 }]);
+  assert.equal(area(blocked.get('road')!), 6);
+  assert.equal(coveringFaces(blocked.values(), 3.5, 1.23), 0);
+  assert.equal(coveringFaces(blocked.values(), 1.25, .93), 1);
+});
+
+test('road corridors follow width edits and leave transport bridge geometry intact', () => {
+  const path = new RouteTrajectory([{ x: 0, y: .16, z: 0 }, { x: 8, y: .16, z: 0 }]);
+  const narrow = routeRoadPolygons(path, [{ id: 'street', width: 1 }]);
+  const wide = routeRoadPolygons(path, [{ id: 'street', width: 4 }]);
+  assert.equal(area(roadPolygonUnion(narrow).get('street')!), 8);
+  assert.equal(area(roadPolygonUnion(wide).get('street')!), 32);
+  assert.deepEqual(routeRoadPolygons(path, [{ id: 'bridge', width: 4, transport: true }]), []);
 });
