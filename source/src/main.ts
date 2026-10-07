@@ -33,6 +33,7 @@ import { requireModels } from './ui/musicSetup';
 import { mountButtonIcons } from './ui/buttonIcons';
 import { applyAccessibility, savedAccessibility, reducedMotionPreference } from './app/accessibilityPreferences';
 import { mountAccessibilityControls } from './ui/accessibilityControls';
+import { mountMusicMonitorControls } from './ui/musicMonitorControls';
 import './readingPreferences.css';
 import './performance.css';
 import './cityCompactHud.css';
@@ -62,6 +63,7 @@ app.innerHTML = `
       <label for="sound-volume">Volume</label><input id="sound-volume" type="range" min="0" max="100" value="55" />
       <label class="speech-option" for="speech-enabled"><span>Spoken introductions & robot guidance</span><input id="speech-enabled" type="checkbox" role="switch" checked /></label>
       </section>
+      <section aria-labelledby="options-monitor-title"><h3 id="options-monitor-title">Music monitor</h3><div id="music-monitor-controls" class="music-monitor-controls"></div></section>
       <details class="midi-disclosure"><summary>Connect a MIDI instrument <span aria-hidden="true">⌄</span></summary><section id="midi-controls" class="midi-controls" aria-label="MIDI output"></section></details>
       <section id="attract-options" aria-labelledby="attract-options-title"><h3 id="attract-options-title">Attract screen</h3></section>
     </dialog>
@@ -106,6 +108,8 @@ app.innerHTML = `
 `;
 
 mountAccessibilityControls(document.querySelector<HTMLElement>('#accessibility-controls')!);
+const disposeMusicMonitorControls = mountMusicMonitorControls(document.querySelector<HTMLElement>('#music-monitor-controls')!, 'app-monitor');
+import.meta.hot?.dispose(disposeMusicMonitorControls);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#render-canvas')!;
 // One WebGL engine and canvas are shared by every screen.

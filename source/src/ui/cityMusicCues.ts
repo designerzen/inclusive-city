@@ -13,13 +13,13 @@ export const musicActionName = (cause: string) => ({
 
 /** Cues use the scheduled score onsets; they are not a second music generator. */
 export class CityMusicCues {
-  private pending: { at: number; text: string; key: boolean }[] = [];
+  private pending: { at: number; text: string; key: boolean; midi?: number; duration?: number }[] = [];
   add(score: readonly SoundSequenceEntry[]) {
     for (const entry of score) {
       const part = entry.label?.split(':')[1] ?? 'music';
       const action = part === 'action' ? musicActionName(entry.label!.split(':')[2]!) : part.replaceAll('-', ' ');
       for (const note of entry.score.notes) this.pending.push({ at: entry.at + note.start,
-        text: `${action} · ${pitchName(note.midi)}`, key: false });
+        text: `${action} · ${pitchName(note.midi)}`, key: false, midi: note.midi, duration: note.duration });
     }
     this.pending.sort((a, b) => a.at - b.at);
   }
@@ -35,7 +35,8 @@ export class CityMusicCues {
       const [part, pitch] = cue.text.split(' · ');
       const notes = groups.get(part!) ?? new Set<string>(); notes.add(pitch!); groups.set(part!, notes);
     }
-    return { notes: [...groups].map(([part, notes]) => `${part}: ${[...notes].join(', ')}`).join(' · '),
+    return { onsets: due.filter(cue => !cue.key).map(cue => ({ at: cue.at, midi: cue.midi!, duration: cue.duration! })),
+      notes: [...groups].map(([part, notes]) => `${part}: ${[...notes].join(', ')}`).join(' · '),
       key: due.filter(cue => cue.key).at(-1)?.text };
   }
   clear() { this.pending = []; }
