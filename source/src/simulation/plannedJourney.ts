@@ -157,6 +157,18 @@ export class PlannedJourney {
   get nextStops() { return this.ready && this.path.at(-1) !== this.world.destination ? neighbours(this.world, this.path.at(-1)!) : []; }
   get currentStreet() { return streetBetween(this.world, this.path[this.edge]!, this.path[this.edge + 1]!); }
   get undoAvailable() { const last = this.history.at(-1); return !!last && this.canEdit(last.id); }
+  get hasCityChanges() { return this.history.length > 0; }
+
+  /** Move out of an occupied street before editing it; stay paused until resumed. */
+  backToJunction() {
+    if (this.ready || this.complete || !this.blocked) return false;
+    this.distanceOnEdge = 0; this.bridgeSeconds = 0; this.trainSeconds = 0;
+    this.lastTrainPose = null; this.trainFrom = null; this.trainRampChoice = null; this.rampWaitSeconds = 0;
+    this.crossingRequestEdge = -1; this.blocked = null; this.encountered = null;
+    this.setPaused(true); this.syncTransport?.(); this.telemetry();
+    this.machine.emit('intervention', { action: 'back-to-junction' });
+    return true;
+  }
   get routeLength() {
     if (this.lineFollowing) return this.trajectory.length;
     return this.path.slice(1).reduce((sum, id, i) => { const a = this.node(this.path[i]!), b = this.node(id); return sum + Math.hypot(b.x - a.x, b.z - a.z); }, 0);

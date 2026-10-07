@@ -19,6 +19,7 @@
 .city-issue h2 { margin: 0; font-size: 1.125rem; }
 .city-issue p { margin: 8px 0 12px; line-height: 1.5; font-size: .9375rem; }
 .city-issue p:empty { display: none; }
+.city-recovery-actions { display: grid; gap: 8px; margin-top: 12px; }
 #city-screen .city-issue button { display: block; width: 100%; min-height: 48px; white-space: normal; font-size: .9375rem; }
 #city-screen #city-issue-action:enabled { background: var(--ui-primary); color: var(--ui-primary-ink); border-color: var(--ui-primary); font-weight: 700; }
 #city-screen #city-issue-action:hover:enabled { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); }

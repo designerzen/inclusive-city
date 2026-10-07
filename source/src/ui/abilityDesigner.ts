@@ -24,7 +24,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
     <div class="designer-settings-panels">
     <div id="designer-capabilities-panel" data-settings-panel="capabilities">
     <div class="designer-heading">
-      <h2 id="functions-heading">Pick 3 Capabilities</h2>
+      <h2 id="functions-heading" class="designer-panel-heading">Pick 3 Capabilities</h2>
       <button hidden type="button" id="reset-abilities">Reset abilities</button>
     </div>
     <section class="function-designer" aria-labelledby="functions-heading">
@@ -43,7 +43,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
     </div>
     <div id="designer-tuning-panel" data-settings-panel="tuning" hidden>
     <div class="ability-list" role="group" aria-label="Ability tradeoffs">
-      <h3>Balance your abilities</h3><p class="control-hint">Each pair shares 100 points. Move a slider towards the ability you want more of.</p>
+      <h2 class="designer-panel-heading">Balance your abilities</h2><p class="control-hint">Each pair shares 100 points. Move a slider towards the ability you want more of.</p>
       ${abilityPairs.map(pair => `
         <section class="ability-pair" aria-labelledby="label-${pair.id}">
           <h3 id="label-${pair.id}" class="sr-only">${pair.primary} versus ${pair.secondary}</h3>
@@ -58,7 +58,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
     </div>
     </div>
     <section id="designer-creativity-panel" data-settings-panel="creativity" class="artist-designer" aria-labelledby="artist-heading" hidden>
-      <h2 id="artist-heading">Creative personality</h2><p class="artist-intro">Choose how this robot sees and hears its journey.</p>
+      <h2 id="artist-heading" class="designer-panel-heading">Creative personality</h2><p class="artist-intro">Choose how this robot sees and hears its journey.</p>
       <label for="artist-painter">Painter</label><select id="artist-painter" aria-describedby="artist-painter-description">${painterStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-painter-description"></p>
       <canvas id="artist-preview" width="480" height="240" role="img" aria-label="A study of this robot’s selected painting style"></canvas>
       <label for="artist-musician">Musician</label><select id="artist-musician" aria-describedby="artist-musician-description artist-musician-hint">${musicianStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-musician-description"></p><p id="artist-musician-hint">Choose a style to hear a four-bar preview. Your robot will develop its own melody as it explores.</p>

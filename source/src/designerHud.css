@@ -30,7 +30,9 @@
 #designer-screen .designer-settings-panels { min-height: max(44px, 3.3rem); overflow-y: auto; overscroll-behavior: contain; }
 #designer-screen .designer-step-actions { flex-shrink: 0; padding-top: 12px; }
 #designer-screen .designer-step-actions button { width: 100%; min-height: 48px; padding: 10px 16px; background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-primary-ink); }
-#designer-screen #functions-heading { margin: 4px 0 8px; font-size: 1.125rem; }
+#designer-screen [data-settings-panel] { display: flow-root; }
+/* Every settings panel uses the same heading hierarchy, typography and spacing. */
+#designer-screen .designer-panel-heading { display: block; margin: 4px 0 12px; font-size: 1.125rem; font-weight: 700; line-height: 1.4; color: var(--ui-ink); }
 #designer-screen .designer-heading { margin: 0; }
 #designer-screen .function-item { padding: 6px 0; }
 #designer-screen .function-row { flex-wrap: nowrap; gap: 8px; }
@@ -40,12 +42,10 @@
 #designer-screen .switch-state { font-size: .75rem; }
 #designer-screen .function-announcement { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
 #designer-screen .ability-list { margin: 0; padding: 0; border: 0; }
-#designer-screen .ability-list > h3 { margin: 4px 0 12px; font-size: 1rem; }
 #designer-screen .ability-pair { padding: 4px 0; }
 #designer-screen .pair-values { font-size: .8125rem; }
 #designer-screen .ability-list .control-hint, #designer-screen .artist-intro, #designer-screen .artist-note { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
 #designer-screen .artist-designer { margin: 0; padding: 0; border: 0; }
-#designer-screen .artist-designer h2 { font-size: 1rem; margin: 4px 0 12px; }
 #designer-screen .artist-designer label { margin: 10px 0 4px; }
 #designer-screen .artist-designer select { padding: 6px 8px; }
 #designer-screen #artist-preview { height: 90px; width: 100%; object-fit: cover; margin: 8px 0; }
@@ -57,7 +57,7 @@
   #designer-screen #ability-designer { position: static; grid-row: 3; width: auto; min-height: 0; max-height: none; padding: 10px 12px; }
   #designer-screen .designer-hud-views { margin-bottom: 6px; }
   #designer-screen .function-item { padding: 0; }
-  #designer-screen #functions-heading { margin: 0 0 4px; }
+  #designer-screen .designer-panel-heading { margin: 0 0 4px; }
   #designer-screen .designer-next { position: static; grid-row: 4; gap: 8px; }
   #designer-screen .designer-next button { flex: 1; padding: 8px; font-size: .8125rem; }
   #designer-screen .designer-next button::before { display: none; }
@@ -66,11 +66,9 @@
   #designer-screen #randomise-design { right: 12px; }
   #designer-screen .ability-pair { padding: 0; }
   #designer-screen .ability-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
-  #designer-screen .ability-list > h3 { grid-column: 1 / -1; }
+  #designer-screen .ability-list > .designer-panel-heading { grid-column: 1 / -1; }
   #designer-screen .pair-values { flex-direction: column; gap: 0; font-size: .75rem; line-height: 1.2; }
   #designer-screen .pair-values output { font-size: .75rem; }
-  #designer-screen .ability-list > h3 { margin: 0 0 4px; }
-  #designer-screen #ability-designer .ability-list > h3 { margin: 0 0 4px; }
   #designer-screen #artist-preview { display: none; }
   #designer-screen #artist-musician-hint { display: none; }
 }
