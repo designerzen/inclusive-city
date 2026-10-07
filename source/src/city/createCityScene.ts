@@ -1,3 +1,5 @@
+import { isHumpbackBridge } from './humpbackBridge';
+import { createHumpbackBridge } from './createHumpbackBridge';
 import { createExhibitionPerformer } from '../app/createExhibitionPerformer';
 import { createSteamTrain } from './steamTrain';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
@@ -79,13 +81,14 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const road = createRoadSurface(`road-${street.id}`, scene);
     road.position.set(x, 0, z); road.material = pavement;
     road.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' };
+    const humpback = isHumpbackBridge(street, world) ? createHumpbackBridge(scene, street.id, a, b, walls, details) : null;
+    if (humpback) solids.push(...humpback.solids);
     const parts: ReturnType<typeof box>[] = [];
-    if (street.id !== world.steamTrain?.street && street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
+    if (!humpback && street.id !== world.steamTrain?.street && street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
       const mark = box(`issue-${street.id}`, x, .34, z, dx ? .28 : 2.6, .55, dx ? 2.6 : .28, obstruction);
       mark.metadata = { street: street.id }; mark.isPickable = true; parts.push(mark);
-      if (street.kind === 'stairs') for (let i = -1; i <= 1; i++) { const step = box(`step-${street.id}-${i}`, x + (dx ? i * .45 : 0), .16 + (i + 1) * .07, z + (dz ? i * .45 : 0), dx ? .4 : 2.6, .12 + (i + 1) * .14, dx ? 2.6 : .4, obstruction); step.metadata = { street: street.id }; step.isPickable = true; parts.push(step); }
     }
-    const bridge = street.kind === 'bridge' ? box(`bridge-deck-${street.id}`, x, street.id === world.steamTrain?.street ? .06 : .65, z, dx, .16, 2.6, walls) : null;
+    const bridge = street.kind === 'bridge' && !humpback ? box(`bridge-deck-${street.id}`, x, street.id === world.steamTrain?.street ? .06 : .65, z, dx, .16, 2.6, walls) : null;
     if (bridge && street.id === world.steamTrain?.street && world.steamTrain.trackStart && world.steamTrain.trackEnd) {
       const start = world.steamTrain.trackStart, end = world.steamTrain.trackEnd;
       bridge.position.x = (start.x + end.x) / 2; bridge.position.z = (start.z + end.z) / 2;
@@ -94,7 +97,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (bridge) { bridge.metadata = { street: street.id }; bridge.isPickable = true; }
     if (bridge) solids.push(bridge);
     if (street.kind === 'curb' || street.kind === 'stairs' || street.kind === 'bridge') solids.push(...parts);
-    return { street, surface, road, parts, bridge, dx, dz, originalWidth: width };
+    return { street, surface, road, parts, bridge, humpback, dx, dz, originalWidth: width };
   });
   const crossings = streetModels.filter(m => m.street.kind === 'crossing').map(({ street, dx }) => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
@@ -201,8 +204,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       threshold.position.set(x, .11, front - .3); threshold.scaling.x = door;
       for (const { mesh, side } of windows) { mesh.position.x = x + side * (door / 2 + wing / 2); mesh.position.z = front - .1; }
     }
-    for (const { street, surface, parts, bridge, dx, originalWidth } of streetModels) {
+    for (const { street, surface, parts, bridge, humpback, dx, originalWidth } of streetModels) {
       const scale = resizer.value(`width:${street.id}`) / originalWidth;
+      humpback?.sync(journey.bridgeAccess(street), street.width);
       surface.scaling[dx ? 'z' : 'x'] = scale;
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale * (street.id === world.steamTrain?.street ? street.width / 2.6 : 1);
@@ -313,9 +317,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       revisionKey = edits;
       syncDimensions();
       syncBicycles();
-      streetModels.forEach(({ street, road, parts, bridge, dx }) => {
+      streetModels.forEach(({ street, road, parts, bridge, humpback, dx }) => {
         const repaired = street.id === world.steamTrain?.street || journey.repaired.has(street.id);
         parts.forEach(m => m.setEnabled(!repaired));
+        humpback?.sync(journey.bridgeAccess(street), street.width);
         if (bridge) { bridge.rotation.z = repaired ? 0 : .22; bridge.position.y = repaired ? .06 : .65; }
         if (street.kind === 'guidance' || street.kind === 'crossing') road.material = repaired ? details : pavement;
       });
@@ -328,11 +333,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     autonomousBots?.update(seconds, reducedMotionPreference().matches, journey.signalTime);
     if (physicsStatus !== 'loading') journey.update(seconds);
     sync(); syncSignals(); syncEntrance(); syncTrain(reducedMotionPreference().matches); const p = journey.position;
-    if (journey.onTrainLink || before.y > .2) physics?.reset();
+    streetModels.forEach(({ street, humpback }) => humpback?.animateLifts(journey.onBridgeElevator && journey.currentStreet?.id === street.id ? p : undefined));
+    if (journey.onTrainLink || journey.onBridgeElevator) physics?.reset();
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;
-    if (physics && !journey.onTrainLink) robot.robot.position.copyFrom(physics.position);
+    if (physics && !journey.onTrainLink && !journey.onBridgeElevator) robot.robot.position.copyFrom(physics.position);
     instruments.root.setEnabled(journey.complete);
     if (journey.complete) { instruments.root.position.copyFrom(robot.robot.position); instruments.root.rotation.y = journey.heading; }
     const moved = Math.hypot(p.x - before.x, p.z - before.z);

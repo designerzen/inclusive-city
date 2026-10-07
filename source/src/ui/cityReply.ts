@@ -1,3 +1,4 @@
+import { isHumpbackBridge } from '../city/humpbackBridge';
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { robotFootprint, robotButtonReach } from '../city/proceduralCity';
 
@@ -5,6 +6,7 @@ export type CityReplyAction =
   | { kind: 'repair'; id: string }
   | { kind: 'feature'; id: string }
   | { kind: 'dimension'; id: string; value: number }
+  | { kind: 'bridge-access'; id: string; access: 'ramp' | 'elevator' }
   | { kind: 'ask-robot' }
   | { kind: 'undo' | 'pause' | 'resume' };
 export type CityReply = { message: string; action?: CityReplyAction };
@@ -30,7 +32,7 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
   if (id.startsWith('robot:')) return { message: 'Another robot is in the way. We can wait for it to move; no city change is needed.' };
   const street = journey.world.streets.find(item => item.id === id);
   const requests = [
-    /\b(ramp|steps|stairs)\b/.test(text), /\b(curb|kerb)\b/.test(text),
+    /\b(ramp|steps|stairs|elevator|elevators|lift|lifts)\b/.test(text), /\b(curb|kerb)\b/.test(text),
     /\b(bridge)\b/.test(text), /\b(beeper|beep|tactile|cues)\b/.test(text),
     /\b(button|panel)\b/.test(text), /\b(wider|widen|width|wide|room)\b/.test(text),
     /\b(crossing time|more time|longer|seconds)\b/.test(text), /\b(bike|bicycle)\b/.test(text),
@@ -42,6 +44,7 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
   if (/\b(remove|take away|raise|higher|narrow|shorter)\b/.test(text) && !requests[7]) return { message: 'No city change made. Use the city choices to try a different setting.' };
   if (!/\b(add|put|make|move|lower|widen|give|increase|extend|open|clear|fix|repair|need|can|could|please|remove|change)\b/.test(text)) return { message: 'Tell me the change you want, for example “add a ramp” or “make it wider”.' };
   if (/\b(fix|repair)\b/.test(text) && count === 0) return { message: 'What would you like to change? Use the city choices beside the barrier for ideas.' };
+  if (requests[0] && street && isHumpbackBridge(street, journey.world)) return { message: 'Bridge access updated.', action: { kind: 'bridge-access', id, access: /\b(elevator|elevators|lift|lifts)\b/.test(text) ? 'elevator' : 'ramp' } };
   if (requests[0] && street?.kind === 'stairs' || requests[1] && street?.kind === 'curb' || requests[2] && street?.kind === 'bridge' || requests[9] && street?.kind === 'guidance') return { message: 'City setting updated.', action: { kind: 'feature', id } };
   if (requests[3] && street?.kind === 'crossing') return { message: 'Beeper and tactile crossing cues added.', action: { kind: 'feature', id: `signals:${id}` } };
   if (requests[4] && street?.kind === 'crossing') return { message: 'Crossing button panel lowered.', action: { kind: 'dimension', id: `panel:${id}`, value: Math.min(.8, robotButtonReach(journey.bot)) } };
@@ -71,6 +74,7 @@ export function applyCityReply(journey: PlannedJourney, reply: CityReply): strin
     case 'pause': case 'resume':
       if (journey.ready) return 'Start the robot with Start robot when you’re ready.';
       journey.setPaused(action.kind === 'pause'); return action.kind === 'pause' ? 'Journey paused.' : 'Journey resumed. The robot will continue when the route is clear.';
+    case 'bridge-access': changed = journey.setBridgeAccess(action.id, action.access); break;
     case 'feature': changed = journey.setFeature(action.id, true); break;
     case 'repair': changed = journey.repair(action.id); break;
     case 'dimension': {

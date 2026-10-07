@@ -1,9 +1,10 @@
+import type { BridgeAccess } from './humpbackBridge';
 import type { ArtBot } from '../robot/botHistory';
 import type { RoutePoint } from './cityLayout';
 
 export type StreetKind = 'clear' | 'bridge' | 'curb' | 'stairs' | 'width' | 'crossing' | 'guidance';
 export interface CityNode extends RoutePoint { id: string; label: string; discovery?: 'music' | 'art' | 'harmony' | 'colour' }
-export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number; buttonHeight?: number }
+export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number; buttonHeight?: number; bridgeAccess?: BridgeAccess }
 export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number }
 export const studioDoorTypes = ['revolving', 'automatic', 'push'] as const;
 export type StudioDoorType = typeof studioDoorTypes[number];
@@ -60,8 +61,8 @@ export function routeToGoal(city: ProceduralCity, from = city.start) {
   return null;
 }
 
-export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Raised bridge', curb: 'Raised curb', stairs: 'Steps', width: 'Narrow passage', crossing: 'Pelican crossing', guidance: 'Missing route cues' };
-export const streetActions: Record<StreetKind, string> = { clear: 'Street already open', bridge: 'Lower bridge', curb: 'Lower curb', stairs: 'Add ramp', width: 'Widen passage', crossing: 'Give more crossing time', guidance: 'Add route cues' };
+export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Humpback bridge with steps', curb: 'Raised curb', stairs: 'Humpback bridge with steps', width: 'Narrow passage', crossing: 'Pelican crossing', guidance: 'Missing route cues' };
+export const streetActions: Record<StreetKind, string> = { clear: 'Street already open', bridge: 'Add ramp', curb: 'Lower curb', stairs: 'Add ramp', width: 'Widen passage', crossing: 'Give more crossing time', guidance: 'Add route cues' };
 
 /** Both banks are connected; every route between them crosses an initially raised bridge. */
 export function generateCity(seed: number, robots: readonly ArtBot[]): ProceduralCity {
@@ -134,5 +135,5 @@ export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false,
   if (street.kind === 'width') return street.width < robotFootprint(bot) + .15 ? `This passage is ${street.width.toFixed(1)} m wide. ${bot.name} needs ${(robotFootprint(bot) + .15).toFixed(1)} m.` : null;
   if (street.kind === 'crossing') return street.crossingSeconds + 1e-8 < crossingLength / robotSpeed(bot) ? `The green light gives ${street.crossingSeconds.toFixed(1)} seconds. ${bot.name} needs ${(crossingLength / robotSpeed(bot)).toFixed(1)} seconds to cross. Extend the green phase for slower robots.` : null;
   if (street.kind === 'guidance') return !bot.profile.enabledFunctions.includes('vision') || bot.profile.effectiveAbilities.routeMemory < 40 ? `${bot.name} needs repeated route cues at this junction.` : null;
-  return street.kind === 'bridge' ? 'The bridge is raised. The drawn line cannot carry the robot over the gap.' : street.kind === 'stairs' ? 'The robot’s wheels cannot climb these steps.' : 'The raised curb blocks the robot’s wheels.';
+  return street.kind === 'bridge' || street.kind === 'stairs' ? 'Steps lead up and down this humpback bridge. The robot needs a ramp or elevators at both ends.' : 'The raised curb blocks the robot’s wheels.';
 }

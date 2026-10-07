@@ -1,3 +1,4 @@
+import type { BridgeAccess } from '../city/humpbackBridge';
 export type EnvironmentChoiceKind = 'curb' | 'stairs' | 'bridge' | 'guidance' | 'communication' | 'signals' | 'elevator';
 
 export const environmentChoices: Record<EnvironmentChoiceKind, readonly [string, string, string, string]> = {
@@ -71,4 +72,21 @@ export function studioDoorChoiceCards(current: string, disabled: boolean): strin
     ['push', 'Push door', 'Needs 40 burst power and reach to a 1.20 m push bar.'],
   ];
   return `<p class="environment-choice-prompt">Choose a studio door. Every door still needs enough width for your robot.</p><div class="environment-choice-grid" role="group" aria-label="Studio door choices">${doors.map(([type, label, description]) => `<button type="button" class="environment-choice" data-studio-door="${type}" aria-pressed="${type === current}" ${disabled ? 'disabled' : ''}><svg class="environment-illustration" viewBox="0 0 220 125" aria-hidden="true"><rect x="65" y="12" width="90" height="105" rx="4" fill="#334155"/><rect x="74" y="20" width="72" height="97" fill="#93cfe8"/>${type === 'revolving' ? '<ellipse cx="110" cy="69" rx="32" ry="43" fill="none" stroke="#334155" stroke-width="4"/><path d="M110 25v90m-30-66 60 40m-60 0 60-40" stroke="#334155" stroke-width="4"/>' : type === 'automatic' ? '<path d="M110 20v97M91 63H77l7-7m-7 7 7 7m45-7h14l-7-7m7 7-7 7" fill="none" stroke="#087b63" stroke-width="4"/>' : '<path d="M85 70h50" stroke="#334155" stroke-width="7"/>'}</svg><strong>${label}</strong><span>${description}</span><span class="environment-choice-state">${type === current ? '✓ Current setting' : 'Choose this door'}</span></button>`).join('')}</div>`;
+}
+
+
+
+function humpbackIllustration(access: BridgeAccess) {
+  const steps = '<path d="M20 98h25v-12h14v-12h14V62h14V50h46v12h14v12h14v12h14v12h25" fill="none" stroke="#64748b" stroke-width="8" stroke-linejoin="round"/>';
+  const accessible = access === 'ramp' ? '<path d="M20 101 87 53h46l67 48" fill="none" stroke="#087b63" stroke-width="7" stroke-linejoin="round"/>' : access === 'elevator' ? '<path d="M38 101V40h18v61m108 0V40h18v61M47 53h126" fill="none" stroke="#087b63" stroke-width="6"/><path d="m43 82 4-8 4 8m118-8 4 8 4-8" fill="none" stroke="#334155" stroke-width="2"/>' : '';
+  return `<svg class="environment-illustration" viewBox="0 0 220 125" aria-hidden="true" focusable="false"><path d="M12 110h196" stroke="#334155" stroke-width="3"/>${steps}${accessible}</svg>`;
+}
+
+export function bridgeAccessCards(current: BridgeAccess, disabled: boolean): string {
+  const choices: [BridgeAccess, string, string][] = [
+    ['steps', 'Steps only', 'Steps climb and descend the humpback bridge. Wheels need another way across.'],
+    ['ramp', 'Ramp', 'Continuous slopes reach the raised deck. The steps stay beside the ramp.'],
+    ['elevator', 'Elevators', 'A lift at each end carries the robot up to the bridge and back down.'],
+  ];
+  return `<p class="environment-choice-prompt">Choose access over the humpback bridge.</p><div class="environment-choice-grid" role="group" aria-label="Humpback bridge access">${choices.map(([value, label, description]) => `<button type="button" class="environment-choice" data-bridge-access="${value}" aria-pressed="${current === value}" ${disabled ? 'disabled' : ''}>${humpbackIllustration(value)}<strong>${label}</strong><span>${description}</span><span class="environment-choice-state">${current === value ? '✓ Current setting' : 'Choose this setting'}</span></button>`).join('')}</div>`;
 }

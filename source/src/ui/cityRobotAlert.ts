@@ -24,9 +24,9 @@ export function cityRobotAlert(journey: PlannedJourney): string | null {
   if (!street) return 'The path is blocked.';
   switch (street.kind) {
     case 'width': return 'The passage is too narrow.';
-    case 'stairs': return 'There are steps in the way.';
+    case 'stairs': return 'Steps block the humpback bridge. Add a ramp or elevators.';
     case 'curb': return 'The curb is too high.';
-    case 'bridge': return 'The bridge is raised.';
+    case 'bridge': return 'Steps block the humpback bridge. Add a ramp or elevators.';
     case 'guidance': return 'There are not enough route signs here.';
     case 'crossing':
       if (journey.reachProblem(street)) return 'The crossing button is too high.';

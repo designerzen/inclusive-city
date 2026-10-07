@@ -1,3 +1,4 @@
+import { isHumpbackBridge, type BridgeAccess } from '../city/humpbackBridge';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { mountRobotConditionHud } from './robotConditionHud';
 import type { Engine } from '@babylonjs/core/Engines/engine';
@@ -15,7 +16,7 @@ import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 import { captureFinishedJourney } from '../art/finishedJourney';
 import type { FinishedJourney } from '../art/finishedJourney';
 import { pianoSynthScore } from '../audio/pianoSynth';
-import { environmentChoiceCards, studioDoorChoiceCards } from './environmentChoices';
+import { environmentChoiceCards, studioDoorChoiceCards, bridgeAccessCards } from './environmentChoices';
 import type { EnvironmentChoiceKind } from './environmentChoices';
 import { mountCityVoicePanel } from './cityVoicePanel';
 import { interpretCityReply, applyCityReply } from './cityReply';
@@ -50,6 +51,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <h2>Your robot is stuck</h2>
       <p id="city-issue-description" role="status" aria-live="polite"></p>
       <button id="city-issue-action" type="button"></button>
+      <button id="city-bridge-elevator" type="button" hidden>Add elevators</button>
       <button id="city-roboramp" type="button" hidden>Roboramp</button>
       <button id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
       <p id="city-issue-feedback" role="status" aria-live="polite"></p>
@@ -287,6 +289,9 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('city-issue').hidden = !j.blocked;
     setText('city-controls-label', j.blocked ? 'More options' : 'City controls');
     const issueAction = cityIssueAction(j);
+    const blockedBridge = j.world.streets.find(s => s.id === j.blocked?.id);
+    get('city-bridge-elevator').hidden = !blockedBridge || !isHumpbackBridge(blockedBridge, j.world) || j.bridgeAccess(blockedBridge) !== 'steps';
+    get<HTMLButtonElement>('city-bridge-elevator').disabled = !blockedBridge || !j.canEdit(blockedBridge.id);
     get('city-roboramp').hidden = !(j.needsTrainRamp && j.blocked?.id === j.world.steamTrain?.street);
     if (j.blocked) {
       setText('city-issue-description', `${alert ?? j.blocked.reason}${issueAction ? '' : j.blocked.id.startsWith('robot:') ? ' Wait for the other robot to move.' : ' Move the obstacle on the map, or open the city settings.'}`);
@@ -342,12 +347,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       const trainStreet = street?.id === j.world.steamTrain?.street;
       const choiceKind = communication ? 'communication' : street && !trainStreet && ['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) ? street.kind as EnvironmentChoiceKind : null;
       const choices = get('city-environment-choices'), signalChoices = get('city-signal-choices');
+      const focusedBridge = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.bridgeAccess : undefined;
       const focusedDoor = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.studioDoor : undefined;
       const focusedChoice = container.contains(document.activeElement) ? document.activeElement?.closest<HTMLButtonElement>('[data-environment-value]') : null;
       const focusedGroup = focusedChoice?.closest('div[id]')?.id;
       const focusedValue = focusedChoice?.dataset.environmentValue;
-      choices.hidden = !choiceKind && !studio;
-      choices.innerHTML = studio ? studioDoorChoiceCards(j.world.studioEntrance!.doorType, !j.canEdit('studio:type')) : choiceKind ? environmentChoiceCards(choiceKind, repaired, !j.canEdit(selected!)) : '';
+      const humpback = !!street && isHumpbackBridge(street, j.world);
+      choices.hidden = !choiceKind && !studio && !humpback;
+      choices.innerHTML = humpback ? bridgeAccessCards(j.bridgeAccess(street!), !j.canEdit(selected!)) : studio ? studioDoorChoiceCards(j.world.studioEntrance!.doorType, !j.canEdit('studio:type')) : choiceKind ? environmentChoiceCards(choiceKind, repaired, !j.canEdit(selected!)) : '';
+      if (focusedBridge) choices.querySelector<HTMLButtonElement>(`[data-bridge-access="${focusedBridge}"]`)?.focus({ preventScroll: true });
       if (focusedDoor) choices.querySelector<HTMLButtonElement>(`[data-studio-door="${focusedDoor}"]`)?.focus({ preventScroll: true });
       signalChoices.hidden = street?.kind !== 'crossing';
       signalChoices.innerHTML = street?.kind === 'crossing' ? `<h4>Crossing cues</h4>${environmentChoiceCards('signals', j.hasCrossingCues(street), !j.canEdit(`signals:${street.id}`))}` : '';
@@ -461,6 +469,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
   get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
+  get('city-bridge-elevator').addEventListener('click', () => {
+    const id = city?.journey.blocked?.id;
+    if (id && city?.journey.setBridgeAccess(id, 'elevator')) { sounds.interaction('tap'); city.sync(); refresh(); pause.focus({ preventScroll: true }); }
+  });
+  get('city-environment-choices').addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-bridge-access]') : null;
+    if (button && !button.disabled && selected && city?.journey.setBridgeAccess(selected, button.dataset.bridgeAccess as BridgeAccess)) { city.sync(); feedback('Bridge access changed. Undo lets you change your mind.'); refresh(); }
+  });
   get('city-roboramp').addEventListener('click', () => {
     if (city?.journey.requestTrainRamp('roboramp')) { sounds.interaction('tap'); refresh(); pause.focus({ preventScroll: true }); }
   });

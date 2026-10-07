@@ -17,7 +17,7 @@ function fixture(kind = 'stairs') {
 test('spoken paraphrases use existing edits and undo history', () => {
   const { j, street } = fixture();
   const reply = interpretCityReply('Could you put a ramp there please?', j);
-  assert.equal(reply.action?.kind, 'feature');
+  assert.deepEqual(reply.action, { kind: 'bridge-access', id: street.id, access: 'ramp' });
   applyCityReply(j, reply); assert.ok(j.repaired.has(street.id));
   applyCityReply(j, interpretCityReply('undo that', j)); assert.equal(j.repaired.has(street.id), false);
 });

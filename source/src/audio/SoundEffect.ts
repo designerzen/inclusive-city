@@ -1,3 +1,5 @@
+import { AudioMix, instrumentGain, mixTailSeconds, mixLatencySeconds } from './AudioMix';
+
 /** A versioned, JSON-safe score. Times are seconds relative to the effect start. */
 export interface SoundScore {
   version: 1;
@@ -105,7 +107,7 @@ export class SoundEffect {
     range(when, 0, Number.MAX_VALUE, 'when');
     const { notes, voice: v } = this.data;
     const output = context.createGain();
-    output.gain.value = v.gain / (notes.length * v.layers);
+    output.gain.value = instrumentGain(this.data);
     const filter = context.createBiquadFilter();
     filter.type = 'lowpass'; filter.frequency.value = Math.min(v.cutoff, context.sampleRate / 2); filter.Q.value = v.resonance;
     const pan = context.createStereoPanner(); pan.pan.value = v.pan;
@@ -151,17 +153,19 @@ export class SoundEffect {
     return { stop: () => { sources.forEach(source => { source.onended = null; try { source.stop(); } catch { /* Already ended. */ } }); cleanup(); } };
   }
 
-  static scheduleSequence(context: BaseAudioContext, destination: AudioNode, sequence: readonly SoundSequenceEntry[], when = context.currentTime) {
+  static scheduleSequence(context: BaseAudioContext, destination: AudioNode, sequence: readonly SoundSequenceEntry[], when = context.currentTime, route?: (entry: SoundSequenceEntry) => AudioNode) {
     // Validate the entire sequence before creating any audio nodes.
     const effects = sequence.map(entry => ({ at: range(entry.at, 0, 86400, 'sequence offset'), effect: SoundEffect.fromScore(entry.score) }));
-    const handles = effects.map(({ at, effect }) => effect.schedule(context, destination, when + at));
+    const handles = effects.map(({ at, effect }, index) => effect.schedule(context, route?.(sequence[index]!) ?? destination, when + at));
     return { stop: () => handles.forEach(handle => handle.stop()) };
   }
 
   static async renderSequence(sequence: readonly SoundSequenceEntry[], sampleRate = 44100): Promise<AudioBuffer> {
     const duration = Math.max(0.01, ...sequence.map(entry => entry.at + SoundEffect.fromScore(entry.score).duration));
-    const context = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
-    SoundEffect.scheduleSequence(context, context.destination, sequence, 0);
-    return context.startRendering();
+    const context = new OfflineAudioContext(2, Math.ceil((duration + mixTailSeconds + mixLatencySeconds) * sampleRate), sampleRate);
+    const master = context.createGain(); master.gain.value = .55; master.connect(context.destination);
+    const mix = new AudioMix(context, master);
+    SoundEffect.scheduleSequence(context, master, sequence, 0, entry => mix.input(entry.label));
+    try { return await context.startRendering(); } finally { mix.dispose(); }
   }
 }

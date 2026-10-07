@@ -1,3 +1,4 @@
+import { mixTailSeconds, mixLatencySeconds } from '../audio/AudioMix';
 import { SoundEffect } from '../audio/SoundEffect';
 import type { SoundSequenceEntry } from '../audio/SoundEffect';
 import type { PaintStroke } from './ProceduralPainting';
@@ -37,5 +38,5 @@ export function captureFinishedJourney(run: RobotRun): FinishedJourney {
 export function musicDuration(score: readonly SoundSequenceEntry[]) {
   if (!score.length) return 0;
   const origin = score[0]!.at;
-  return Math.max(...score.map(entry => entry.at - origin + SoundEffect.fromScore(entry.score).duration));
+  return Math.max(...score.map(entry => entry.at - origin + SoundEffect.fromScore(entry.score).duration)) + mixTailSeconds + mixLatencySeconds;
 }

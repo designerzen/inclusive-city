@@ -49,7 +49,7 @@ test('a barrier on an adjacent street offers its own repair and clears the trave
       }
       assert.equal(journey.currentStreet!.id, 'street');
       assert.equal(journey.blocked?.id, 'adjacent');
-      assert.equal(cityIssueAction(journey), kind === 'stairs' ? 'Add ramp' : kind === 'curb' ? 'Lower curb' : 'Lower bridge');
+      assert.equal(cityIssueAction(journey), kind === 'curb' ? 'Lower curb' : 'Add ramp');
       assert.doesNotMatch(cityRobotAlert(journey)!, /object|wall/);
       assert.equal(journey.canEdit('adjacent'), true);
       assert.equal(journey.repair('adjacent'), true);

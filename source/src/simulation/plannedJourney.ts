@@ -1,3 +1,4 @@
+import { isHumpbackBridge, rampHeight, elevatorPose, type BridgeAccess } from '../city/humpbackBridge';
 import { trainRidePose, trainRideDuration, trainPhaseText } from '../city/steamTrainRide';
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
@@ -60,6 +61,7 @@ export class PlannedJourney {
       const transport = new Map<number, RoutePoint[]>();
       for (let i = 0; i < this.path.length - 1; i++) {
         const street = streetBetween(this.world, this.path[i]!, this.path[i + 1]!);
+        if (street && isHumpbackBridge(street, this.world)) { transport.set(i, [this.node(this.path[i]!), this.node(this.path[i + 1]!)]); continue; }
         if (!street || street.id !== this.world.steamTrain?.street || !this.world.steamTrain) continue;
         const service = this.world.steamTrain, reverse = street.b === this.path[i];
         const track = reverse ? { trackStart: service.trackEnd, trackEnd: service.trackStart } : service;
@@ -77,6 +79,29 @@ export class PlannedJourney {
   edge = 0;
   distanceOnEdge = 0;
   heading = 0;
+  bridgeSeconds = 0;
+  get onBridgeElevator() { return !this.ready && !this.complete && !!this.currentStreet && isHumpbackBridge(this.currentStreet, this.world) && this.bridgeAccess(this.currentStreet) === 'elevator'; }
+  bridgeAccess(street: CityStreet): BridgeAccess { return this.repaired.has(street.id) ? street.bridgeAccess === 'elevator' ? 'elevator' : 'ramp' : 'steps'; }
+  setBridgeAccess(id: string, access: BridgeAccess) {
+    const street = this.world.streets.find(s => s.id === id);
+    if (!street || !isHumpbackBridge(street, this.world) || !this.canEdit(id) || this.bridgeAccess(street) === access) return false;
+    this.history.push({ id: `humpback:${id}`, before: ['steps', 'ramp', 'elevator'].indexOf(this.bridgeAccess(street)) });
+    this.applyBridgeAccess(street, access); return true;
+  }
+  private applyBridgeAccess(street: CityStreet, access: BridgeAccess, undo = false) {
+    const before = this.bridgeAccess(street);
+    street.bridgeAccess = access;
+    if (access === 'steps') this.repaired.delete(street.id); else this.repaired.add(street.id);
+    this.dimensionRevision++;
+    this.machine.emit('city_edit', { feature: street.id, before, after: access, action: undo ? 'undo' : 'bridge-access' });
+    if (!undo) { this.machine.add('interventions', 1); this.machine.emit('intervention', { action: `bridge-${access}` }, street.id); }
+    if (access !== 'steps') {
+      const failure = [...this.machine.record.failures].reverse().find(f => f.runId === this.machine.run.id && f.barrier === street.id && f.resolvedAt === null);
+      if (failure) failure.resolvedAt = this.machine.record.clock;
+      if (this.blocked?.id === street.id) { this.blocked = null; this.encountered = null; if (!this.paused) this.machine.transition('following'); }
+    }
+    this.savePlan();
+  }
   trainSeconds = 0;
   trainRampChoice: 'wait' | 'roboramp' | null = null;
   private rampWaitSeconds = 0;
@@ -162,6 +187,13 @@ export class PlannedJourney {
   }
   get position(): RoutePoint {
     if (this.trainPose) return this.trainPose.position;
+    if (this.onBridgeElevator) return elevatorPose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.bridgeSeconds, this.speed).position;
+    const street = this.currentStreet;
+    if (!this.ready && street && isHumpbackBridge(street, this.world) && this.repaired.has(street.id)) {
+      const a = this.node(this.path[this.edge]!), b = this.node(this.path[this.edge + 1]!);
+      const t = Math.min(1, this.distanceOnEdge / this.crossingLength(street));
+      return { x: a.x + (b.x - a.x) * t, y: a.y + rampHeight(t), z: a.z + (b.z - a.z) * t };
+    }
     if (this.lineFollowing) { const p = this.trajectory.atEdge(this.edge, this.distanceOnEdge).position; return { x: p.x, y: p.y, z: p.z }; }
     const a = this.node(this.path[this.edge]!);
     const b = this.world.nodes.find(n => n.id === this.path[this.edge + 1]);
@@ -197,7 +229,7 @@ export class PlannedJourney {
   }
   get entranceProblem() { return studioEntranceProblem(this.world.studioEntrance, this.bot); }
   setStudioDoor(type: StudioDoorType) { return this.editDimension('studio:type', studioDoorTypes.indexOf(type)); }
-  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals|panel):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0) && (id !== 'communication' || this.ready || this.metrics.distance === 0); }
+  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals|panel|humpback):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0 && this.bridgeSeconds === 0) && (id !== 'communication' || this.ready || this.metrics.distance === 0); }
   editDimension(id: string, value: number) {
     if (!this.canEdit(id)) return false;
     const before = this.dimensions.get(id);
@@ -267,6 +299,7 @@ export class PlannedJourney {
     }
     const street = this.world.streets.find(s => s.id === id);
     if ((!street && id !== 'communication') || street?.kind === 'clear' || this.repaired.has(id) || !this.canEdit(id)) return false;
+    if (street && isHumpbackBridge(street, this.world)) return this.setBridgeAccess(id, 'ramp');
     if (street?.kind === 'width') return this.editDimension(`width:${id}`, Math.min(6, Math.max(3.8, street.width)));
     if (street?.kind === 'crossing') {
       if (this.reachProblem(street)) return this.lowerCrossingPanel(street);
@@ -279,6 +312,7 @@ export class PlannedJourney {
   setFeature(id: string, enabled: boolean): boolean {
     if (id === this.world.steamTrain?.street) return false;
     const street = this.world.streets.find(s => s.id === id);
+    if (street && isHumpbackBridge(street, this.world)) return this.setBridgeAccess(id, enabled ? 'ramp' : 'steps');
     const signal = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
     if (id !== 'communication' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind))) return false;
     const before = this.repaired.has(id);
@@ -288,7 +322,8 @@ export class PlannedJourney {
   undoRepair() {
     if (!this.undoAvailable) return false;
     const edit = this.history.pop()!;
-    if (edit.id.startsWith('push:')) this.applyBicyclePush(edit.id.slice(5), edit.before as number, true);
+    if (edit.id.startsWith('humpback:')) this.applyBridgeAccess(this.world.streets.find(s => s.id === edit.id.slice(9))!, (['steps', 'ramp', 'elevator'] as const)[edit.before as number]!, true);
+    else if (edit.id.startsWith('push:')) this.applyBicyclePush(edit.id.slice(5), edit.before as number, true);
     else if (typeof edit.before === 'number') {
       const before = this.dimensions.get(edit.id)!;
       this.dimensions.set(edit.id, edit.before); this.dimensionChanged(edit.id, before, edit.before, 'undo');
@@ -397,6 +432,26 @@ export class PlannedJourney {
         this.heading += Math.sign(delta) * time * TURN_RADIANS_PER_SECOND;
         this.machine.advance(time, 'movingSeconds'); remaining -= time; continue;
       }
+      if (this.onBridgeElevator) {
+        const previous = elevatorPose(a, b, this.bridgeSeconds, this.speed);
+        const boundary = this.bridgeSeconds < 2 ? 2 : this.bridgeSeconds < previous.duration - 2 ? previous.duration - 2 : previous.duration;
+        const duration = Math.min(remaining, boundary - this.bridgeSeconds);
+        this.bridgeSeconds += duration;
+        const next = elevatorPose(a, b, this.bridgeSeconds, this.speed);
+        this.distanceOnEdge = this.crossingLength(street) * next.progress;
+        this.heading = Math.atan2(a.x - b.x, a.z - b.z);
+        const lifting = previous.lifting && this.bridgeSeconds <= 2 || this.bridgeSeconds > previous.duration - 2;
+        this.machine.transition(lifting ? 'waiting' : 'following');
+        this.machine.advance(duration, lifting ? 'waitingSeconds' : 'movingSeconds'); remaining -= duration;
+        this.machine.add('distance', this.crossingLength(street) * (next.progress - previous.progress));
+        if (this.bridgeSeconds >= next.duration - 1e-8) {
+          this.machine.add('stepsTaken', Math.max(0, Math.floor(this.metrics.distance) - this.metrics.stepsTaken));
+          this.machine.transition('following');
+          this.edge++; this.distanceOnEdge = 0; this.bridgeSeconds = 0;
+          this.machine.add('segmentsCompleted', 1); this.machine.emit('segment', { segment: this.edge - 1, transport: 'bridge-elevator' }); this.collectAt(this.path[this.edge]!);
+        }
+        this.syncTransport?.(); this.telemetry(); continue;
+      }
       const length = this.travelLength;
       // Admit only at the kerb, with enough green remaining for the whole crossing.
       // Once admitted, finish the crossing rather than stopping in the road.
@@ -463,6 +518,7 @@ export class PlannedJourney {
   }
   restart() {
     this.machine.end('interrupted'); this.machine.transition('designer');
+    this.bridgeSeconds = 0;
     this.trainRampChoice = null; this.rampWaitSeconds = 0;
     this.edge = 0; this.distanceOnEdge = 0; this.trainSeconds = 0; this.lastTrainPose = null; this.trainFrom = null; this.paused = false; this.blocked = null; this.encountered = null; this.crossingRequestEdge = -1;
     this.machine.start(robotMetadata(this.bot), [...this.repaired], true);

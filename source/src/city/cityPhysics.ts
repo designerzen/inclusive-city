@@ -21,7 +21,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   function sync() {
     for (const mesh of solids) {
       const old = colliders.get(mesh);
-      const enabled = mesh.isEnabled() && !mesh.isDisposed();
+      const enabled = mesh.isEnabled() && !mesh.isDisposed() && !mesh.metadata?.decorative;
       mesh.computeWorldMatrix(true);
       const key = Array.from(mesh.getWorldMatrix().m).join('|');
       if (enabled && old?.key === key) continue;
@@ -126,7 +126,7 @@ export function createCityPhysics(scene: Scene, journey: PlannedJourney, solids:
   journey.syncTransport = reset;
   function update(seconds: number) {
     refreshContacts();
-    if (journey.onTrainLink) { reset(); return; }
+    if (journey.onTrainLink || journey.onBridgeElevator) { reset(); return; }
     if (journey.ready && Vector3.DistanceSquared(controller.getPosition(), new Vector3(journey.position.x, controller.getPosition().y, journey.position.z)) > .0001) reset();
     // Small steps keep gravity and support stable after a slow frame.
     let remaining = Math.min(.1, Math.max(0, seconds));

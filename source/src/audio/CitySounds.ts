@@ -1,3 +1,4 @@
+import { AudioMix, mixTailSeconds, mixLatencySeconds } from './AudioMix';
 import { SoundEffect } from './SoundEffect';
 import { seekSequence } from './seekSequence';
 import type { SoundSequenceEntry } from './SoundEffect';
@@ -12,6 +13,7 @@ export class CitySounds {
   readonly midi = new CityMidiOutput();
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private mix: AudioMix | null = null;
   private readonly events: SoundSequenceEntry[] = [];
   private readonly origin = performance.now();
   private volume = 0.55;
@@ -50,10 +52,8 @@ export class CitySounds {
       if (!this.context) {
         this.context = new AudioContext();
         this.master = this.context.createGain(); this.master.gain.value = this.muted || this.capturingVoice ? 0 : this.volume;
-        const limiter = this.context.createDynamicsCompressor();
-        limiter.threshold.value = -10; limiter.knee.value = 6; limiter.ratio.value = 12;
-        limiter.attack.value = 0.003; limiter.release.value = 0.15;
-        this.master.connect(limiter); limiter.connect(this.context.destination);
+        this.master.connect(this.context.destination);
+        this.mix = new AudioMix(this.context, this.master);
       }
       if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
     } catch { /* Sound availability never blocks city interactions. */ }
@@ -68,7 +68,7 @@ export class CitySounds {
 
   private schedule(sequence: readonly SoundSequenceEntry[], when: number) {
     const context = this.context!;
-    const audio = SoundEffect.scheduleSequence(context, this.master!, sequence, when);
+    const audio = SoundEffect.scheduleSequence(context, this.master!, sequence, when, entry => this.mix?.input(entry.label) ?? this.master!);
     let stopped = false;
     let midi: { stop(): void } | undefined;
     const startMidi = () => {
@@ -77,7 +77,7 @@ export class CitySounds {
       const start = timestamp?.contextTime && timestamp.performanceTime
         ? timestamp.performanceTime + (when - timestamp.contextTime) * 1000
         : performance.now() + (when - context.currentTime) * 1000;
-      midi = this.midi.schedule(sequence, start, this.volume);
+      midi = this.midi.schedule(sequence, start + (this.mix ? mixLatencySeconds * 1000 : 0), this.volume);
     };
     if (context.state === 'running') startMidi();
     else void context.resume().then(startMidi).catch(() => {});
@@ -124,7 +124,7 @@ export class CitySounds {
     const when = absoluteWhen ?? this.musicClock?.audio ?? context.currentTime + 0.05;
     // Keep future song entries as score data, just as live city music does.
     // Creating every oscillator up front overwhelms the audio graph on long journeys.
-    const duration = Math.max(...sequence.map(entry => Math.max(0, entry.at - origin) + SoundEffect.fromScore(entry.score).duration));
+    const duration = Math.max(...sequence.map(entry => Math.max(0, entry.at - origin) + SoundEffect.fromScore(entry.score).duration)) + (this.mix ? mixTailSeconds + mixLatencySeconds : 0);
     const startAt = Math.min(duration, Math.max(0, offset));
     const remaining = startAt > 0 ? seekSequence(sequence, startAt, origin)
       : sequence.map(entry => ({ ...entry, at: Math.max(0, entry.at - origin) }));
@@ -164,7 +164,7 @@ export class CitySounds {
           const outputTime = timestamp?.contextTime && timestamp.performanceTime
             ? Math.min(context.currentTime, timestamp.contextTime + (performance.now() - timestamp.performanceTime) / 1000)
             : context.currentTime - (context.outputLatency ?? context.baseLatency ?? 0);
-          elapsed = Math.max(elapsed, Math.min(duration, startAt + Math.max(0, outputTime - when)));
+          elapsed = Math.max(elapsed, Math.min(duration, startAt + Math.max(0, outputTime - when - (this.mix ? mixLatencySeconds : 0))));
         }
         return elapsed;
       },
@@ -223,6 +223,6 @@ export class CitySounds {
     const index = Math.round(Math.min(100, Math.max(0, value)) / 100 * (scale.length - 1));
     this.play(interactionSound('tune', { root: 60 + scale[index]! }), 'interaction:tune');
   }
-  stop() { this.musicClock = null; this.active.forEach(handle => handle.stop()); this.active.clear(); this.midi.stop(); }
-  dispose() { this.disposed = true; this.stop(); this.midi.dispose(); void this.context?.close().catch(() => {}); }
+  stop() { this.musicClock = null; this.active.forEach(handle => handle.stop()); this.active.clear(); this.midi.stop(); if (this.disposed) this.mix?.dispose(); else this.mix?.reset(); }
+  dispose() { this.disposed = true; this.stop(); this.mix?.dispose(); this.mix = null; this.midi.dispose(); void this.context?.close().catch(() => {}); }
 }

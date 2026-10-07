@@ -5,6 +5,7 @@ import { JourneyCreativity } from '../src/art/JourneyCreativity';
 import { CityJourney } from '../src/simulation/cityJourney';
 import { BotHistory } from '../src/robot/botHistory';
 import { SoundEffect } from '../src/audio/SoundEffect';
+import { mixTailSeconds, mixLatencySeconds } from '../src/audio/AudioMix';
 
 test('exhibitions capture the completed robot’s artwork and stay intact across another journey', () => {
   const bot = new BotHistory(['Curie', 'Einstein'], () => 0).current;
@@ -33,9 +34,9 @@ test('exhibitions capture the completed robot’s artwork and stay intact across
   assert.deepEqual(exhibition, before);
 });
 
-test('playback duration includes later phrases and their release tails, relative to the first phrase', () => {
+test('playback duration includes later phrases, release and shared room tails, relative to the first phrase', () => {
   const effect = new SoundEffect({ durationBeats: 2, release: .4 });
   const score = [{ at: 20, score: effect.toScore() }, { at: 30, score: effect.toScore() }];
-  assert.equal(musicDuration(score), 10 + effect.duration);
+  assert.equal(musicDuration(score), 10 + effect.duration + mixTailSeconds + mixLatencySeconds);
   assert.equal(musicDuration([]), 0);
 });
