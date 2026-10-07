@@ -9,7 +9,7 @@ import { TURN_RADIANS_PER_SECOND } from './cityJourney';
 import { CityDimensions } from '../city/cityDimensions';
 import { crossingSignal } from '../city/trafficSignals';
 import { RouteTrajectory } from '../city/routeTrajectory';
-import { buildingRouteClearance } from '../city/routeClearance';
+import { cityRouteClearance } from '../city/routeClearance';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
@@ -50,6 +50,8 @@ export class PlannedJourney {
   private trajectoryKey = '';
   private trajectoryCache?: RouteTrajectory;
   private turnRadius = 3;
+  private departureRevision = 0;
+  get routeGeometryRevision() { return this.ready ? this.dimensionRevision : this.departureRevision; }
   get minimumTurnRadius() { return this.turnRadius; }
   setMinimumTurnRadius(radius: number) {
     if (!this.ready || !Number.isFinite(radius) || radius < .5 || radius > 12 || radius === this.turnRadius) return false;
@@ -57,7 +59,7 @@ export class PlannedJourney {
   }
   enableLineFollowing() { this.lineFollowing = true; }
   get trajectory() {
-    const key = this.path.join('|') + ':' + this.turnRadius;
+    const key = this.path.join('|') + ':' + this.turnRadius + ':' + this.routeGeometryRevision;
     if (!this.trajectoryCache || key !== this.trajectoryKey) {
       const transport = new Map<number, RoutePoint[]>();
       for (let i = 0; i < this.path.length - 1; i++) {
@@ -69,7 +71,7 @@ export class PlannedJourney {
         transport.set(i, [0, 3, 6, 8, 14, 17, 19, 20, 21, 24].map(t => trainRidePose(this.node(this.path[i]!), this.node(this.path[i + 1]!), t, track).position));
       }
       this.trajectoryCache = new RouteTrajectory(this.path.map(id => this.node(id)), transport, this.turnRadius,
-        buildingRouteClearance(this.world.buildings, Math.max(.25, robotFootprint(this.bot) / 2) + .12)); this.trajectoryKey = key;
+        cityRouteClearance(this.world, Math.max(.25, robotFootprint(this.bot) / 2) + .12)); this.trajectoryKey = key;
     }
     return this.trajectoryCache;
   }
@@ -178,6 +180,7 @@ export class PlannedJourney {
   }
   start() {
     if (!this.canStart) return false;
+    this.departureRevision = this.dimensionRevision;
     const remaining = routeToGoal(this.world, this.path.at(-1)!)!;
     this.path.push(...remaining.slice(1));
     const a = this.node(this.path[0]!), b = this.node(this.path[1]!);

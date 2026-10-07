@@ -19,6 +19,8 @@ import type { ProceduralCity } from '../src/city/proceduralCity';
 import { generateCity, routeToGoal } from '../src/city/proceduralCity';
 import { cityIssueAction } from '../src/ui/cityIssueAction';
 import { cityRobotAlert } from '../src/ui/cityRobotAlert';
+import { createHumpbackBridge } from '../src/city/createHumpbackBridge';
+import { isHumpbackBridge } from '../src/city/humpbackBridge';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from '../src/city/roadSurface';
 import { routeRoadPolygons } from '../src/city/routeRoad';
 
@@ -279,7 +281,11 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
       const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z);
       const surface = MeshBuilder.CreateBox(street.id, { width: dx || street.width, height: .1, depth: dz || street.width }, scene);
       surface.position.set((a.x + b.x) / 2, .025, (a.z + b.z) / 2); solids.push(surface);
-      if (street.kind === 'bridge') {
+      if (isHumpbackBridge(street, world)) {
+        const material = new StandardMaterial(`bridge-${street.id}`, scene);
+        const bridge = createHumpbackBridge(scene, street.id, a, b, material, material);
+        bridge.sync(journey.bridgeAccess(street), street.width); solids.push(...bridge.solids);
+      } else if (street.kind === 'bridge') {
         const deck = MeshBuilder.CreateBox('deck', { width: dx, height: .16, depth: street.width }, scene);
         deck.position.set(surface.position.x, .06, surface.position.z); solids.push(deck);
       }

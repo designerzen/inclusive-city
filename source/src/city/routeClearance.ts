@@ -1,5 +1,16 @@
 import type { RoutePoint } from './cityLayout';
-import type { CityBuilding } from './proceduralCity';
+import type { CityBuilding, ProceduralCity } from './proceduralCity';
+import { isHumpbackBridge } from './humpbackBridge';
+
+export function cityRouteClearance(world: ProceduralCity, radius: number) {
+  // Raised features on other streets also obstruct a corner-cutting bend.
+  const raised = world.streets.filter(street => isHumpbackBridge(street, world)).map(street => {
+    const a = world.nodes.find(node => node.id === street.a)!, b = world.nodes.find(node => node.id === street.b)!;
+    return { name: street.id, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2,
+      w: Math.abs(a.x - b.x) || street.width, d: Math.abs(a.z - b.z) || street.width, h: 1 };
+  });
+  return buildingRouteClearance([...world.buildings, ...raised], radius);
+}
 
 /** Swept capsule clearance in the map plane, including contact tolerance. */
 export function buildingRouteClearance(buildings: readonly CityBuilding[], radius: number) {

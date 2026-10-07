@@ -17,7 +17,7 @@ export class RouteTrajectory {
       const curve = routeCurve(waypoints.map(p => new Vector3(p.x, p.y, p.z)), minimumRadius, true, minimumRadius);
       const collision = segmentIsClear ? curve.findIndex((p, i) => i > 0 && !segmentIsClear(curve[i - 1]!, p)) : -1;
       if (collision < 0 || waypoints.length < 3) return curve;
-      // A broad bend (or blended short waypoint) can cut through a building.
+      // A broad bend (or blended short waypoint) can cut through a solid feature.
       // Keep the street junction nearest that bend and turn there instead.
       // Recursing retains safe sweeping bends elsewhere on the route.
       const hit = Vector3.Center(curve[collision - 1]!, curve[collision]!);

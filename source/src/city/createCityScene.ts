@@ -312,7 +312,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   let routeKey = '', revisionKey = '';
   function sync() {
     syncEntrance();
-    const key = journey.route.join('|') + ':' + journey.minimumTurnRadius;
+    const key = journey.route.join('|') + ':' + journey.minimumTurnRadius + ':' + journey.routeGeometryRevision;
     if (key !== routeKey) {
       routeKey = key; line?.dispose(); line = null;
       const path = journey.trajectory.points.map(p => new Vector3(p.x, .19, p.z));

@@ -117,6 +117,10 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
     { id: 'train-west-approach', a: west.id, b: entry.id, kind: 'clear', width: 6, crossingSeconds: 20 },
     { id: 'train-east-approach', a: exit.id, b: east.id, kind: 'clear', width: 6, crossingSeconds: 20 },
   );
+  // Station links overlap the first metres of their adjoining north/south
+  // streets. A raised bridge here would put its ramp across the platform exit.
+  for (const street of streets) if (street.kind === 'stairs'
+    && [street.a, street.b].some(id => id === west.id || id === east.id)) street.kind = 'clear';
   // Reserve generous forecourts for turning, queuing and ramp deployment.
   // Check whole footprints, including room for the building editor's 1.5 m expansion.
   const outsideStations = (lot: { x: number; z: number; w: number; d: number }) => [entry, exit].every(stop =>
