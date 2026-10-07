@@ -6,6 +6,7 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { cityRoadNetwork } from '../src/city/cityRoadNetwork';
 import { roadPolygonUnion } from '../src/city/roadPolygonUnion';
+import { routeRoadPolygons } from '../src/city/routeRoad';
 import { createRoadSurface, updateRoadSurface } from '../src/city/roadSurface';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { BotHistory } from '../src/robot/botHistory';
@@ -67,5 +68,24 @@ test('large radius layouts give all ground turns room and never replace them wit
       }
     }
     assert.ok(path.length > 0);
+  }
+});
+
+test('a full city and its route produce a bounded road mesh for rendering and physics', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  for (const radius of [1, 3, 12]) {
+    const world = generateCity(42, [bot]); world.minimumTurnRadius = radius;
+    const journey = new PlannedJourney(bot, world); journey.enableLineFollowing();
+    journey.setRoute(routeToGoal(world)!);
+    const network = cityRoadNetwork(world, radius);
+    const corridors = routeRoadPolygons(journey.trajectory, journey.route.slice(1).map((id, i) => {
+      const street = world.streets.find(s => (s.a === id && s.b === journey.route[i]) || (s.b === id && s.a === journey.route[i]))!;
+      return { id: street.id, width: street.width, transport: street.kind === 'bridge' };
+    }));
+    assert.ok(network.polygons.length > 2000, 'exercise the complete network of sampled curves');
+    const roads = roadPolygonUnion([...network.polygons, ...corridors]);
+    const triangles = [...roads.values()].reduce((sum, data) => sum + data.indices.length / 3, 0);
+    assert.ok(triangles < 20000, `radius ${radius}: ${triangles} triangles; unrelated curve cuts must not multiply the city mesh`);
+    assert.ok(triangles > 0);
   }
 });
