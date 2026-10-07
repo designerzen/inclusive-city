@@ -19,10 +19,12 @@
 #designer-screen .designer-next button { width: auto; min-height: 48px; padding: 10px 16px; font-size: .875rem; }
 #designer-screen #choose-existing { background: var(--ui-surface); }
 #designer-screen #ability-designer { position: absolute; right: 24px; top: 24px; max-height: calc(100dvh - 48px); width: 320px; box-sizing: border-box; padding: 14px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; overflow-y: auto; overscroll-behavior: contain; }
-#designer-screen .designer-hud-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; }
-#designer-screen .designer-hud-views button { padding: 6px 4px; font-size: .75rem; }
+#designer-screen .designer-hud-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--ui-border); }
+#designer-screen .designer-hud-views button { position: relative; padding: 6px 4px; border: 0; border-radius: 0; background: transparent; color: var(--ui-muted); font-size: .75rem; }
 #designer-screen .designer-hud-views button::before { display: none; }
-#designer-screen .designer-hud-views button[aria-pressed='true'] { background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-primary-ink); }
+#designer-screen .designer-hud-views button:hover:enabled { background: transparent; color: var(--ui-ink); }
+#designer-screen .designer-hud-views button[aria-pressed='true'] { color: var(--ui-primary); font-weight: 700; }
+#designer-screen .designer-hud-views button[aria-pressed='true']::after { content: ''; position: absolute; bottom: 0; left: 4px; right: 4px; height: 3px; background: var(--ui-primary); border-radius: 3px 3px 0 0; }
 #designer-screen #ability-designer { display: flex; flex-direction: column; overflow: visible; }
 #designer-screen .designer-hud-views { flex-shrink: 0; }
 #designer-screen .designer-settings-panels { min-height: max(44px, 3.3rem); overflow-y: auto; overscroll-behavior: contain; }

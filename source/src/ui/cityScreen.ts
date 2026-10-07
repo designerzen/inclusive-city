@@ -167,6 +167,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('city-music-notes').hidden = preference.mode !== 'notes';
     get('city-music-notation').hidden = preference.mode !== 'notation';
     if (!preference.enabled) {
+      musicCues.clear();
       monitorNotes = [];
       get('city-music-notes').textContent = 'Journey music ready.';
       get('city-music-key').textContent = 'Music follows city actions.';
@@ -223,12 +224,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const j = city.journey;
     creation.observeMotion(city.musicPosition, j.heading, cityMusicTime, j.ready || j.paused);
     const score = creation.advance(cityMusicTime, false, j.complete);
-    musicCues.add(score);
-    for (const change of creation.keyChanges.slice(keyCueCursor)) musicCues.key(change);
+    if (musicMonitorPreferences().enabled) {
+      musicCues.add(score);
+      for (const change of creation.keyChanges.slice(keyCueCursor)) musicCues.key(change);
+    }
     keyCueCursor = creation.keyChanges.length;
     sounds.performLive(score);
-    const cue = musicCues.advance(cityMusicTime - .05);
     if (!musicMonitorPreferences().enabled) return;
+    const cue = musicCues.advance(cityMusicTime - .05);
     if (cue.notes) setText('city-music-notes', cue.notes);
     if (cue.key) setText('city-music-key', cue.key);
     if (cue.onsets.length) {
