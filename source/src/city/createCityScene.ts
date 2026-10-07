@@ -39,6 +39,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const scene = new Scene(engine);
   const journey = new PlannedJourney(bot, world);
   journey.enableLineFollowing();
+  const initialNetwork = cityRoadNetwork(world, journey.minimumTurnRadius);
   scene.metadata = { journey, world };
   const solids: ReturnType<typeof MeshBuilder.CreateBox>[] = [];
   let physics: ReturnType<typeof createCityPhysics> | undefined;
@@ -85,7 +86,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     solids.push(road);
     road.position.set(x, 0, z); road.material = pavement;
     road.metadata = { street: street.id, dimension: `width:${street.id}`, axis: dx ? 'z' : 'x' };
-    const humpback = isHumpbackBridge(street, world) ? createHumpbackBridge(scene, street.id, a, b, walls, details) : null;
+    const span = initialNetwork.spans.get(street.id)!;
+    const humpback = isHumpbackBridge(street, world) ? createHumpbackBridge(scene, street.id, span.a, span.b, walls, details) : null;
     if (humpback) solids.push(...humpback.solids);
     const parts: ReturnType<typeof box>[] = [];
     if (!humpback && street.id !== world.steamTrain?.street && street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
@@ -219,7 +221,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       s.a === id && s.b === journey.route[i] || s.b === id && s.a === journey.route[i])!);
     const corridors = routeRoadPolygons(journey.trajectory, routeStreets.map(street => ({
       id: street.id, width: resizer.value(`width:${street.id}`),
-      transport: street.kind === 'bridge',
+      transport: false,
     })));
     const network = cityRoadNetwork(world, journey.minimumTurnRadius, street => resizer.value(`width:${street.id}`));
     const roads = roadPolygonUnion([...network.polygons, ...corridors]);

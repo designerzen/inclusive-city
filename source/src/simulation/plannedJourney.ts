@@ -72,7 +72,6 @@ export class PlannedJourney {
       const transport = new Map<number, RoutePoint[]>();
       for (let i = 0; i < this.path.length - 1; i++) {
         const street = streetBetween(this.world, this.path[i]!, this.path[i + 1]!);
-        if (street && isHumpbackBridge(street, this.world)) { transport.set(i, [this.node(this.path[i]!), this.node(this.path[i + 1]!)]); continue; }
         if (!street || street.id !== this.world.steamTrain?.street || !this.world.steamTrain) continue;
         const service = this.world.steamTrain, reverse = street.b === this.path[i];
         const track = reverse ? { trackStart: service.trackEnd, trackEnd: service.trackStart } : service;
@@ -138,7 +137,24 @@ export class PlannedJourney {
     const reverse = this.currentStreet?.b === this.path[this.edge];
     return reverse ? { trackStart: service?.trackEnd, trackEnd: service?.trackStart } : service;
   }
-  get trainPose() { return this.onTrainLink ? trainRidePose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.trainSeconds, this.trainTrack()) : null; }
+  get trainPose() {
+    if (!this.onTrainLink) return null;
+    const track = this.trainTrack(), pose = trainRidePose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.trainSeconds, track);
+    if (!this.lineFollowing) return { ...pose, riderHeading: pose.heading };
+    const path = this.trajectory, first = path.milestones[this.edge]!, last = path.milestones[this.edge + 1]!;
+    const start = track?.trackStart, end = track?.trackEnd;
+    const rail = start && end ? path.points.flatMap((p, i) => {
+      const d = path.distances[i]!;
+      const cross = (p.x - start.x) * (end.z - start.z) - (p.z - start.z) * (end.x - start.x);
+      return d >= first && d <= last && Math.abs(cross) < 1e-6 ? [d] : [];
+    }) : [];
+    const board = rail[0] ?? first, exit = rail.at(-1) ?? last, t = this.trainSeconds;
+    const mix = (a: number, b: number, fraction: number) => a + (b - a) * Math.max(0, Math.min(1, fraction));
+    const rideDistance = mix(board, exit, (t - 8) / 6);
+    const distance = t < 6 ? mix(first, board, (t - 3) / 3) : t < 17 ? rideDistance : mix(exit, last, (t - 17) / 2);
+    const p = path.sample(distance).position, train = path.sample(rideDistance).position;
+    return { ...pose, riderHeading: path.sample(distance).heading, position: { x: p.x, y: pose.position.y, z: p.z }, train: { x: train.x, y: 0, z: train.z } };
+  }
   get trainStatus() {
     if (this.rampWaitSeconds > 0) return 'Waiting for a ramp to be brought to the train.';
     const pose = this.trainPose;
@@ -200,12 +216,18 @@ export class PlannedJourney {
   }
   get position(): RoutePoint {
     if (this.trainPose) return this.trainPose.position;
-    if (this.onBridgeElevator) return elevatorPose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.bridgeSeconds, this.speed).position;
+    if (this.onBridgeElevator) {
+      const pose = elevatorPose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.bridgeSeconds, this.speed);
+      if (!this.lineFollowing) return pose.position;
+      const p = this.trajectory.atEdge(this.edge, this.travelLength * pose.progress).position;
+      return { x: p.x, y: pose.position.y, z: p.z };
+    }
     const street = this.currentStreet;
     if (!this.ready && street && isHumpbackBridge(street, this.world) && this.repaired.has(street.id)) {
       const a = this.node(this.path[this.edge]!), b = this.node(this.path[this.edge + 1]!);
       const t = Math.min(1, this.distanceOnEdge / this.crossingLength(street));
-      return { x: a.x + (b.x - a.x) * t, y: a.y + rampHeight(t), z: a.z + (b.z - a.z) * t };
+      const p = this.lineFollowing ? this.trajectory.atEdge(this.edge, this.distanceOnEdge).position : { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+      return { x: p.x, y: a.y + rampHeight(t), z: p.z };
     }
     if (this.lineFollowing) { const p = this.trajectory.atEdge(this.edge, this.distanceOnEdge).position; return { x: p.x, y: p.y, z: p.z }; }
     const a = this.node(this.path[this.edge]!);
@@ -419,9 +441,9 @@ export class PlannedJourney {
         const duration = Math.min(remaining, trainRideDuration - this.trainSeconds);
         this.trainFrom = a.id;
         this.trainSeconds += duration;
-        this.lastTrainPose = trainRidePose(a, b, this.trainSeconds, this.trainTrack());
+        this.lastTrainPose = this.trainPose;
         this.distanceOnEdge = this.crossingLength(street) * this.trainSeconds / trainRideDuration;
-        this.heading = this.trainPose!.heading;
+        this.heading = this.trainPose!.riderHeading;
         this.machine.advance(duration, 'movingSeconds'); remaining -= duration;
         if (this.trainSeconds >= trainRideDuration) {
           this.machine.add('distance', this.travelLength);
@@ -451,12 +473,12 @@ export class PlannedJourney {
         const duration = Math.min(remaining, boundary - this.bridgeSeconds);
         this.bridgeSeconds += duration;
         const next = elevatorPose(a, b, this.bridgeSeconds, this.speed);
-        this.distanceOnEdge = this.crossingLength(street) * next.progress;
-        this.heading = Math.atan2(a.x - b.x, a.z - b.z);
+        this.distanceOnEdge = this.travelLength * next.progress;
+        this.heading = this.lineFollowing ? this.trajectory.atEdge(this.edge, this.distanceOnEdge).heading : Math.atan2(a.x - b.x, a.z - b.z);
         const lifting = previous.lifting && this.bridgeSeconds <= 2 || this.bridgeSeconds > previous.duration - 2;
         this.machine.transition(lifting ? 'waiting' : 'following');
         this.machine.advance(duration, lifting ? 'waitingSeconds' : 'movingSeconds'); remaining -= duration;
-        this.machine.add('distance', this.crossingLength(street) * (next.progress - previous.progress));
+        this.machine.add('distance', this.travelLength * (next.progress - previous.progress));
         if (this.bridgeSeconds >= next.duration - 1e-8) {
           this.machine.add('stepsTaken', Math.max(0, Math.floor(this.metrics.distance) - this.metrics.stepsTaken));
           this.machine.transition('following');

@@ -20,6 +20,14 @@ export function trainRidePose(a: RoutePoint, b: RoutePoint, seconds: number, tra
   else if (t >= 19 && t < 20) position = point(5.2, mix(length, length - 3, t - 19));
   else if (t >= 20 && t < 21) position = point(mix(5.2, 0, t - 20), length - 3);
   else if (t >= 21) position = point(0, mix(length - 3, length, t - 21));
+  if (track?.trackStart && track.trackEnd) {
+    // Platform distances grow with the minimum turning radius; 2.6 is only the
+    // train's lateral construction offset, not the passenger's boarding path.
+    const boarding = Math.max(0, Math.min(1, (t - 3) / 3)), exiting = Math.max(0, Math.min(1, (t - 17) / 2));
+    position = t < 6 ? { x: mix(a.x, start.x, boarding), y: mix(a.y, .76, boarding), z: mix(a.z, start.z, boarding) }
+      : t < 17 ? { x: mix(start.x, end.x, (t - 8) / 6), y: .76, z: mix(start.z, end.z, (t - 8) / 6) }
+      : exiting >= 1 ? { x: b.x, y: b.y, z: b.z } : { x: mix(end.x, b.x, exiting), y: mix(.76, b.y, exiting), z: mix(end.z, b.z, exiting) };
+  }
   return { phase, position, train: point(2.6, along, 0), heading: Math.atan2(-dx, -dz),
     boardingRamp: t < 6 ? mix(0, 1, t / 3) : mix(1, 0, (t - 6) / 2),
     exitRamp: t < 17 ? mix(0, 1, (t - 14) / 3) : t < 22 ? 1 : mix(1, 0, (t - 22) / 2), boardingDoorOpen: t >= 3 && t < 6, exitDoorOpen: t >= 17 && t < 22, point, length };

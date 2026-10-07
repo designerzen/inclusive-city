@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BotHistory } from '../src/robot/botHistory';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
-import type { ProceduralCity } from '../src/city/proceduralCity';
+import { generateCity, routeToGoal, type ProceduralCity } from '../src/city/proceduralCity';
 
 function fixture() {
   const bot = new BotHistory(['Curie', 'Einstein']).current;
@@ -71,4 +71,35 @@ test('collision sweeps receive successive samples of the same curved line', () =
   j.update(100);
   assert.ok(curveSweeps > 50);
   assert.equal(j.complete, true);
+});
+
+test('the complete generated line has no sharp joins at bridges or train platforms', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  for (const seed of [42, 204063043]) for (const radius of [1, 3, 8, 12]) {
+    const world = generateCity(seed, [bot]); world.minimumTurnRadius = radius;
+    const j = new PlannedJourney(bot, world); j.enableLineFollowing(); j.setRoute(routeToGoal(world)!);
+    const points = j.trajectory.points;
+    for (let i = 2; i < points.length; i++) {
+      const a = points[i - 1]!.subtract(points[i - 2]!).normalize(), b = points[i]!.subtract(points[i - 1]!).normalize();
+      assert.ok(a.x * b.x + a.z * b.z > .998, `seed ${seed}, radius ${radius}, sample ${i}: ground and transport joins are tangent`);
+    }
+    j.repair('communication');
+    for (const s of world.streets) { if (s.id !== world.steamTrain?.street) j.repair(s.id); }
+    j.start();
+    for (let frame = 0; frame < 3000 && !j.complete; frame++) {
+      j.update(.2);
+      if (j.needsTrainRamp) j.requestTrainRamp('roboramp');
+      if (j.onTrainLink) {
+        const p = j.position;
+        let distance = Infinity;
+        for (let i = 1; i < points.length; i++) {
+          const a = points[i - 1]!, b = points[i]!, dx = b.x - a.x, dz = b.z - a.z;
+          const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / (dx * dx + dz * dz)));
+          distance = Math.min(distance, Math.hypot(p.x - a.x - dx * t, p.z - a.z - dz * t));
+        }
+        assert.ok(distance < 1e-7, 'boarding, riding and exit remain on the painted line');
+      }
+      if (j.blocked && !j.needsTrainRamp) break;
+    }
+  }
 });

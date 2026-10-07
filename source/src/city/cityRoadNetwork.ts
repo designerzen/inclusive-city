@@ -8,11 +8,12 @@ import type { RoadPolygon } from './roadPolygonUnion';
 export function cityRoadNetwork(world: ProceduralCity, radius: number, width = (s: CityStreet) => s.width) {
   const polygons: RoadPolygon[] = [];
   const ends = new Map<string, Vector3>();
+  const spans = new Map<string, { a: Vector3; b: Vector3 }>();
   const turns: { path: RouteTrajectory; streets: CityStreet[] }[] = [];
   const node = (id: string) => world.nodes.find(n => n.id === id)!;
   for (const junction of world.nodes) {
     const incident = world.streets.filter(s => s.a === junction.id || s.b === junction.id);
-    const ground = incident.filter(s => s.kind !== 'bridge');
+    const ground = incident.filter(s => s.id !== world.steamTrain?.street);
     for (let a = 0; a < ground.length; a++) for (let b = a + 1; b < ground.length; b++) {
       const first = ground[a]!, second = ground[b]!;
       const before = node(first.a === junction.id ? first.b : first.a), after = node(second.a === junction.id ? second.b : second.a);
@@ -28,14 +29,22 @@ export function cityRoadNetwork(world: ProceduralCity, radius: number, width = (
       bend.milestones.push(0, bend.length / 2, bend.length);
       const streets = [first, second]; turns.push({ path: bend, streets });
       polygons.push(...routeRoadPolygons(bend, streets.map(s => ({ id: s.id, width: width(s) }))));
-      if (incident.length === 2) {
-        ends.set(`${first.id}:${junction.id}`, bend.points[0]!);
-        ends.set(`${second.id}:${junction.id}`, bend.points.at(-1)!);
+      for (const [street, end] of [[first, bend.points[0]!], [second, bend.points.at(-1)!]] as const) {
+        const neighbour = node(street.a === junction.id ? street.b : street.a);
+        const direction = new Vector3(neighbour.x - junction.x, 0, neighbour.z - junction.z).normalize();
+        const straightThrough = ground.some(other => {
+          if (other === street) return false;
+          const n = node(other.a === junction.id ? other.b : other.a);
+          return Vector3.Dot(direction, new Vector3(n.x - junction.x, 0, n.z - junction.z).normalize()) < -.99999;
+        });
+        if (!straightThrough) ends.set(`${street.id}:${junction.id}`, end);
       }
     }
   }
   for (const street of world.streets) {
     const a = ends.get(`${street.id}:${street.a}`) ?? node(street.a), b = ends.get(`${street.id}:${street.b}`) ?? node(street.b);
+    spans.set(street.id, { a: new Vector3(a.x, a.y, a.z), b: new Vector3(b.x, b.y, b.z) });
+    if (street.id === world.steamTrain?.street) continue;
     const originalA = node(street.a), originalB = node(street.b);
     // Adjacent bends may meet without leaving a straight section between them.
     if ((b.x - a.x) * (originalB.x - originalA.x) + (b.z - a.z) * (originalB.z - originalA.z) <= 1e-8) continue;
@@ -43,5 +52,5 @@ export function cityRoadNetwork(world: ProceduralCity, radius: number, width = (
     polygons.push(...routeRoadPolygons(straight, [{ id: street.id, width: width(street) }]));
   }
   // Preserve a mesh entry for a street that consists entirely of bends.
-  return { polygons, turns };
+  return { polygons, turns, spans };
 }

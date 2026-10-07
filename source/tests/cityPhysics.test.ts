@@ -21,6 +21,8 @@ import { cityIssueAction } from '../src/ui/cityIssueAction';
 import { cityRobotAlert } from '../src/ui/cityRobotAlert';
 import { createHumpbackBridge } from '../src/city/createHumpbackBridge';
 import { isHumpbackBridge } from '../src/city/humpbackBridge';
+import { cityRoadNetwork } from '../src/city/cityRoadNetwork';
+import { roadPolygonUnion } from '../src/city/roadPolygonUnion';
 import { createRoadSurface, roadSurfaceData, updateRoadSurface } from '../src/city/roadSurface';
 import { routeRoadPolygons } from '../src/city/routeRoad';
 
@@ -270,6 +272,7 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
     const world = generateCity(seed, [bot]), journey = new PlannedJourney(bot, world);
     journey.enableLineFollowing();
     journey.setMinimumTurnRadius(8);
+    journey.setRoute(routeToGoal(world)!);
     for (const bicycle of world.bicycles ?? []) journey.repair(bicycle.id);
     const engine = new NullEngine(), scene = new Scene(engine);
     const floor = MeshBuilder.CreateBox('floor', { width: Math.max(56, ...world.nodes.map(n => Math.abs(n.x) * 2 + 10)), height: .15, depth: Math.max(44, ...world.nodes.map(n => Math.abs(n.z) * 2 + 10)) }, scene); floor.position.y = -.12;
@@ -281,14 +284,22 @@ test('repaired generated routes cross street joins, corners and lowered bridge d
       const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z);
       const surface = MeshBuilder.CreateBox(street.id, { width: dx || street.width, height: .1, depth: dz || street.width }, scene);
       surface.position.set((a.x + b.x) / 2, .025, (a.z + b.z) / 2); solids.push(surface);
-      if (isHumpbackBridge(street, world)) {
-        const material = new StandardMaterial(`bridge-${street.id}`, scene);
-        const bridge = createHumpbackBridge(scene, street.id, a, b, material, material);
-        bridge.sync(journey.bridgeAccess(street), street.width); solids.push(...bridge.solids);
-      } else if (street.kind === 'bridge') {
+      if (!isHumpbackBridge(street, world) && street.kind === 'bridge') {
         const deck = MeshBuilder.CreateBox('deck', { width: dx, height: .16, depth: street.width }, scene);
         deck.position.set(surface.position.x, .06, surface.position.z); solids.push(deck);
       }
+    }
+    // Exercise the same trimmed bridge spans and curved support meshes as the
+    // rendered city, rather than the superseded rectangular-only fixture.
+    const network = cityRoadNetwork(world, journey.minimumTurnRadius);
+    const routeStreets = journey.route.slice(1).map((id, i) => world.streets.find(s =>
+      s.a === id && s.b === journey.route[i] || s.b === id && s.a === journey.route[i])!);
+    const roads = roadPolygonUnion([...network.polygons, ...routeRoadPolygons(journey.trajectory, routeStreets)]);
+    for (const [id, data] of roads) { const mesh = createRoadSurface(`road-${id}`, scene); updateRoadSurface(mesh, data); solids.push(mesh); }
+    for (const street of world.streets.filter(s => isHumpbackBridge(s, world))) {
+      const material = new StandardMaterial(`bridge-${street.id}`, scene), span = network.spans.get(street.id)!;
+      const bridge = createHumpbackBridge(scene, street.id, span.a, span.b, material, material);
+      bridge.sync(journey.bridgeAccess(street), street.width); solids.push(...bridge.solids);
     }
     for (const building of world.buildings) {
       const mesh = MeshBuilder.CreateBox(building.name, { width: building.w, height: building.h, depth: building.d }, scene);

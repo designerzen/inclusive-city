@@ -52,7 +52,7 @@ test('large radius layouts give all ground turns room and never replace them wit
     const network = cityRoadNetwork(world, radius);
     let expected = 0;
     for (const n of world.nodes) {
-      const neighbours = world.streets.filter(s => s.kind !== 'bridge' && (s.a === n.id || s.b === n.id)).map(s => world.nodes.find(p => p.id === (s.a === n.id ? s.b : s.a))!);
+      const neighbours = world.streets.filter(s => s.id !== world.steamTrain?.street && (s.a === n.id || s.b === n.id)).map(s => world.nodes.find(p => p.id === (s.a === n.id ? s.b : s.a))!);
       for (let a = 0; a < neighbours.length; a++) for (let b = a + 1; b < neighbours.length; b++) {
         const u = new Vector3(neighbours[a]!.x - n.x, 0, neighbours[a]!.z - n.z).normalize(), v = new Vector3(neighbours[b]!.x - n.x, 0, neighbours[b]!.z - n.z).normalize();
         if (Math.abs(Vector3.Dot(u, v)) < .99999) expected++;
@@ -69,6 +69,20 @@ test('large radius layouts give all ground turns room and never replace them wit
     }
     assert.ok(path.length > 0);
   }
+});
+
+test('bridge corners and T branches remove rectangular ends instead of covering them with curves', () => {
+  for (const kind of ['bridge', 'stairs', 'clear'] as const) {
+    const world = bend(); world.streets[1]!.kind = kind;
+    const network = cityRoadNetwork(world, 3);
+    assert.equal(network.turns.length, 1, `${kind}: neither approach is exempt from rounding`);
+    assert.ok(Math.abs(network.spans.get('ab')!.b.x + 3) < 1e-8);
+    assert.ok(Math.abs(network.spans.get('bc')!.a.z - 3) < 1e-8);
+  }
+  const world = bend(); world.nodes.push(point('d', 8, 0));
+  world.streets.push({ id: 'bd', a: 'b', b: 'd', kind: 'bridge', width: 2.6, crossingSeconds: 20 });
+  const network = cityRoadNetwork(world, 3);
+  assert.ok(Math.abs(network.spans.get('bc')!.a.z - 3) < 1e-8, 'T branch stops at the tangent, leaving room for both bends');
 });
 
 test('a full city and its route produce a bounded road mesh for rendering and physics', () => {

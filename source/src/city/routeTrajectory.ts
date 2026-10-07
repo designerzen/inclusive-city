@@ -9,22 +9,23 @@ export class RouteTrajectory {
   readonly milestones: number[] = [];
   constructor(stops: readonly RoutePoint[], transportEdges: ReadonlyMap<number, readonly RoutePoint[]> = new Map(), minimumRadius = 3,
     segmentIsClear?: (a: RoutePoint, b: RoutePoint) => boolean) {
-    let start = 0;
-    const append = (points: Vector3[]) => {
-      for (const p of points) if (!this.points.length || Vector3.DistanceSquared(this.points.at(-1)!, p) > 1e-12) this.points.push(p);
-    };
     const streetCurve = (waypoints: readonly RoutePoint[]): Vector3[] => {
       const curve = routeCurve(waypoints.map(p => new Vector3(p.x, p.y, p.z)), minimumRadius, true, minimumRadius);
       // Obstacles must not change the line into a right angle. The city reserves
       // bend clearance; physical obstructions remain visible, repairable barriers.
       return curve;
     };
-    for (let edge = 0; edge < stops.length - 1; edge++) if (transportEdges.has(edge)) {
-      append(streetCurve(stops.slice(start, edge + 1)));
-      append(transportEdges.get(edge)!.map(p => new Vector3(p.x, p.y, p.z)));
-      start = edge + 1;
+    // Transport changes timing and height, not continuity of the visible line.
+    // Smooth the complete horizontal itinerary, including boarding and exit.
+    const itinerary: RoutePoint[] = [];
+    for (let edge = 0; edge < stops.length; edge++) {
+      const stop = stops[edge]!;
+      if (!itinerary.length || Math.hypot(stop.x - itinerary.at(-1)!.x, stop.z - itinerary.at(-1)!.z) > 1e-8) itinerary.push(stop);
+      for (const p of transportEdges.get(edge)?.slice(1, -1) ?? [])
+        if (Math.hypot(p.x - itinerary.at(-1)!.x, p.z - itinerary.at(-1)!.z) > 1e-8)
+          itinerary.push({ ...p, y: stops[edge]!.y });
     }
-    append(streetCurve(stops.slice(start)));
+    this.points.push(...streetCurve(itinerary));
     this.distances.push(0);
     for (let i = 1; i < this.points.length; i++) this.distances.push(this.distances[i - 1]! + Vector3.Distance(this.points[i - 1]!, this.points[i]!));
     let previous = 0;
