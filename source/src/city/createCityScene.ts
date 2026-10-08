@@ -35,6 +35,7 @@ import { cityRoadNetwork } from './cityRoadNetwork';
 import { roadPolygonUnion } from './roadPolygonUnion';
 import { createGoalFlag } from './goalFlag';
 import { studioApproach } from './studioApproach';
+import { createRiver } from './createRiver';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -56,7 +57,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   const ground = material('ground', '#171717', '#ededed');
   const pavement = material('streets', '#565656', '#bbbbbb');
-  const water = material('river', '#303030', '#999999', true);
   const walls = material('building-walls', '#646464', '#bababa');
   const roofs = material('building-roofs', '#b0b0b0', '#8a8a8a');
   const details = material('details', '#d6d6d6', '#444444', true);
@@ -74,7 +74,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene); mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
   }
   const groundMesh = box('ground', 0, -.12, 0, 1, .15, 1, ground); solids.push(groundMesh);
-  const riverMesh = box('river', world.riverX, -.025, 0, 7, .05, 1, water);
+  const river = createRiver(scene, world.riverX);
+  const riverMesh = river.mesh;
   const streetModels = world.streets.map(street => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
     const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
@@ -334,6 +335,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     }
   }
   function update(seconds: number) {
+    river.update(seconds, reducedMotionPreference().matches);
     const before = journey.position, heading = journey.heading;
     sync(); physics?.update(seconds);
     autonomousBots?.update(seconds, reducedMotionPreference().matches, journey.signalTime);
@@ -413,6 +415,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     highlighted.forEach(m => { m.renderOverlay = true; m.overlayColor = theme === 'dark' ? Color3.White() : Color3.Black(); m.overlayAlpha = .4; m.visibility = .7; });
   }
   function setTheme(value: Theme) {
+    river.setTheme(value);
     theme = value; scene.clearColor = Color4.FromHexString(value === 'dark' ? '#171717ff' : '#edededff');
     palette.forEach(({ mat, dark, light }) => { mat.diffuseColor = Color3.FromHexString(value === 'dark' ? dark : light); if (mat.disableLighting) mat.emissiveColor = mat.diffuseColor; });
     labelMaterials.forEach(({ texture, text }) => { const ctx = texture.getContext() as CanvasRenderingContext2D; ctx.clearRect(0, 0, 512, 128); ctx.fillStyle = value === 'dark' ? '#171717' : '#eeeeee'; ctx.fillRect(0, 0, 512, 128); ctx.font = 'bold 45px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = value === 'dark' ? '#eeeeee' : '#222222'; ctx.fillText(text, 256, 64); texture.update(); });

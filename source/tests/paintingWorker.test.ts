@@ -69,6 +69,25 @@ test('PNG export freezes its score while new journey marks continue', async () =
   } finally { h.restore(); }
 });
 
+test('live mirrors update only after a completed worker frame and stop after disposal', async () => {
+  const h = harness();
+  let mirrored = 0;
+  const mirror = () => { assert.equal(h.copies(), mirrored + 1); mirrored++; };
+  try {
+    h.renderer.frame(h.canvas, .1, false, mirror);
+    assert.equal(mirrored, 0);
+    const first = h.worker.messages.at(-1)!;
+    h.worker.reply({ id: first.id, type: 'bitmap', bitmap: h.bitmap(), settled: false }); await tick();
+    assert.equal(mirrored, 1);
+    h.renderer.frame(h.canvas, .1, false, mirror);
+    const late = h.worker.messages.at(-1)!;
+    h.renderer.dispose();
+    h.worker.reply({ id: late.id, type: 'bitmap', bitmap: h.bitmap(), settled: true }); await tick();
+    assert.equal(mirrored, 1);
+    assert.equal(h.closes(), 2);
+  } finally { h.restore(); }
+});
+
 test('worker failure falls back to the original complete painting and terminates the worker', async () => {
   const h = harness();
   const original = PaintingRenderer.prototype.frame;

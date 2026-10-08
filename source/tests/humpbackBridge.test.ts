@@ -12,7 +12,9 @@ import { PlannedJourney } from '../src/simulation/plannedJourney';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 import { createHumpbackBridge } from '../src/city/createHumpbackBridge';
 import { createCityPhysics } from '../src/city/cityPhysics';
-import { isHumpbackBridge } from '../src/city/humpbackBridge';
+import { isHumpbackBridge, bridgeRampRise } from '../src/city/humpbackBridge';
+import { cityIssueAction } from '../src/ui/cityIssueAction';
+import { cityRobotAlert } from '../src/ui/cityRobotAlert';
 import { interpretCityReply, applyCityReply } from '../src/ui/cityReply';
 
 function fixture(kind: 'stairs' | 'bridge' = 'stairs', reverse = false) {
@@ -72,22 +74,52 @@ test('spoken elevator requests select elevators on a blocked humpback bridge', (
 
 const wasm = readFile(createRequire(import.meta.url).resolve('@babylonjs/havok/lib/esm/HavokPhysics.wasm')).then(wasmBinary => HavokPhysics({ wasmBinary }));
 test('ramps carry wheels up and down the hump with Havok, while keeping steps visible beside the route', async () => {
+  for (const length of [10, 4, 2]) {
+    for (const reverse of [false, true]) {
+      const j = fixture('stairs', reverse), engine = new NullEngine(), scene = new Scene(engine);
+      j.world.nodes[1]!.z = length;
+      const material = new StandardMaterial('deck', scene);
+      const bridge = createHumpbackBridge(scene, 'hump', j.world.nodes[0]!, j.world.nodes[1]!, material, material);
+      const ground = MeshBuilder.CreateBox('ground', { width: 30, depth: 30, height: .1 }, scene); ground.position.y = .025;
+      j.setBridgeAccess('hump', 'ramp'); bridge.sync('ramp', 2.6);
+      const physics = createCityPhysics(scene, j, [ground, ...bridge.solids], await wasm);
+      try {
+        j.start(); let peak = 0;
+        for (let i = 0; i < 1200 && !j.complete && !j.blocked; i++) {
+          physics.update(1 / 60); j.update(1 / 60); scene.getPhysicsEngine()!._step(1 / 60);
+          peak = Math.max(peak, physics.position.y);
+        }
+        assert.equal(j.blocked, null, `length ${length}, reverse ${reverse}`);
+        assert.equal(j.complete, true); assert.ok(peak > bridgeRampRise(length) - .1);
+        assert.ok(scene.getMeshByName('humpback-step-0-0-hump')!.isEnabled());
+        assert.equal(scene.getMeshByName('humpback-step-0-0-hump')!.metadata.decorative, true);
+      } finally { scene.dispose(); engine.dispose(); }
+    }
+  }
+});
+
+test('a stalled repaired ramp offers elevators and continues from the same point without duplicate distance', () => {
   for (const reverse of [false, true]) {
-    const j = fixture('stairs', reverse), engine = new NullEngine(), scene = new Scene(engine);
-    const material = new StandardMaterial('deck', scene);
-    const bridge = createHumpbackBridge(scene, 'hump', j.world.nodes[0]!, j.world.nodes[1]!, material, material);
-    const ground = MeshBuilder.CreateBox('ground', { width: 30, depth: 30, height: .1 }, scene); ground.position.y = .025;
-    j.setBridgeAccess('hump', 'ramp'); bridge.sync('ramp', 2.6);
-    const physics = createCityPhysics(scene, j, [ground, ...bridge.solids], await wasm);
-    try {
-      j.start(); let peak = 0;
-      for (let i = 0; i < 1200 && !j.complete && !j.blocked; i++) {
-        physics.update(1 / 60); j.update(1 / 60); scene.getPhysicsEngine()!._step(1 / 60);
-        peak = Math.max(peak, physics.position.y);
-      }
-      assert.equal(j.blocked, null); assert.equal(j.complete, true); assert.ok(peak > .8);
-      assert.ok(scene.getMeshByName('humpback-step-0-0-hump')!.isEnabled());
-      assert.equal(scene.getMeshByName('humpback-step-0-0-hump')!.metadata.decorative, true);
-    } finally { scene.dispose(); engine.dispose(); }
+    const j = fixture('stairs', reverse);
+    j.enableLineFollowing(); j.setBridgeAccess('hump', 'ramp'); j.start(); j.update(1);
+    const before = j.position, distance = j.metrics.distance;
+    assert.ok(j.distanceOnEdge > 0);
+    j.constrainTravel = () => ({ distance: 0, blocker: { id: 'hump', reason: 'A solid object blocks this street.' } });
+    j.update(1);
+    assert.equal(j.canEdit('hump'), false, 'ordinary occupied edits stay protected');
+    assert.equal(j.bridgeRampBlocked, true);
+    assert.equal(cityIssueAction(j), 'Add elevators');
+    assert.match(cityRobotAlert(j)!, /bridge ramp.*elevators/);
+    assert.equal(j.setBridgeAccess('hump', 'steps'), false);
+    j.setPaused(true);
+    assert.equal(j.repair('hump'), true);
+    assert.equal(j.blocked, null); assert.equal(j.paused, true);
+    assert.ok(Math.abs(j.position.x - before.x) < 1e-8 && Math.abs(j.position.z - before.z) < 1e-8);
+    assert.equal(j.metrics.distance, distance);
+    assert.equal(j.bridgeAccess(j.currentStreet!), 'elevator');
+    j.setPaused(false); j.update(100);
+    assert.equal(j.complete, true);
+    assert.ok(Math.abs(j.metrics.distance - j.routeLength) < 1e-8);
+    assert.ok(j.machine.record.failures.every(f => f.resolvedAt !== null));
   }
 });

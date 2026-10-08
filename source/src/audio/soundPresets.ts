@@ -92,6 +92,8 @@ const buttonSignatures = {
   'midi-connect': { root: 60, intervals: [0, 7, 16], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'midi-disconnect': { root: 55, intervals: [0, 5, 12], pattern: 'down', stepBeats: .09, waveform: 'sine' },
   'app-options': { root: 64, intervals: [0, 5, 12], pattern: 'up', stepBeats: .08, gain: .1 },
+  'city-fullscreen': { root: 67, intervals: [0, 7, 12], pattern: 'up', waveform: 'sine', stepBeats: .08 },
+  'city-art-window': { root: 69, intervals: [0, 4, 9], pattern: 'up', waveform: 'sine', stepBeats: .09 },
   'options-close': { root: 62, intervals: [0, 7, 12], pattern: 'down', stepBeats: .08, gain: .1 },
   'function-communication': { root: 48, intervals: [0, 7, 12], pattern: 'up', waveform: 'triangle', stepBeats: 0.1 },
   'function-vision': { root: 76, intervals: [0, 3, 8], pattern: 'up', waveform: 'sine', stepBeats: 0.14 },

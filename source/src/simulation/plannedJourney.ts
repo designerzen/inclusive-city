@@ -106,11 +106,24 @@ export class PlannedJourney {
   bridgeSeconds = 0;
   get onBridgeElevator() { return !this.ready && !this.complete && !!this.currentStreet && isHumpbackBridge(this.currentStreet, this.world) && this.bridgeAccess(this.currentStreet) === 'elevator'; }
   bridgeAccess(street: CityStreet): BridgeAccess { return this.repaired.has(street.id) ? street.bridgeAccess === 'elevator' ? 'elevator' : 'ramp' : 'steps'; }
+  get bridgeRampBlocked() {
+    const street = this.currentStreet;
+    return !!street && isHumpbackBridge(street, this.world) && this.bridgeAccess(street) === 'ramp'
+      && this.blocked?.id === street.id && /solid object|bridge ramp/.test(this.blocked.reason);
+  }
   setBridgeAccess(id: string, access: BridgeAccess) {
     const street = this.world.streets.find(s => s.id === id);
-    if (!street || !isHumpbackBridge(street, this.world) || !this.canEdit(id) || this.bridgeAccess(street) === access) return false;
+    const recovery = this.bridgeRampBlocked && id === this.currentStreet?.id && access === 'elevator';
+    if (!street || !isHumpbackBridge(street, this.world) || !this.canEdit(id) && !recovery || this.bridgeAccess(street) === access) return false;
+    if (recovery) {
+      // Continue from this horizontal position rather than restarting the bridge
+      // and counting the travelled part twice. The new deck supports the rider.
+      this.bridgeSeconds = 2 + this.crossingLength(street) / this.speed * this.distanceOnEdge / this.travelLength;
+    }
     this.history.push({ id: `humpback:${id}`, before: ['steps', 'ramp', 'elevator'].indexOf(this.bridgeAccess(street)) });
-    this.applyBridgeAccess(street, access); return true;
+    this.applyBridgeAccess(street, access);
+    if (recovery) this.syncTransport?.();
+    return true;
   }
   private applyBridgeAccess(street: CityStreet, access: BridgeAccess, undo = false) {
     const before = this.bridgeAccess(street);
@@ -331,6 +344,7 @@ export class PlannedJourney {
     this.savePlan();
   }
   repair(id: string): boolean {
+    if (this.bridgeRampBlocked && id === this.currentStreet?.id) return this.setBridgeAccess(id, 'elevator');
     if (id === this.world.steamTrain?.street) return this.requestTrainRamp('roboramp');
     if (this.world.bicycleGarage && this.world.bicycles?.some(bike => bike.id === id)) {
       if (this.complete || this.repaired.has(id)) return false;

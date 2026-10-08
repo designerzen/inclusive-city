@@ -53,7 +53,7 @@ export class AsyncPaintingRenderer {
     this.pending.clear();
   }
 
-  frame(canvas: HTMLCanvasElement, seconds: number, immediate: boolean) {
+  frame(canvas: HTMLCanvasElement, seconds: number, immediate: boolean, onPaint?: () => void) {
     if (this.disposed) return;
     this.seconds = Math.min(0.2, this.seconds + Math.max(0, seconds));
     if (this.busy) return; // Backpressure: retain new marks, never queue live frames.
@@ -64,6 +64,7 @@ export class AsyncPaintingRenderer {
       this.fallback.frame(context, this.seconds, immediate);
       this.seconds = 0; this.sentMarks = this.painting.marks.length;
       this.width = canvas.width; this.height = canvas.height; this.settled = this.fallback.settled;
+      onPaint?.();
       return;
     }
     this.busy = true;
@@ -77,6 +78,7 @@ export class AsyncPaintingRenderer {
         if (!this.disposed) {
           context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(result.bitmap, 0, 0);
           this.settled = result.settled;
+          onPaint?.();
         }
       } finally { result.bitmap.close(); }
     }).catch(() => { this.settled = false; }).finally(() => { this.busy = false; });

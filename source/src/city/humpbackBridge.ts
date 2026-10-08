@@ -3,6 +3,9 @@ import type { RoutePoint } from './cityLayout';
 
 export type BridgeAccess = 'steps' | 'ramp' | 'elevator';
 export const bridgeHeight = .9;
+// Junction bends can leave a very short straight span. Keep its ramp below
+// the controller's slope limit instead of squeezing a full-height hump into it.
+export function bridgeRampRise(length: number) { return Math.min(bridgeHeight, length * .4 * .45); }
 export function isHumpbackBridge(street: CityStreet, world: ProceduralCity) {
   return street.id !== world.steamTrain?.street && (street.kind === 'stairs' || street.kind === 'bridge');
 }
