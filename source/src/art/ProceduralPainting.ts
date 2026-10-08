@@ -3,6 +3,9 @@ import type { CreativePreferences } from '../robot/creativePreferences';
 import { painterStyles } from './artistStyles';
 import { paintRandom } from './paintRandom';
 import { renderArtistStroke } from './artistBrushes';
+import { paintNoise, paintStream } from './paintField';
+import { composeGesture, compositionFamilies, renderComposition } from './paintingComposition';
+import type { CompositionFamily } from './paintingComposition';
 export { paintRandom } from './paintRandom';
 
 type Point = { x: number; y: number };
@@ -14,6 +17,9 @@ export interface PaintStroke {
   points: [Point, Point, Point, Point]; width: number; opacity: number; seed: number;
   pigment: string; accent: string; rich: boolean;
   style?: CreativePreferences['artStyle'];
+  composition?: CompositionFamily;
+  motif?: 'ridge' | 'disc' | 'leaf' | 'plane';
+  ground?: string;
   expression?: { pressure: number; wetness: number; energy: number; tilt: number; lift: boolean };
 }
 
@@ -22,6 +28,12 @@ const palettes = [
   ['#3a5f62', '#bb624a', '#dbab70', '#7b7d9a'],
   ['#4e527e', '#c18287', '#cda456', '#5b8b8d'],
   ['#266d7c', '#d18760', '#ccac68', '#8b657f'],
+  ['#27324e', '#ce4560', '#e5b87a', '#6375a3'],
+  ['#35563c', '#a54c35', '#d3c397', '#789451'],
+  ['#523967', '#b56d9b', '#e0a34c', '#729caa'],
+  ['#863b3a', '#d88243', '#e7cc94', '#3b6269'],
+  ['#304e64', '#7f9fae', '#d9d9c3', '#a47766'],
+  ['#513b32', '#a67651', '#e5c794', '#72754e'],
 ] as const;
 
 /** Small seeded PRNG: texture and geometry never depend on render timing or Math.random. */
@@ -31,26 +43,26 @@ const clamp = (value: number) => Math.max(0.09, Math.min(0.91, value));
 export class ProceduralPainting {
   readonly marks: PaintStroke[] = [];
   readonly palette: readonly string[];
+  readonly family: CompositionFamily;
   private cursor = 0;
   private steps = 0;
   private rich = false;
   private colourful = false;
   private head: Point;
   private previousPosition: RobotEvent['position'] | null = null;
-  private direction: number;
-  private focus: Point;
-  private focusLife = 0;
   private tension = 0;
   private joy = 0.3;
+  private readonly breadth: number;
   lastAction = 'A fresh canvas · every step leaves paint';
 
   constructor(readonly seed: number, private brushScale = 1, private style?: CreativePreferences['artStyle']) {
+    const traits = paintStream(seed, 'composition');
+    this.family = compositionFamilies[Math.floor(paintStream(seed, 'family')() * compositionFamilies.length)]!;
+    this.breadth = .65 + traits() * .7;
     this.palette = style && style !== 'impressionist'
       ? painterStyles.find(item => item.id === (style === 'expressive' ? 'expressionist' : style))!.colours
       : palettes[seed % palettes.length]!;
     this.head = { x: 0.24 + (seed % 29) / 100, y: 0.58 };
-    this.direction = seed % 628 / 100;
-    this.focus = { x: 0.5, y: 0.5 };
   }
 
   consume(event: RobotEvent) {
@@ -73,28 +85,17 @@ export class ProceduralPainting {
     if (!kind) return;
     const random = paintRandom(this.seed ^ Math.imul(event.sequence, 2654435761));
     if (kind === 'barrier') { this.tension = 0.95; this.joy = 0.08; }
-    else if (kind === 'repair' || kind === 'achievement') { this.tension *= 0.35; this.joy = 0.95; this.focusLife = 0; }
-    else if (kind === 'discovery' || kind === 'arrival') { this.joy = 0.85; this.focusLife = 0; }
+    else if (kind === 'repair' || kind === 'achievement') { this.tension *= 0.35; this.joy = 0.95; }
+    else if (kind === 'discovery' || kind === 'arrival') { this.joy = 0.85; }
     const lift = kind === 'step' && random() < 0.17;
     let start = { ...this.head };
     let end = { ...start };
+    let gesture: ReturnType<typeof composeGesture> | undefined;
     if (kind === 'step') {
       this.steps++;
-      // The brush wanders between changing focal areas, with occasional lifts and bold leaps.
-      // It never follows a periodic orbit or connects every gesture into one continuous line.
-      if (--this.focusLife <= 0) {
-        this.focus = { x: 0.18 + random() * 0.64, y: 0.18 + random() * 0.64 };
-        this.focusLife = 5 + Math.floor(random() * 12);
-      }
       const turn = this.previousPosition ? Math.atan2(event.position.z - this.previousPosition.z, event.position.x - this.previousPosition.x) : 0;
-      this.direction += (random() - 0.5) * (1.6 + this.tension) + Math.sin(turn - this.direction) * 0.24;
-      this.direction += Math.sin(Math.atan2(this.focus.y - this.head.y, this.focus.x - this.head.x) - this.direction) * 0.4;
-      if (lift) start = { x: clamp(this.focus.x + (random() - 0.5) * 0.22), y: clamp(this.focus.y + (random() - 0.5) * 0.24) };
-      const stride = (0.02 + random() ** 2 * 0.14) * (1 + this.joy * 0.7) * (1 - this.tension * 0.35);
-      const dx = Math.cos(this.direction) * stride + (this.focus.x - start.x) * 0.28;
-      const dy = Math.sin(this.direction) * stride + (this.focus.y - start.y) * 0.28;
-      end = { x: clamp(start.x + dx), y: clamp(start.y + dy) };
-      if (end.x !== start.x + dx || end.y !== start.y + dy) this.direction += Math.PI * (0.6 + random() * 0.8);
+      gesture = composeGesture(this.seed, this.family, this.steps, this.joy + this.tension + Math.abs(Math.sin(turn)) * .2);
+      start = gesture.points[0]; end = gesture.points[3];
       this.head = end;
       this.previousPosition = { ...event.position };
       this.tension *= 0.94; this.joy *= 0.98;
@@ -103,19 +104,23 @@ export class ProceduralPainting {
     }
     const distance = Math.hypot(end.x - start.x, end.y - start.y);
     const curl = (random() - 0.5) * (kind === 'step' ? 0.23 + this.joy * 0.12 : 0.12);
-    const points: PaintStroke['points'] = [start,
+    const points: PaintStroke['points'] = gesture?.points ?? [start,
       { x: clamp(start.x + (end.x - start.x) * 0.24 - curl), y: clamp(start.y + (end.y - start.y) * 0.4 + curl * 0.8) },
       { x: clamp(start.x + (end.x - start.x) * 0.78 + curl * 0.4), y: clamp(start.y + (end.y - start.y) * 0.65 - curl) }, end];
-    const index = this.colourful ? Math.floor(random() * 4) : random() < 0.65 - this.joy * 0.25 ? 0 : 1;
+    const index = this.colourful ? Math.floor(random() * 4) : this.family === 'horizon' ? this.steps % 4
+      : this.family === 'patchwork' ? Math.floor(this.steps / 4) % 4 : random() < 0.65 - this.joy * 0.25 ? 0 : 1;
     const pigment = kind === 'barrier' || (kind === 'step' && this.tension > 0.5) ? '#313c4c' : kind === 'repair' || kind === 'achievement' || kind === 'arrival' ? this.palette[2]! : this.palette[index]!;
     const pressure = 0.35 + random() * 0.8 + this.joy * 0.35;
     this.marks.push({ version: 1, sequence: event.sequence, kind, time: event.runTime,
       x: event.position.x, z: event.position.z, hue: this.colourful ? (this.seed % 360 + event.edge * 29 + this.steps * 7) % 360 : this.seed % 360,
       size: kind === 'step' ? 2 + random() * 4 : 7, shape: kind === 'step' ? this.colourful && this.steps % 3 === 0 ? 'circle' : 'line' : 'diamond',
-      points, width: (0.012 + random() ** 2 * 0.085 + Math.min(distance, 0.2) * 0.07) * this.brushScale * (this.rich ? 1.2 : 1),
+      points, width: (0.012 + random() ** 2 * 0.085 + Math.min(distance, 0.2) * 0.07) * this.brushScale * this.breadth * (gesture?.breadth ?? 1) * (this.rich ? 1.2 : 1),
       opacity: 0.16 + random() * (this.rich ? 0.4 : 0.3), seed: Math.floor(random() * 4294967295), pigment,
       accent: this.palette[this.colourful ? 3 : 2]!, rich: this.rich,
       ...(this.style ? { style: this.style } : {}),
+      composition: this.family,
+      ...(gesture?.motif ? { motif: gesture.motif } : {}),
+      ...(this.marks.length === 0 ? { ground: ['#f0e9dc', '#e1e7e5', '#eaded7', '#e6e0ed', '#e9e5cb'][Math.floor(paintStream(this.seed, 'ground')() * 5)]! } : {}),
       expression: { pressure, wetness: random(), energy: Math.min(1, 0.2 + this.joy * 0.6 + this.tension * 0.6), tilt: random() * Math.PI, lift } });
     this.lastAction = {
       step: 'Walking · a new pigment stroke', barrier: 'Barrier · charcoal and fractured ink',
@@ -153,6 +158,7 @@ export class PaintingRenderer {
 
   static stroke(context: PaintContext, width: number, height: number, stroke: PaintStroke, progress = 1) {
     if (progress <= 0) return;
+    renderComposition(context, width, height, stroke, progress);
     if (stroke.style && stroke.style !== 'impressionist') {
       renderArtistStroke(context, width, height, stroke, progress);
       return;
@@ -212,7 +218,7 @@ export class PaintingRenderer {
       // Pressure-shaped paint ribbons with irregular edges and feathered, broken bristles.
       const base = stroke.kind === 'incident' ? scale * 0.0015 : stroke.width * scale;
       context.strokeStyle = stroke.pigment;
-      const edges = Array.from({ length: 65 }, () => 0.55 + random() * 0.65);
+      const edges = Array.from({ length: 65 }, (_, i) => 0.55 + paintNoise(stroke.seed, i * 0.22, 0) * 0.65);
       for (let layer = 0; layer < 3; layer++) {
         const left: Point[] = [], right: Point[] = [];
         const count = Math.max(1, Math.ceil(64 * progress));

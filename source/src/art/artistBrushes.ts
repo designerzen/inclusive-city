@@ -1,5 +1,6 @@
 import type { PaintStroke } from './ProceduralPainting';
 import { paintRandom } from './paintRandom';
+import { paintNoise } from './paintField';
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /** Distinct brush languages, including reproducible progressive textures. */
@@ -15,7 +16,9 @@ export function renderArtistStroke(ctx: Context, width: number, height: number, 
   const line = (segments = 32, jitter = 0) => {
     ctx.beginPath();
     for (let i = 0; i <= segments; i++) {
-      const p = point(i / segments * progress), x = p.x + (random() - .5) * jitter, y = p.y + (random() - .5) * jitter;
+      const t = i / segments * progress, p = point(t);
+      const x = p.x + (paintNoise(mark.seed, t * 14, 2) - .5) * jitter;
+      const y = p.y + (paintNoise(mark.seed, t * 14, 8) - .5) * jitter;
       if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
     ctx.stroke();
@@ -35,8 +38,17 @@ export function renderArtistStroke(ctx: Context, width: number, height: number, 
         const x = p.x + (random() - .5) * breadth, y = p.y + (random() - .5) * breadth;
         const aspect = .35 + random() * .8, angle = random() * Math.PI;
         if (t > progress) continue;
-        ctx.globalAlpha = mark.opacity * .09; ctx.beginPath(); ctx.ellipse(x, y, radius, radius * aspect, angle, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = mark.opacity * .12; ctx.lineWidth = .45; ctx.stroke();
+        // Correlated tide edges and offset translucent layers, rather than identical ellipses.
+        ctx.beginPath();
+        for (let edge = 0; edge <= 32; edge++) {
+          const a = edge / 32 * Math.PI * 2;
+          const reach = radius * (.72 + paintNoise(mark.seed ^ i, Math.cos(a) * 2 + 3, Math.sin(a) * 2 + 3) * .5);
+          const dx = Math.cos(a) * reach, dy = Math.sin(a) * reach * aspect;
+          const px = x + dx * Math.cos(angle) - dy * Math.sin(angle), py = y + dx * Math.sin(angle) + dy * Math.cos(angle);
+          if (!edge) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.globalAlpha = mark.opacity * .09; ctx.fill();
+        ctx.globalAlpha = mark.opacity * .12; ctx.lineWidth = scale * .001; ctx.stroke();
       }
       ctx.globalAlpha = .08; ctx.lineWidth = breadth * .25; line(); break;
     case 'expressionist': case 'expressive':
