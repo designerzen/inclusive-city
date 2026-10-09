@@ -203,15 +203,23 @@ export class JourneyCreativity {
     return this.score;
   }
 
-  async extendStudioMusic() {
+  async extendStudioMusic(continuationTime?: () => number) {
     this.finishMusic();
     const measure = this.composer.beats * 60 / this.bpm;
     const first = this.score[0]!.at;
     const last = Math.max(...this.score.map(entry => entry.at));
     const bars = Math.floor((last - first) / measure + 1e-8) + 1;
     const verses = await this.composer.studioVerses(first + bars * measure, bars, this.steps, this.edge, this.score);
+    // Preparation can finish after more live bars have played. Append on the next
+    // unplayed bar, keeping the complete score and the city audio clock aligned.
+    if (continuationTime) {
+      const next = Math.max(first + (Math.floor((Math.max(...this.score.map(entry => entry.at)) - first) / measure + 1e-8) + 1) * measure,
+        first + Math.ceil((continuationTime() + .15 - first) / measure) * measure);
+      const shift = next - (first + bars * measure);
+      verses.forEach(entry => { entry.at += shift; });
+    }
     this.score.push(...structuredClone(verses));
     this.harmony = true;
-    return this.score;
+    return continuationTime ? verses : this.score;
   }
 }

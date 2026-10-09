@@ -172,3 +172,33 @@ test('city waiting, motion, obstacles and arrival are recorded once on a continu
   creation.advance(100);
   assert.ok(creation.score.length - before < 10, 'Returning after an interruption never schedules a burst');
 });
+
+
+test('late studio preparation appends after live bars without replaying the journey', async () => {
+  const bot = new BotHistory(['Test', 'Other'], () => .5).current;
+  const creation = new JourneyCreativity(bot, 42661);
+  const measure = (creation.artist.musician === 'waltz' ? 3 : 4) * 60 / creation.bpm;
+  creation.advance(0);
+  const original = structuredClone(creation.score);
+  const pending = creation.extendStudioMusic(() => measure * 4 + .3);
+  creation.advance(measure);
+  creation.advance(measure * 2);
+  const live = structuredClone(creation.score);
+  const verses = await pending;
+  assert.deepEqual(creation.score.slice(0, live.length), live);
+  assert.deepEqual(creation.score.slice(0, original.length), original);
+  assert.ok(verses.length > 0);
+  assert.ok(verses.every(entry => entry.at >= measure * 5 - 1e-8));
+  assert.equal(new Set(verses.map(entry => entry.at)).size, 8);
+  assert.deepEqual(creation.score.slice(live.length), verses);
+  assert.equal(creation.harmony, true);
+});
+
+test('studio dynamics build toward the finale while preserving the motif', async () => {
+  const composer = new JourneyMusicComposer('techno', 42661, 50, { get: () => undefined });
+  const verses = await composer.studioVerses(0, 0, 30, 5);
+  const lead = verses.filter(entry => /^journey:melody:/.test(entry.label ?? ''));
+  assert.equal(lead.length, 8);
+  assert.ok(lead[5]!.score.voice.gain > lead[0]!.score.voice.gain * 1.25);
+  assert.ok(lead.every(entry => entry.score.notes.length > 0));
+});

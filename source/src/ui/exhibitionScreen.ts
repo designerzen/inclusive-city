@@ -14,11 +14,17 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     <div class="performance-artwork"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot's finished journey painting"></canvas></div>
     <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span></div>
     <aside class="performance-hud" aria-label="Performance controls">
+      <div class="performance-timeline">
+        <input id="exhibition-progress" type="range" min="0" max="0" step="0.1" value="0" aria-label="Music playback position" disabled>
+      </div>
       <div class="performance-actions">
         <div class="performance-buttons">
-          <button id="exhibition-play" type="button">Start</button>
-          <button id="exhibition-stop" type="button" disabled>Stop</button>
-          <button id="exhibition-rewind" type="button">Rewind</button>
+          <button id="exhibition-play" class="performance-icon-button" type="button" aria-label="Start playback" title="Start playback"><span class="sr-only">Start</span></button>
+          <button id="exhibition-stop" class="performance-icon-button" type="button" aria-label="Stop playback" title="Stop playback" disabled><span class="sr-only">Stop</span></button>
+          <button id="exhibition-rewind" class="performance-icon-button" type="button" aria-label="Rewind to beginning" title="Rewind to beginning"><span class="sr-only">Rewind</span></button>
+          <span id="exhibition-time">0:00 / 0:00</span>
+        </div>
+        <div class="performance-secondary-actions">
           <details class="performance-save">
             <summary>Save</summary>
             <div class="performance-save-options">
@@ -26,12 +32,8 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
               <button id="exhibition-download-mp3" type="button">Save song (MP3)</button>
             </div>
           </details>
+          <button id="exhibition-attract" type="button">Start Again</button>
         </div>
-        <button id="exhibition-attract" type="button">Start Again</button>
-      </div>
-      <div class="performance-timeline">
-        <span id="exhibition-time">0:00 / 0:00</span>
-        <input id="exhibition-progress" type="range" min="0" max="0" step="0.1" value="0" aria-label="Music playback position" disabled>
       </div>
     </aside>
     <p id="exhibition-playback-status" class="sr-only" role="status" aria-live="polite"></p>
@@ -49,6 +51,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   let renderer: AsyncPaintingRenderer | null = null;
   let duration = 0, timer = 0, position = 0;
   let playback: MusicPlayback | undefined;
+  let continuationClock: (() => number) | undefined;
   let performer: ReturnType<typeof createExhibitionPerformer> | null = null;
   let active = false, playing = false;
   let songExport: AbortController | null = null, songBlob: Blob | null = null;
@@ -84,18 +87,25 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     progress.setAttribute('aria-valuetext', `${timestamp(position)} of ${timestamp(duration)}`);
     time.textContent = `${timestamp(position)} / ${timestamp(duration)}`;
   }
-  function stopMusic(reset = true) {
+  function stopMusic(reset = true, keepMusic = false) {
     if (!reset && playback) updateTime(playback.elapsed());
     window.clearInterval(timer); timer = 0; playing = false;
     performer?.stop(); playback?.stop(); playback = undefined;
-    sounds.stop(); container.classList.remove('is-playing');
+    if (!keepMusic) sounds.stop();
+    container.classList.remove('is-playing');
     play.disabled = !journey?.score.length || !sounds.supported; stop.disabled = true;
     if (reset) updateTime(0);
   }
   function playMusic() {
     if (!active || !journey?.score.length || !sounds.supported) return;
+    const continuation = continuationClock?.();
+    continuationClock = undefined;
     stopMusic(false);
-    if (position >= duration) updateTime(0);
+    if (continuation !== undefined) updateTime(continuation);
+    if (position >= duration) {
+      if (continuation !== undefined) { status.textContent = 'The journey’s music has finished.'; return; }
+      updateTime(0);
+    }
     sounds.unlock();
     if (sounds.isMuted) { status.textContent = 'Unmute sound to hear this journey.'; return; }
     playback = sounds.perform(journey.score, journey.score[0]?.at, position, journey.bpm);
@@ -103,7 +113,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     playing = true;
     performer?.play(() => playback?.elapsed() ?? 0);
     play.disabled = true; stop.disabled = false; container.classList.add('is-playing');
-    status.textContent = 'Replaying your studio song, including its extra verses and harmonies. Dance along!';
+    status.textContent = continuation !== undefined ? 'Your robot continues the journey’s song into its studio crescendo. Dance along!' : 'Replaying your studio song, including its extra verses and harmonies. Dance along!';
     timer = window.setInterval(() => {
       const elapsed = playback?.elapsed() ?? 0;
       updateTime(elapsed);
@@ -144,9 +154,9 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   });
   return {
     title,
-    async prepare(value: FinishedJourney) {
+    async prepare(value: FinishedJourney, clock?: () => number) {
       cancelSongExport(); songBlob = null;
-      stopMusic(); renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
+      stopMusic(true, !!clock); continuationClock = clock; renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score);
       progress.max = String(duration); progress.disabled = !duration || !sounds.supported;
       rewind.disabled = progress.disabled; updateTime(0);

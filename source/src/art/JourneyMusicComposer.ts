@@ -168,7 +168,13 @@ export class JourneyMusicComposer {
     const sections = [...new Set(data.map(bar => this.section(bar, true)))];
     sections.forEach(section => this.accompaniment.get(section.request, 4));
     await this.waitForSections(sections.map(section => section.request));
-    return data.flatMap(bar => this.compose(bar, true));
+    return data.flatMap((bar, index) => {
+      const entries = this.compose(bar, true);
+      // The studio is the climax: build the developed voices to a full finale.
+      const crescendo = .9 + Math.min(index, 5) * .06;
+      entries.forEach(entry => { entry.score.voice.gain *= crescendo; });
+      return entries;
+    });
   }
 
   compose(data: Phrase, studio = false, enhance = true): SoundSequenceEntry[] {

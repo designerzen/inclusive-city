@@ -247,13 +247,13 @@ import.meta.hot?.dispose(() => {
 const exhibition = mountExhibitionScreen(exhibitionContainer, sounds, journey => cityScreen.exhibitionPerformer(journey));
 import.meta.hot?.dispose(() => exhibition.dispose());
 let openingExhibition = false;
-const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, journey => {
+const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, (journey, continuationClock) => {
   if (openingExhibition) return;
   openingExhibition = true;
-  cityScreen.suspend();
+  cityScreen.suspend(!!continuationClock);
   void (async () => {
     try {
-      await exhibition.prepare(journey);
+      await exhibition.prepare(journey, continuationClock);
       await screenTransition.run(cityContainer, exhibitionContainer, () => {
         inCity = false; inExhibition = true;
         cityContainer.hidden = true; exhibitionContainer.hidden = false;

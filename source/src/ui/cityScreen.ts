@@ -30,7 +30,7 @@ import { mountMusicMonitorControls } from './musicMonitorControls';
 import { musicNotation, type MonitorNote } from './musicNotation';
 import './cityMusicCues.css';
 
-export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney) => void, speech?: ScreenSpeech) {
+export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney, continuationClock?: () => number) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
     <header class="city-toolbar">
@@ -182,10 +182,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   musicMonitorChanges.addEventListener('change', syncMusicMonitor); syncMusicMonitor();
   let keyCueCursor = 0;
-  let stopArrivalBed: (() => void) | undefined;
-  function stopArrivalMusic() {
-    stopArrivalBed?.(); stopArrivalBed = undefined;
-  }
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
   function feedback(text: string) { setText('city-feedback', text); setText('city-issue-feedback', text); }
@@ -207,7 +203,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     musicCues.clear(); keyCueCursor = 0;
     monitorNotes = []; syncMusicMonitor();
     setText('city-music-key', 'Music follows city actions.'); setText('city-music-notes', 'Journey music ready.');
-    stopArrivalMusic(); finished = null; performancePresented = false; studioPreparing = false;
+    finished = null; performancePresented = false; studioPreparing = false;
     const compositionSeed = city.journey.machine.run.creative?.seed ?? freshCompositionSeed(creation?.seed);
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot, compositionSeed); renderer = new AsyncPaintingRenderer(creation.painting);
     sounds.startMusic(creation.bpm); cityMusicTime = 0;
@@ -226,11 +222,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     mode = 'edit'; plan.scrollTop = 0; streetSelect.value = id; city.highlight(id); panelKey = ''; refresh();
   }
   function updateCityMusic() {
-    if (!active || document.hidden || !city || !creation || finished || studioPreparing) return;
+    if (!active || document.hidden || !city || !creation || finished) return;
     cityMusicTime = sounds.musicTime(creation.bpm, cityMusicTime);
     const j = city.journey;
     creation.observeMotion(city.musicPosition, j.heading, cityMusicTime, j.ready || j.paused);
-    const score = creation.advance(cityMusicTime, false, j.complete);
+    const score = creation.advance(cityMusicTime);
     if (musicMonitorPreferences().enabled) {
       musicCues.add(score);
       for (const change of creation.keyChanges.slice(keyCueCursor)) musicCues.key(change);
@@ -430,11 +426,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (j.complete && creation && !finished && !studioPreparing) {
       studioPreparing = true;
       const currentCreation = creation, currentCity = city;
-      const bed = [...creation.score].reverse().find(entry => entry.label?.includes(':city-bed:'));
-      if (bed) stopArrivalBed = sounds.loop([{ ...bed, at: 0 }], (creation.artist.musician === 'waltz' ? 3 : 4) * 60 / creation.bpm, creation.bpm);
+      creation.harmony = true;
       setText('journey-status', 'At the studio. Adding new verses and harmonies for our duet.');
-      void currentCreation.extendStudioMusic().then(() => {
+      void currentCreation.extendStudioMusic(() => sounds.musicTime(currentCreation.bpm, cityMusicTime)).then(verses => {
         if (creation !== currentCreation || city !== currentCity) return;
+        sounds.performLive(verses);
         Object.assign(j.machine.run.creative!, { music: true, harmony: true });
         j.machine.run.creative!.score = pianoSynthScore(currentCreation.score);
         finished = captureFinishedJourney(j.machine.run);
@@ -443,8 +439,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     }
     if (finished && city.arrivalComplete && !performancePresented && active && !container.closest('[inert]')) {
       performancePresented = true;
-      stopArrivalMusic();
-      onPresent(structuredClone(finished));
+      const bpm = creation!.bpm, origin = finished.score[0]!.at;
+      onPresent(structuredClone(finished), () => sounds.musicTime(bpm, cityMusicTime) - origin);
     }
     const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
     if (mood !== lastMood) lastMood = mood;
@@ -653,7 +649,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   window.addEventListener('keydown', escape);
   function visibilityChanged() {
     if (document.hidden) voicePanel.stop();
-    if (document.hidden) stopArrivalMusic();
   }
   document.addEventListener('visibilitychange', visibilityChanged);
   const observer = new ResizeObserver(() => { if (active) { engine?.resize(); city?.resize(); } }); observer.observe(canvas);
@@ -668,13 +663,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     exhibitionPerformer(value: FinishedJourney) { return city?.exhibitionPerformer(canvas, value) ?? null; },
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
-    suspend() { voicePanel.stop(); stopArrivalMusic(); active = false; sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
+    suspend(keepMusic = false) { voicePanel.stop(); active = false; if (!keepMusic) sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
     resume() { showCanvas(); active = true; engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       showCanvas(); bot = value; robots = remembered; active = true; sounds.unlock();
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); stopArrivalMusic(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
+    dispose() { displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }
