@@ -230,6 +230,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const compositionSeed = city.journey.machine.run.creative?.seed ?? freshCompositionSeed(creation?.seed);
     renderer?.dispose(); creation = new JourneyCreativity(city.journey.bot, compositionSeed); renderer = new AsyncPaintingRenderer(creation.painting);
     sounds.startMusic(creation.bpm); cityMusicTime = 0;
+    city.setTempoClock(creation.bpm, () => sounds.musicTime(creation!.bpm, cityMusicTime));
     city.journey.machine.run.creative = { seed: creation.seed, bpm: creation.bpm, music: creation.music, art: true, harmony: false, colour: false, artist: structuredClone(creation.artist), score: creation.score, marks: creation.marks };
     eventCursor = city.journey.machine.record.events.length; lastPaint = performance.now();
   }
