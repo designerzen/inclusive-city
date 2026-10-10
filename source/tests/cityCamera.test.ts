@@ -4,7 +4,7 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Camera } from '@babylonjs/core/Cameras/camera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { createCityCamera } from '../src/city/cityCamera';
+import { createCityCamera, type CityView } from '../src/city/cityCamera';
 
 test('studio arrival orbits, descends to the face and respects reduced motion', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
@@ -40,8 +40,10 @@ test('camera presets track robot turns and elevation, then fit restores the map'
   try {
     assert.equal(controls.camera.mode, Camera.ORTHOGRAPHIC_CAMERA);
     controls.setView('angled');
+    controls.update(2);
     assert.equal(controls.camera.position.y, -controls.camera.position.z);
     controls.setView('follow');
+    controls.update(2);
     assert.equal(controls.camera.mode, Camera.PERSPECTIVE_CAMERA);
     assert.ok(controls.camera.position.x < pose.position.x);
     const before = controls.camera.position.clone();
@@ -54,14 +56,18 @@ test('camera presets track robot turns and elevation, then fit restores the map'
     controls.pan(4, 4);
     assert.equal(controls.canPan(), false);
     controls.setView('robot-eye');
+    controls.update(2);
+    controls.camera.getViewMatrix(true);
     assert.ok(controls.camera.position.equalsWithEpsilon(pose.position.add(new Vector3(0, 1.8, 0))));
     assert.ok(controls.camera.getTarget().z > pose.position.z);
     controls.setZoom(0.8);
     assert.ok(controls.camera.fov < 0.9);
     controls.fit();
+    controls.update(2);
+    controls.camera.getViewMatrix(true);
     assert.equal(controls.view, 'overhead');
     assert.equal(controls.canPan(), true);
-    assert.ok(controls.camera.getTarget().equalsWithEpsilon(Vector3.Zero()));
+    assert.ok(controls.camera.getTarget().subtract(controls.camera.position).normalize().equalsWithEpsilon(Vector3.Zero().subtract(controls.camera.position).normalize(), 1e-3));
     controls.pan(4, 4);
     assert.equal(controls.camera.position.x, 4);
     assert.ok(Math.abs(controls.camera.position.z - 3.99) < 0.001);
@@ -69,4 +75,56 @@ test('camera presets track robot turns and elevation, then fit restores the map'
     scene.dispose();
     engine.dispose();
   }
+});
+
+test('all camera presets ease position, orientation and projection without a cut', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const pose = { position: new Vector3(-20, 0, -15), heading: -Math.PI / 2, eyeHeight: 1.8 };
+  const controls = createCityCamera(engine, scene, () => pose);
+  const views: CityView[] = ['overhead', 'angled', 'follow', 'robot-eye'];
+  const probe = new Vector3(2, 3, 12);
+  try {
+    for (const from of views) for (const to of views) {
+      if (from === to) continue;
+      controls.setView(from); controls.update(2);
+      const start = controls.camera.position.clone();
+      const rotation = controls.camera.rotation.clone();
+      const projected = Vector3.TransformCoordinates(probe, controls.camera.getProjectionMatrix(true));
+      controls.setView(to);
+      assert.ok(controls.camera.position.equalsWithEpsilon(start, 1e-5), `${from} → ${to}: position cut`);
+      assert.ok(controls.camera.rotation.equalsWithEpsilon(rotation, 1e-5), `${from} → ${to}: rotation cut`);
+      assert.ok(Vector3.TransformCoordinates(probe, controls.camera.getProjectionMatrix(true)).equalsWithEpsilon(projected, 1e-5), `${from} → ${to}: projection cut`);
+      controls.update(.3);
+      const intermediate = controls.camera.position.clone();
+      assert.ok(!intermediate.equalsWithEpsilon(start));
+      controls.update(.9);
+      const end = controls.camera.position.clone();
+      assert.ok(intermediate.equalsWithEpsilon(Vector3.Lerp(start, end, .15625), 1e-5));
+      controls.update();
+      assert.ok(controls.camera.position.equalsWithEpsilon(end));
+    }
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('camera changes can be interrupted and reduced motion skips transitions', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const pose = { position: new Vector3(-20, 0, -15), heading: 0, eyeHeight: 1.8 };
+  const controls = createCityCamera(engine, scene, () => pose);
+  try {
+    controls.setView('follow'); controls.update(.4);
+    const position = controls.camera.position.clone();
+    const projection = controls.camera.getProjectionMatrix(true).clone();
+    controls.setView('robot-eye');
+    assert.ok(controls.camera.position.equalsWithEpsilon(position));
+    assert.ok(controls.camera.getProjectionMatrix(true).equals(projection));
+    controls.update(.6);
+    pose.position.x += 4;
+    controls.update(.6);
+    assert.ok(controls.camera.position.equalsWithEpsilon(pose.position.add(new Vector3(0, pose.eyeHeight, 0))));
+    controls.fit(); controls.update(0, true);
+    assert.ok(controls.camera.position.equalsWithEpsilon(new Vector3(0, 55, -.01)));
+    controls.setView('robot-eye');
+    assert.ok(controls.camera.position.equalsWithEpsilon(pose.position.add(new Vector3(0, pose.eyeHeight, 0))));
+    assert.equal(controls.camera.mode, Camera.PERSPECTIVE_CAMERA);
+  } finally { scene.dispose(); engine.dispose(); }
 });

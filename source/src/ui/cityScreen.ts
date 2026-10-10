@@ -321,6 +321,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     marker.style.top = `${Math.max(insetY, Math.min(canvas.clientHeight - insetY, goal.y + (below ? 1 : -1) * (marker.offsetHeight / 2 + 14)))}px`;
     marker.style.setProperty('--goal-pointer-offset', `${Math.max(-marker.offsetWidth / 2 + 12, Math.min(marker.offsetWidth / 2 - 12, goal.x - left))}px`);
     get<HTMLButtonElement>('city-tool-route').disabled = !j.ready;
+    get('city-tool-route').hidden = !j.ready;
     get('city-tool-route').setAttribute('aria-pressed', String(mode === 'route'));
     for (const id of ['city-map-fit']) get<HTMLButtonElement>(id).disabled = j.complete;
     container.dataset.cityView = city.view;
