@@ -1,6 +1,7 @@
 import { isHumpbackBridge, type BridgeAccess } from '../city/humpbackBridge';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { mountRobotConditionHud } from './robotConditionHud';
+import { mountCityControlsWindow } from './cityControlsWindow';
 import { mountCityDisplayControls } from './cityDisplayControls';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
@@ -35,14 +36,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
     <header class="city-toolbar">
       <div class="city-tools" role="group" aria-label="City tools">
-        <button id="city-tool-route" type="button" aria-pressed="false">Draw route</button>
-        <button id="city-tool-edit" type="button" aria-pressed="true">Change city</button>
+        <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
         <button id="city-pause" type="button">Start robot</button>
       </div>
       <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
-      <button id="back-to-designer" type="button">Edit robot</button>
-      <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
-      <button id="city-art-window" type="button">Open live painting window</button>
+      <button id="back-to-designer" type="button" aria-label="Back to robot editor" title="Back to robot editor">Back</button>
       <div class="city-music-feedback" aria-label="Live music cues" hidden>
         <p id="city-music-key" role="status" aria-live="polite">Music follows city actions.</p>
         <p id="city-music-notes" aria-live="off">Journey music ready.</p>
@@ -66,11 +64,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     </section>
     <details class="city-controls-hud" id="city-controls-hud"><summary><span id="city-controls-label">City controls</span> <span class="disclosure-chevron" aria-hidden="true">&#8964;</span></summary>
     <aside class="city-plan" aria-label="Route and city changes">
+      <div class="city-controls-window-actions"><button id="city-controls-window" type="button" aria-label="Move controls to new window" title="Move controls to new window" aria-pressed="false"></button></div>
       <div class="city-view-tools" role="group" aria-label="City view">
         <button type="button" data-view="overhead" aria-pressed="true">Map view</button>
         <button type="button" data-view="angled" aria-pressed="false">3D view</button>
         <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
         <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
+        <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
         <button id="city-map-fit" type="button">Show goal</button>
       </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
@@ -121,7 +121,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
           <button type="button" data-map="left">Move left</button><button type="button" data-map="right">Move right</button>
         </div>
       </details>
-      <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p></details>
+      <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p><button id="city-art-window" type="button">Open live painting window</button></details>
       <div class="city-new-actions">
         <button id="city-restart" type="button" aria-label="Reset city" title="Reset city: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
         <button id="city-new" type="button" aria-label="Remix city" title="Remix city: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
@@ -130,16 +130,18 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-remix-description" class="sr-only">Creates a different layout and returns to the start.</p>
       <p class="city-rule">You change the city. Your ArtBot makes the journey. Together, you make a duet at the studio.</p>
     </aside></details></div>`;
-  const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
+  const elements = new Map([...container.querySelectorAll<HTMLElement>('[id]')].map(element => [element.id, element]));
+  const get = <T extends HTMLElement = HTMLElement>(id: string) => (elements.get(id) ?? container.querySelector<T>(`#${id}`)) as T;
   const painting = get<HTMLCanvasElement>('journey-art');
   const plan = container.querySelector<HTMLElement>('.city-plan')!;
   const updateRobotConditions = mountRobotConditionHud(plan);
   plan.querySelector('.city-route-stats')!.after(plan.querySelector('.city-robot-states')!);
   const controlsHud = get<HTMLDetailsElement>('city-controls-hud');
+  const interactionHud = controlsHud.parentElement!;
   const map = container.querySelector<HTMLElement>('.city-map')!;
   map.append(container.querySelector('.city-view-tools')!);
   for (const button of container.querySelectorAll<HTMLButtonElement>('.city-toolbar button, .city-view-tools button')) {
-    button.setAttribute('aria-label', button.textContent!); button.title = button.textContent!;
+    if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', button.textContent!); button.title = button.getAttribute('aria-label')!;
   }
   const statusHud = document.createElement('div'); statusHud.className = 'city-status-hud';
   statusHud.innerHTML = '<p id="city-hud-status" role="status" aria-live="polite"></p>'; map.append(statusHud);
@@ -185,6 +187,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
   function feedback(text: string) { setText('city-feedback', text); setText('city-issue-feedback', text); }
+  const controlsWindow = mountCityControlsWindow(controlsHud, get<HTMLButtonElement>('city-controls-window'), feedback);
   const displayControls = mountCityDisplayControls(container, painting, message => {
     feedback(message); setText('city-hud-status', message);
   });
@@ -195,9 +198,25 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       if (!city || !active) return 'Open the city to reply to your robot.';
       city.resizer.finish(false);
       const message = applyCityReply(city.journey, interpretCityReply(text, city.journey));
-      city.sync(); panelKey = ''; feedback(message); refresh(); speech?.say(message); return message;
+      city.sync(); panelKey = ''; feedback(message); sayRobot(message); refresh(); return message;
     },
   });
+  let robotSpeech: string | null = null;
+  let speechTimer: number | undefined;
+  function sayRobot(message: string) {
+    speech?.stop(); window.clearTimeout(speechTimer);
+    const speakingCity = city;
+    if (!speakingCity) return;
+    robotSpeech = message; speakingCity.setSinging(true);
+    const finish = () => { robotSpeech = null; speakingCity.setSinging(false); window.clearTimeout(speechTimer); };
+    if (!speech?.say(message, undefined, finish)) {
+      // Keep the same explanation visible when narration is muted or unavailable.
+      speechTimer = window.setTimeout(finish, Math.max(4000, message.length * 65));
+    }
+  }
+  function introduceRobot() {
+    if (city) sayRobot(`Hi! I'm ${city.journey.bot.name}. I'm going to the Duet studio to make art and music.`);
+  }
   function beginCreation() {
     if (!city) return;
     musicCues.clear(); keyCueCursor = 0;
@@ -258,14 +277,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
     const alert = cityRobotAlert(j);
-    setText('city-robot-name', alert ?? j.bot.name);
+    setText('city-robot-name', robotSpeech ?? alert ?? j.bot.name);
     nameTag.classList.toggle('is-alert', !!alert);
+    nameTag.classList.toggle('is-speaking', !!robotSpeech);
     const alertKey = alert ? `${j.blocked!.id}:${alert}` : null;
     if (alertKey !== lastAlert && !voiceCapturing) {
       lastAlert = alertKey;
       if (alert && active && !document.hidden) {
-        const speakingCity = city;
-        speech?.say(alert, () => speakingCity.setSinging(true), () => speakingCity.setSinging(false));
+        sayRobot(alert);
       }
     }
     // A screen-space billboard faces the camera even in the overhead view.
@@ -281,8 +300,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       nameTag.hidden = bottom < nameTag.offsetHeight + 8;
     }
     // Keep the alert readable when the robot is offscreen or in robot-eye view.
-    nameTag.classList.toggle('is-detached', !!alert && nameTag.hidden);
-    if (alert && nameTag.hidden) {
+    nameTag.classList.toggle('is-detached', !!(robotSpeech || alert) && nameTag.hidden);
+    if ((robotSpeech || alert) && nameTag.hidden) {
       nameTag.hidden = false;
       nameTag.style.left = `${canvas.clientWidth / 2}px`;
       nameTag.style.top = `${Math.min(canvas.clientHeight - 8, nameTag.offsetHeight + 136)}px`;
@@ -299,20 +318,22 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     marker.style.setProperty('--goal-pointer-offset', `${Math.max(-marker.offsetWidth / 2 + 12, Math.min(marker.offsetWidth / 2 - 12, goal.x - left))}px`);
     get<HTMLButtonElement>('city-tool-route').disabled = !j.ready;
     get('city-tool-route').setAttribute('aria-pressed', String(mode === 'route'));
-    get('city-tool-edit').setAttribute('aria-pressed', String(mode === 'edit'));
-    for (const id of ['city-map-fit', 'city-tool-edit']) get<HTMLButtonElement>(id).disabled = j.complete;
+    for (const id of ['city-map-fit']) get<HTMLButtonElement>(id).disabled = j.complete;
     container.dataset.cityView = city.view;
     for (const button of container.querySelectorAll<HTMLButtonElement>('[data-view]')) {
       button.disabled = j.complete;
       button.setAttribute('aria-pressed', String(button.dataset.view === city.view));
     }
     const canPan = city.view === 'overhead' || city.view === 'angled';
-    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
+    for (const button of plan.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
     pause.disabled = j.ready ? !j.canStart : j.complete;
-    pause.textContent = j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Resume robot' : 'Pause robot';
+    pause.textContent = j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Start robot' : 'Stop robot';
     if (pause.getAttribute('aria-label') !== pause.textContent) { pause.setAttribute('aria-label', pause.textContent!); pause.title = pause.textContent!; }
     get('city-route-controls').hidden = mode !== 'route' || !j.ready;
     get('city-change-controls').hidden = mode !== 'edit' || j.complete;
+    get('city-tool-route').textContent = mode === 'route' && controlsHud.open ? 'Done with route' : 'Create route';
+    get('city-tool-route').setAttribute('aria-label', get('city-tool-route').textContent!);
+    interactionHud.hidden = !j.blocked && (controlsWindow.detached || !controlsHud.open);
     get('city-finished').hidden = !j.complete;
     get('city-exhibition').hidden = !j.complete;
     get<HTMLButtonElement>('city-exhibition').disabled = !finished || !city.arrivalComplete;
@@ -383,9 +404,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       const trainStreet = street?.id === j.world.steamTrain?.street;
       const choiceKind = communication ? 'communication' : street && !trainStreet && ['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) ? street.kind as EnvironmentChoiceKind : null;
       const choices = get('city-environment-choices'), signalChoices = get('city-signal-choices');
-      const focusedBridge = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.bridgeAccess : undefined;
-      const focusedDoor = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.studioDoor : undefined;
-      const focusedChoice = container.contains(document.activeElement) ? document.activeElement?.closest<HTMLButtonElement>('[data-environment-value]') : null;
+      const focused = plan.ownerDocument.activeElement as HTMLElement | null;
+      const focusedBridge = focused?.dataset?.bridgeAccess;
+      const focusedDoor = focused?.dataset?.studioDoor;
+      const focusedChoice = plan.contains(focused) ? focused?.closest<HTMLButtonElement>('[data-environment-value]') : null;
       const focusedGroup = focusedChoice?.closest('div[id]')?.id;
       const focusedValue = focusedChoice?.dataset.environmentValue;
       const humpback = !!street && isHumpbackBridge(street, j.world);
@@ -447,7 +469,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   function newCity(reset = false, savedWorld?: ProceduralCity) {
     voicePanel.stop();
-    speech?.stop(); lastAlert = null;
+    speech?.stop(); window.clearTimeout(speechTimer); robotSpeech = null; lastAlert = null;
     if (!bot || !engine) return;
     const previousSeed = city?.journey.world.seed;
     let seed = reset && previousSeed !== undefined ? previousSeed : crypto.getRandomValues(new Uint32Array(1))[0]!;
@@ -482,8 +504,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setText('city-robot-name', bot.name); controlsHud.open = false;
     plan.scrollTop = 0; beginCreation(); refresh();
   }
-  get('city-tool-route').addEventListener('click', () => setMode('route'));
-  get('city-tool-edit').addEventListener('click', () => setMode('edit'));
+  controlsHud.addEventListener('toggle', () => {
+    if (!controlsHud.open && mode === 'route') { mode = 'edit'; city?.highlight(null); refresh(); }
+  });
+  get('city-tool-route').addEventListener('click', () => { if (mode === 'route' && controlsHud.open) { mode = 'edit'; controlsHud.open = false; refresh(); } else setMode('route'); });
   get('city-issue-action').addEventListener('click', () => {
     if (!city?.journey.blocked) return;
     if (!cityIssueAction(city.journey)) {
@@ -502,7 +526,17 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   streetSelect.addEventListener('change', () => { city?.resizer.finish(false); selectStreet(streetSelect.value); });
   sizeInput.addEventListener('input', () => { if (city && sizeId) { city.resizer.previewSize(sizeId, Number(sizeInput.value)); refresh(); } });
   sizeInput.addEventListener('change', () => { city?.resizer.finish(); sounds.interaction('tap'); panelKey = ''; refresh(); });
-  pause.addEventListener('click', () => { if (!city) return; if (city.journey.ready) { if (city.journey.start()) mode = 'edit'; } else city.journey.setPaused(!city.journey.paused); refresh(); });
+  pause.addEventListener('click', () => {
+    if (!city) return;
+    if (city.journey.ready) {
+      if (city.journey.start()) { mode = 'edit'; controlsHud.open = false; sayRobot("I'm following the route to the Duet studio, making art and music as I go."); }
+    } else {
+      city.journey.setPaused(!city.journey.paused);
+      if (city.journey.paused) { speech?.stop(); window.clearTimeout(speechTimer); robotSpeech = null; city.setSinging(false); }
+      else { controlsHud.open = false; sayRobot("I'm continuing my journey to the Duet studio."); }
+    }
+    refresh();
+  });
   get('city-route-undo').addEventListener('click', () => { city?.journey.undoStop(); city?.sync(); feedback(''); refresh(); });
   get('city-route-clear').addEventListener('click', () => { city?.journey.clearRoute(); city?.sync(); feedback(''); refresh(); });
   get('city-repair').addEventListener('click', () => { if (selected && city?.journey.repair(selected)) { city.sync(); feedback(city.journey.paused ? 'City changed. Resume when you’re ready.' : city.journey.ready ? 'City changed. Start whenever you’re ready.' : 'City changed. Your robot can continue.'); refresh(); } });
@@ -511,7 +545,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (id && city?.journey.setBridgeAccess(id, 'elevator')) { sounds.interaction('tap'); city.sync(); refresh(); pause.focus({ preventScroll: true }); }
   });
   get('city-environment-choices').addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-bridge-access]') : null;
+    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('[data-bridge-access]') : null;
     if (button && !button.disabled && selected && city?.journey.setBridgeAccess(selected, button.dataset.bridgeAccess as BridgeAccess)) { city.sync(); feedback('Bridge access changed. Undo lets you change your mind.'); refresh(); }
   });
   get('city-roboramp').addEventListener('click', () => {
@@ -525,11 +559,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     refresh();
   });
   get('city-environment-choices').addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-studio-door]') : null;
+    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('[data-studio-door]') : null;
     if (button && !button.disabled && city?.journey.setStudioDoor(button.dataset.studioDoor as StudioDoorType)) { city.sync(); feedback('Studio door changed. Undo lets you try another door.'); refresh(); }
   });
   for (const group of ['city-environment-choices', 'city-signal-choices']) get(group).addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-environment-value]') : null;
+    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('[data-environment-value]') : null;
     if (!button || button.disabled || !selected || !city) return;
     const id = group === 'city-signal-choices' ? `signals:${selected}` : selected;
     if (city.journey.setFeature(id, button.dataset.environmentValue === 'true')) {
@@ -541,7 +575,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   get('city-restart').addEventListener('click', () => { newCity(true); feedback('City reset. Original layout restored.'); });
   get('city-new').addEventListener('click', () => { newCity(); feedback('City remixed. A different layout is ready.'); });
   container.querySelector('.city-view-tools')!.addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-view]') : null;
+    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('button[data-view]') : null;
     if (!button || button.disabled || !city) return;
     city.resizer.finish(false); city.setView(button.dataset.view as CityView);
     refresh();
@@ -564,8 +598,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   turnRadiusInput.addEventListener('change', () => {
     setMinimumTurnRadius(Number(turnRadiusInput.value));
   });
-  container.querySelector('.city-map-buttons')!.addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-map]') : null;
+  plan.querySelector('.city-map-buttons')!.addEventListener('click', event => {
+    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('button[data-map]') : null;
     if (!button || button.disabled || !city) return;
     const action = button.dataset.map;
     if (action === 'zoom-in' || action === 'zoom-out') city.setZoom(action === 'zoom-in' ? .8 : 1.25);
@@ -607,7 +641,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       const target = mode === 'edit' && !bicycle ? city.resizer.inspect(p.x, p.y) : null;
       if (target) {
         get('city-hover').hidden = false; setText('city-hover', `${city.journey.dimensions.name(target.id)} · drag to resize`);
-        city.highlight(target.id); canvas.style.cursor = target.available ? 'ew-resize' : 'not-allowed'; return;
+        city.highlight(target.id); canvas.style.cursor = target.available ? target.cursor : 'not-allowed'; return;
       }
       const id = bicycle || mode === 'edit' ? hovered : city.nodeAt(p.x, p.y);
       const street = city.journey.world.streets.find(s => s.id === id), node = city.journey.world.nodes.find(n => n.id === id);
@@ -658,18 +692,19 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   const renderCity = () => { if (!active || !city || !engine || document.hidden) return; city.update(Math.min(.1, engine.getDeltaTime() / 1000)); refresh(); city.scene.render(); };
   return {
+    introduceRobot,
     get turnRadiusSettings() { return { radius: city?.journey.minimumTurnRadius ?? minimumTurnRadius, locked: !!city && !city.journey.ready }; },
     setMinimumTurnRadius,
     exhibitionPerformer(value: FinishedJourney) { return city?.exhibitionPerformer(canvas, value) ?? null; },
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
-    suspend(keepMusic = false) { voicePanel.stop(); active = false; if (!keepMusic) sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
+    suspend(keepMusic = false) { controlsWindow.restore(); window.clearTimeout(speechTimer); robotSpeech = null; city?.setSinging(false); voicePanel.stop(); active = false; if (!keepMusic) sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
     resume() { showCanvas(); active = true; engine?.resize(); city?.resize(); refresh(); },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       showCanvas(); bot = value; robots = remembered; active = true; sounds.unlock();
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
+    dispose() { controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }

@@ -4,8 +4,10 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
   const modules: Record<string, Parameters<typeof mapIcon>[0]> = { vision: 'eye', communication: 'message', memory: 'route', balance: 'angled', hearing: 'volume' };
   if (id.startsWith('function-')) return modules[id.slice(9)] ?? 'robot';
   if (/settings|options/i.test(label)) return 'settings';
+  if (id === 'back-to-designer') return 'left';
   if (id === 'random-name') return 'reset';
   if (id === 'city-fullscreen') return 'fullscreen';
+  if (id === 'city-controls-window') return /shrink/i.test(label) ? 'shrink' : 'window';
   if (id === 'city-art-window') return 'window';
   if (id === 'exhibition-play') return 'play';
   if (id === 'exhibition-rewind') return 'undo';
@@ -42,7 +44,7 @@ export function mountButtonIcons(root: HTMLElement) {
   const update = () => {
     for (const button of root.querySelectorAll<HTMLButtonElement>('button')) {
       // Illustrated environment choices already have a full explanatory drawing.
-      if (button.classList.contains('environment-choice')) continue;
+      if (button.classList.contains('environment-choice') || button.id === 'city-controls-window') continue;
       const icon = buttonIcon(button.getAttribute('aria-label') ?? button.textContent ?? '', button.id);
       if (button.dataset.buttonIcon === icon) continue;
       button.dataset.buttonIcon = icon;

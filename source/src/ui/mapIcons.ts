@@ -1,5 +1,6 @@
 const paths = {
   fullscreen: '<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/>',
+  shrink: '<path d="M3 9h6V3M21 15h-6v6M9 9 3 3m12 12 6 6"/>',
   window: '<path d="M14 3h7v7m0-7-9 9M10 3H3v18h18v-7"/>',
   message: '<path d="M4 4h16v12H9l-5 4V4Z"/><path d="M8 8h8M8 12h5"/>',
   legend: '<rect x="3" y="4" width="5" height="5" rx="1"/><path d="M12 6.5h9"/><circle cx="5.5" cy="17.5" r="2.5"/><path d="M12 17.5h9"/>',

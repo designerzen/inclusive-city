@@ -306,6 +306,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const head = scene.getTransformNodeByName('head-rig')!;
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
   const antenna = scene.getTransformNodeByName('antenna-rig')!;
+  let speaking = false;
   let arrived = false;
   let line: ReturnType<typeof MeshBuilder.CreateTube> | null = null;
   let routeKey = '', revisionKey = '';
@@ -367,6 +368,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       camera.setPerformanceTime(motion ? 4 : elapsed);
     }
     camera.update(seconds, reducedMotionPreference().matches);
+    if (speaking && !journey.complete && camera.view !== 'robot-eye') {
+      // The face points along local -Z. Aim it at the viewer without turning the route.
+      const eye = camera.camera.position.subtract(head.getAbsolutePosition());
+      head.rotation.y = Math.atan2(-eye.x, -eye.z) - robot.robot.rotation.y;
+      head.rotation.x = Math.atan2(eye.y, Math.hypot(eye.x, eye.z));
+    }
   }
   function projectNode(id: string) {
     const node = id === world.destination ? markerGoal : world.nodes.find(n => n.id === id)!;
@@ -445,7 +452,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     physicsReady, get physicsStatus() { return physicsStatus; },
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },
     resize: () => camera.update(), setZoom: camera.setZoom, pan: camera.pan, fit: camera.fit,
-    setSinging(value: boolean) { robot.setSpeaking(value); },
+    setSinging(value: boolean) { speaking = value; robot.setSpeaking(value); },
     exhibitionPerformer(canvas: HTMLCanvasElement, value: FinishedJourney) {
       dance ??= new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4);
       instruments.setScore(value.score);

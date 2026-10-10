@@ -153,7 +153,7 @@ const screenTransition = createScreenTransition(workshop, {
     if (document.hidden) return;
     if (screen === presetsScreen) screenSpeech.introduce('presets');
     else if (screen === designerScreen) screenSpeech.introduce('editor');
-    else if (screen === cityContainer) screenSpeech.introduce('city', history.current.name);
+    else if (screen === cityContainer) cityScreen.introduceRobot();
     else if (screen === exhibitionContainer) screenSpeech.introduce('art');
   },
 });

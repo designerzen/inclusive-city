@@ -9,7 +9,7 @@ import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { BotHistory } from '../src/robot/botHistory';
 import { CityJourney } from '../src/simulation/cityJourney';
-import { createCityResizer } from '../src/city/cityResizer';
+import { createCityResizer, resizeCursor } from '../src/city/cityResizer';
 import { CityDocument } from '../src/city/cityDocument';
 import { buildingKey } from '../src/city/buildingDimensions';
 
@@ -77,4 +77,11 @@ test('a wall drag previews without history, commits once and cancelled drags res
     resizer.move(point.x, point.y - 15); resizer.finish(false);
     assert.equal(resizer.value(key), j.city.get(key)); assert.equal(j.city.undoEdit, undefined);
   } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('resize cursors follow the projected axis in either drag direction', () => {
+  for (const [x, y, cursor] of [[10, 0, 'ew-resize'], [0, 10, 'ns-resize'], [10, 10, 'nwse-resize'], [10, -10, 'nesw-resize']] as const) {
+    assert.equal(resizeCursor(x, y), cursor);
+    assert.equal(resizeCursor(-x, -y), cursor);
+  }
 });

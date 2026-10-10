@@ -55,3 +55,27 @@
   #city-screen .city-plan { max-height: 48dvh; }
   #city-screen:has(.city-controls-hud[open]) .city-status-hud { display: none; }
 }
+
+/* Two primary actions, with a quiet but full-sized way back. */
+#city-screen .city-toolbar { align-items: center; padding-left: 50px; }
+:root:not([data-text-size='100']) #city-screen #back-to-designer,
+#city-screen #back-to-designer { position: absolute; grid-row: auto; grid-column: auto; top: 12px; left: 12px; width: 44px; height: 44px; padding: 0; font-size: 0; background: transparent; border-color: transparent; opacity: .55; }
+#city-screen #back-to-designer::before { margin: 0; }
+#city-screen #back-to-designer:is(:hover, :focus-visible) { opacity: 1; }
+#city-screen .city-tools button { width: auto; height: auto; min-height: 44px; flex: 0 0 auto; font-size: .8125rem; padding: 8px 10px; }
+#city-screen .city-tools button::before { margin-right: 8px; }
+.city-robot-name.is-speaking { background: #fff; color: #17261e; font-size: 1rem; font-weight: 600; line-height: 1.4; }
+#city-screen .city-hover { top: 76px; }
+@media (max-width: 700px) {
+  #city-screen .city-toolbar { max-width: calc(100% - 48px); }
+  #city-screen .city-tools { gap: 4px; }
+  #city-screen .city-tools button { padding: 8px; }
+  #city-screen .city-tools button::before { display: none; }
+  .city-status-hud { top: auto; bottom: 12px; }
+  #city-screen .city-hover { top: 124px; }
+}
+
+.city-controls-window-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+#city-screen #city-controls-window { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
+#city-screen #city-controls-window::before { display: none; }
+.city-interaction-hud[data-controls-detached]:has(#city-issue[hidden]) { display: none; }

@@ -14,6 +14,15 @@ export function resizeLimits(journey: CityJourney, id: CityEditId) {
   return pavementEdge(id) !== null ? { min: 2.5, max: 6 } : id === 'sidewalk' ? { min: 0.8, max: 6 } : { min: 0.65, max: 2 };
 }
 
+/** Match the projected drag axis, including rotated and perspective views. */
+export function resizeCursor(dx: number, dy: number) {
+  const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 180) % 180;
+  if (angle < 22.5 || angle >= 157.5) return 'ew-resize';
+  if (angle < 67.5) return 'nwse-resize';
+  if (angle < 112.5) return 'ns-resize';
+  return 'nesw-resize';
+}
+
 /** Preview a drag without filling undo history with every pointer movement. */
 export function createCityResizer(scene: Scene, engine: Engine, journey: CityJourney, sync: () => void, selected: (id: CityEditId) => void) {
   let drag: { id: CityEditId; x: number; y: number; dx: number; dy: number; before: number; multiplier: number } | null = null;
@@ -54,7 +63,7 @@ export function createCityResizer(scene: Scene, engine: Engine, journey: CityJou
       }
       const a = project(pick.pickedPoint), b = project(pick.pickedPoint.add(axis));
       const dx = b.x - a.x, dy = b.y - a.y;
-      return { id, mesh: pick.pickedMesh, dx, dy, multiplier, available: journey.canEdit(id) && dx * dx + dy * dy >= 4 };
+      return { id, mesh: pick.pickedMesh, dx, dy, multiplier, cursor: resizeCursor(dx, dy), available: journey.canEdit(id) && dx * dx + dy * dy >= 4 };
     },
     begin(x: number, y: number) {
       const target = this.inspect(x, y);

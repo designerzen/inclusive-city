@@ -3,6 +3,7 @@ import '@babylonjs/core/Culling/ray';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import type { PlannedJourney } from '../simulation/plannedJourney';
+import { resizeCursor } from './cityResizer';
 import { sides } from './cityDimensions';
 
 export function createProceduralResizer(scene: Scene, engine: Engine, journey: PlannedJourney, sync: () => void, selected: (id: string) => void) {
@@ -44,7 +45,7 @@ export function createProceduralResizer(scene: Scene, engine: Engine, journey: P
       }
       const a = project(pick.pickedPoint), b = project(pick.pickedPoint.add(axis));
       const dx = b.x - a.x, dy = b.y - a.y;
-      return { id, dx, dy, multiplier, available: journey.canEdit(id) && dx * dx + dy * dy >= 4 };
+      return { id, dx, dy, multiplier, cursor: resizeCursor(dx, dy), available: journey.canEdit(id) && dx * dx + dy * dy >= 4 };
     },
     begin(x: number, y: number) {
       const target = this.inspect(x, y);
