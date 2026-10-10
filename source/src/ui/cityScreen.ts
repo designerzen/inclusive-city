@@ -1,6 +1,7 @@
 import { isHumpbackBridge, type BridgeAccess } from '../city/humpbackBridge';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { mountRobotConditionHud } from './robotConditionHud';
+import { isButtonSound } from '../audio/soundPresets';
 import { mountCityControlsWindow } from './cityControlsWindow';
 import { mountCityDisplayControls } from './cityDisplayControls';
 import type { Engine } from '@babylonjs/core/Engines/engine';
@@ -187,7 +188,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
   function feedback(text: string) { setText('city-feedback', text); setText('city-issue-feedback', text); }
-  const controlsWindow = mountCityControlsWindow(controlsHud, get<HTMLButtonElement>('city-controls-window'), feedback);
+  const controlsWindow = mountCityControlsWindow(controlsHud, get<HTMLButtonElement>('city-controls-window'), feedback, button => {
+    const signature = button.dataset.map ? `map-${button.dataset.map}` : button.id;
+    if (isButtonSound(signature)) { sounds.unlock(); sounds.button(signature); }
+  });
   const displayControls = mountCityDisplayControls(container, painting, message => {
     feedback(message); setText('city-hud-status', message);
   });

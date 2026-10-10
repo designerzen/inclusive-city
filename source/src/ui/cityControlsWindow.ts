@@ -2,7 +2,7 @@ import { mapIcon } from './mapIcons';
 import { mountButtonIcons } from './buttonIcons';
 
 /** Adopt the live controls so their values and event handlers survive the move. */
-export function mountCityControlsWindow(controls: HTMLDetailsElement, button: HTMLButtonElement, feedback: (message: string) => void) {
+export function mountCityControlsWindow(controls: HTMLDetailsElement, button: HTMLButtonElement, feedback: (message: string) => void, onPopupButton: (button: HTMLButtonElement) => void) {
   const home = controls.parentElement!;
   const anchor = document.createComment('City controls home');
   home.insertBefore(anchor, controls);
@@ -46,10 +46,15 @@ export function mountCityControlsWindow(controls: HTMLDetailsElement, button: HT
     doc.head.append(layout);
     const root = doc.createElement('main'); root.id = 'city-screen'; root.className = 'city-controls-window';
     doc.body.append(root);
+    root.addEventListener('click', event => {
+      const target = event.target as Element | null;
+      const clicked = target?.closest<HTMLButtonElement>('button');
+      if (clicked && !clicked.disabled) onPopupButton(clicked);
+    }, true);
     function syncPreferences() {
-      doc.documentElement.lang = document.documentElement.lang || 'en';
       for (const attribute of [...doc.documentElement.attributes]) doc.documentElement.removeAttribute(attribute.name);
       for (const attribute of [...document.documentElement.attributes]) doc.documentElement.setAttribute(attribute.name, attribute.value);
+      doc.documentElement.lang = document.documentElement.lang || 'en';
       root.dataset.journeyState = home.closest<HTMLElement>('#city-screen')?.dataset.journeyState ?? '';
     }
     syncPreferences();
