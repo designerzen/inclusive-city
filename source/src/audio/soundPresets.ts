@@ -56,6 +56,7 @@ const buttonSignatures = {
   'city-new': { root: 70, intervals: [0, 5, 10, 17], pattern: 'up-down', stepBeats: .1 },
   'city-view-toggle': { root: 73, intervals: [0, 5, 10, 17], pattern: 'up', stepBeats: .1 },
   'city-map-fit': { root: 71, intervals: [0, 5, 10, 17], pattern: 'chord', stepBeats: .1 },
+  'city-project-line': { root: 75, intervals: [0, 2, 9, 19], pattern: 'up', stepBeats: .08, waveform: 'sine' },
   'choose-existing': { root: 63, intervals: [0, 7, 12, 17], pattern: 'up', stepBeats: .12 },
   'edit-robot': { root: 66, intervals: [0, 4, 9, 16], pattern: 'up', stepBeats: .14 },
   'preset-previous': { root: 69, intervals: [0, 5, 12], pattern: 'down', stepBeats: .1 },

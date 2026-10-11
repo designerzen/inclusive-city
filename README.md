@@ -10,6 +10,7 @@ In **Settings → Accessibility**, choose text size (100–200%), a default, sys
 
 ## Documentation
 
+- [Robot route projection](docs/robot-projection.md): table projection mode, event barcode format, firmware codes, and physical calibration.
 - [Experience and game design](docs/experience-design.md): story, character creation, city editing, barriers, collectibles, and the live creative HUD.
 - [Technical specification](docs/technical-specification.md): Babylon.js, orthographic cameras, autonomous navigation, event data, audio/art generation, persistence, and exports.
 - [Research and evaluation](docs/research-and-evaluation.md): sources, educational framing, accessibility requirements, co-design, and validation.
