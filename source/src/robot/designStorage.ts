@@ -8,7 +8,7 @@ import type { ArtBot } from './botHistory';
 export const robotDesignStorageKey = 'inclusive-city-robot-designs';
 export type DesignStorage = Pick<Storage, 'getItem' | 'setItem'>;
 export type RobotDesign = Omit<ArtBot, 'record'>;
-export interface SavedDesigns { version: 1; cursor: number; bots: RobotDesign[] }
+export interface SavedDesigns { version: 1; cursor: number; bots: RobotDesign[]; customName?: string }
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const boundedNumber = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
@@ -38,16 +38,17 @@ export function loadDesigns(storage?: DesignStorage): SavedDesigns | undefined {
     const saved: unknown = JSON.parse(raw);
     if (!object(saved) || saved.version !== 1 || !Array.isArray(saved.bots) || !saved.bots.length
       || !Number.isInteger(saved.cursor) || !boundedNumber(saved.cursor, 0, saved.bots.length - 1) || !saved.bots.every(validDesign)) return;
+    if (saved.customName !== undefined && (typeof saved.customName !== 'string' || !saved.customName.trim() || saved.customName.length > 60)) return;
     // Rebuild derived abilities and validate the three-function selection.
     const bots = saved.bots.map((bot: RobotDesign) => ({ ...bot, profile: createRobotProfile(bot.profile.abilities, bot.profile.enabledFunctions.map(id => (id as string) === 'movement' ? 'communication' : id), bot.profile.artist) }));
     if (new Set(bots.filter(bot => bot.presetId).map(bot => bot.presetId)).size !== bots.filter(bot => bot.presetId).length) return;
-    return { version: 1, cursor: saved.cursor, bots };
+    return { version: 1, cursor: saved.cursor, bots, ...(saved.customName !== undefined ? { customName: saved.customName as string } : {}) };
   } catch { /* Corrupt or unavailable storage must not prevent startup. */ }
 }
 
-export function saveDesigns(storage: DesignStorage | undefined, bots: readonly ArtBot[], cursor: number) {
+export function saveDesigns(storage: DesignStorage | undefined, bots: readonly ArtBot[], cursor: number, customName?: string) {
   try {
-    storage?.setItem(robotDesignStorageKey, JSON.stringify({ version: 1, cursor,
+    storage?.setItem(robotDesignStorageKey, JSON.stringify({ version: 1, cursor, customName,
       bots: bots.map(({ record: _record, ...design }) => design) }));
   } catch { /* The designer still works when storage is blocked or full. */ }
 }

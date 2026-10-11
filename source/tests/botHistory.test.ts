@@ -124,7 +124,7 @@ test('each new bot starts with a scientist name and a different upper body', () 
   }
 });
 
-test('names and profiles are saved independently for each bot', () => {
+test('edited names follow selection while profiles are saved independently for each bot', () => {
   const history = new BotHistory(scientistNames, () => 0.5);
   history.rename('  My art bot  ');
   history.updateProfile(createRobotProfile({ ...defaultAbilities(), speed: 85 }, ['vision', 'hearing', 'memory']));
@@ -133,11 +133,63 @@ test('names and profiles are saved independently for each bot', () => {
   history.rename('Second bot');
   history.updateProfile(createRobotProfile(defaultAbilities(), ['communication', 'balance', 'hearing']));
   const second = structuredClone(history.current);
-  assert.deepEqual(history.previous(), first);
+  const previous = history.previous();
+  assert.equal(previous.name, 'Second bot');
+  assert.deepEqual(previous.profile, first.profile);
   assert.deepEqual(history.next(), second);
   assert.equal(first.name, 'My art bot');
   assert.equal(first.profile.abilities.speed, 85);
   assert.equal(second.profile.abilities.speed, 50);
+});
+
+test('any valid manual name edit persists across new and cached robot selections and reloads', () => {
+  for (const edit of [(name: string) => `${name} Junior`, (name: string) => name.slice(1), () => 'My robot']) {
+    const storage = memoryStorage();
+    const history = new BotHistory(scientistNames, () => .2, storage);
+    history.selectPreset('donk');
+    history.selectPreset('aria');
+    const name = history.rename(edit(history.current.name));
+    assert.equal(history.selectPreset('monet').name, name);
+    assert.equal(history.selectPreset('donk').name, name);
+    assert.equal(history.next().name, name);
+    history.selectPreset('monet');
+    assert.equal(history.next().name, name);
+    assert.equal(history.previous().name, name);
+    assert.equal(history.current.record.metadata.name, name);
+    const restored = new BotHistory(scientistNames, () => .2, storage);
+    assert.equal(restored.selectPreset('aria').name, name);
+    assert.equal(restored.next().name, name);
+  }
+});
+
+test('random name replaces a manual name and the replacement stays across selections', () => {
+  const history = new BotHistory(scientistNames, () => 0);
+  history.rename('My robot');
+  const name = history.randomiseName();
+  assert.notEqual(name, 'My robot');
+  assert.equal(history.selectPreset('donk').name, name);
+  assert.equal(history.next().name, name);
+  const nextName = history.randomiseName();
+  assert.notEqual(nextName, name);
+  assert.equal(history.previous().name, nextName);
+});
+
+test('random name alone does not disable automatic names on selection', () => {
+  const history = new BotHistory(scientistNames, () => 0);
+  const name = history.randomiseName();
+  assert.notEqual(history.next().name, name);
+  assert.equal(history.selectPreset('donk').name, 'donkBot');
+});
+
+test('legacy saved custom names are preserved when selecting another robot', () => {
+  const storage = memoryStorage();
+  const history = new BotHistory(scientistNames, () => 0, storage);
+  history.rename('Legacy custom name');
+  const saved = JSON.parse(storage.getItem(robotDesignStorageKey)!);
+  delete saved.customName;
+  storage.setItem(robotDesignStorageKey, JSON.stringify(saved));
+  const restored = new BotHistory(scientistNames, () => 0, storage);
+  assert.equal(restored.selectPreset('donk').name, 'Legacy custom name');
 });
 
 test('invalid names are rejected without changing the saved name', () => {

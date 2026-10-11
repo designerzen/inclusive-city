@@ -6,7 +6,7 @@ import type { RobotProfile } from './functions';
 import { createRobotRecord, robotMetadata } from './robotState';
 import type { RobotRecord } from './robotState';
 import type { CreativePreferences } from './creativePreferences';
-import { presetDesign } from './presets';
+import { presetDesign, robotPresets } from './presets';
 import { loadDesigns, saveDesigns } from './designStorage';
 import type { DesignStorage } from './designStorage';
 
@@ -24,6 +24,7 @@ export interface ArtBot {
 export class BotHistory {
   private bots: ArtBot[];
   private cursor = 0;
+  private customName?: string;
 
   constructor(private scientistNames: readonly string[], private random = Math.random, private storage?: DesignStorage) {
     if (scientistNames.length < 2) throw new Error('At least two scientist surnames are required.');
@@ -31,6 +32,12 @@ export class BotHistory {
     if (saved) {
       this.bots = saved.bots.map(design => ({ ...design, record: createRobotRecord(design) }));
       this.cursor = saved.cursor;
+      this.customName = saved.customName;
+      // Older saves did not distinguish manual names from generated names.
+      const defaultName = robotPresets.find(preset => preset.id === this.current.presetId)?.name;
+      if (this.customName === undefined && this.current.name !== defaultName && !scientistNames.includes(this.current.name)) {
+        this.customName = this.current.name;
+      }
       return;
     }
     const design = { id: 1, name: this.chooseName(), appearance: defaultAppearance(), profile: createRobotProfile(defaultAbilities(), defaultFunctions()) };
@@ -38,7 +45,11 @@ export class BotHistory {
     this.save();
   }
 
-  private save() { saveDesigns(this.storage, this.bots, this.cursor); }
+  private save() { saveDesigns(this.storage, this.bots, this.cursor, this.customName); }
+
+  private preserveName() {
+    if (this.customName !== undefined) this.setName(this.customName);
+  }
 
   private chooseName(previous?: string): string {
     const candidates = this.scientistNames.filter(name => name !== previous);
@@ -59,6 +70,7 @@ export class BotHistory {
       index = this.bots.length - 1;
     }
     this.cursor = index;
+    this.preserveName();
     this.save();
     return this.current;
   }
@@ -67,7 +79,7 @@ export class BotHistory {
     if (this.cursor === this.bots.length - 1) {
       const design = {
         id: this.bots.length + 1,
-        name: this.chooseName(this.current.name),
+        name: this.customName ?? this.chooseName(this.current.name),
         appearance: randomiseAppearance(this.current.appearance, this.random),
         profile: structuredClone(this.current.profile),
         ...(this.current.creative ? { creative: structuredClone(this.current.creative) } : {}),
@@ -75,27 +87,38 @@ export class BotHistory {
       this.bots.push({ ...design, record: createRobotRecord(design) });
     }
     this.cursor++;
+    this.preserveName();
     this.save();
     return this.current;
   }
 
   previous(): ArtBot {
     if (this.canGoBack) this.cursor--;
+    this.preserveName();
     this.save();
     return this.current;
   }
 
   randomiseName(): string {
-    return this.rename(this.chooseName(this.current.name));
+    const name = this.chooseName(this.current.name);
+    if (this.customName !== undefined) this.customName = name;
+    this.setName(name);
+    this.save();
+    return name;
   }
 
   rename(name: string): string {
     const trimmed = name.trim();
     if (!trimmed || trimmed.length > 60) throw new Error('Enter a name between 1 and 60 characters.');
-    this.current.name = trimmed;
-    this.current.record.metadata = robotMetadata(this.current);
+    this.customName = trimmed;
+    this.setName(trimmed);
     this.save();
     return trimmed;
+  }
+
+  private setName(name: string) {
+    this.current.name = name;
+    this.current.record.metadata = robotMetadata(this.current);
   }
 
   updateProfile(profile: RobotProfile) {
