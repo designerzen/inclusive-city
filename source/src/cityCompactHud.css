@@ -7,6 +7,7 @@
 #city-screen .city-new-actions { position: static; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0 0 0 auto; max-width: 100%; }
 #city-screen .city-toolbar .city-new-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; width: auto; height: auto; min-height: 44px; padding: 8px 10px; font-size: .8125rem; }
 #city-screen .city-new-actions button::before { display: none; }
+#city-screen .city-new-actions button > svg { display: block; flex: 0 0 24px; }
 #city-screen button { padding: 8px 10px; border-radius: 8px; font-size: .8125rem; }
 #city-screen .city-map { position: relative; inset: auto; grid-column: 1; grid-row: 2; width: 100%; min-height: 0; }
 .workshop.city-mode > .sound-controls { display: flex; top: 12px; right: 12px; }

@@ -127,8 +127,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       </details>
       <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p><button id="city-art-window" type="button">Open live painting window</button></details>
       <div class="city-new-actions">
-        <button id="city-restart" type="button" aria-label="Reset city" title="Reset city: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
-        <button id="city-new" type="button" aria-label="Remix city" title="Remix city: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
+        <button id="city-restart" type="button" aria-label="Reset" title="Reset: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
+        <button id="city-new" type="button" aria-label="New City" title="New City: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
       </div>
       <p id="city-reset-description" class="sr-only">Restores this layout, removes city changes and returns to the start.</p>
       <p id="city-remix-description" class="sr-only">Creates a different layout and returns to the start.</p>
@@ -147,12 +147,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const cityActions = container.querySelector<HTMLElement>('.city-new-actions')!;
   cityActions.setAttribute('role', 'group');
   cityActions.setAttribute('aria-label', 'Restart or change city');
-  for (const [id, label] of [['city-restart', 'Reset city'], ['city-new', 'Random city']]) {
+  for (const [id, label] of [['city-restart', 'Reset'], ['city-new', 'New City']]) {
     const button = get<HTMLButtonElement>(id!);
     button.append(document.createTextNode(label!));
     button.setAttribute('aria-label', label!);
   }
-  get('city-new').title = 'Random city: create a different layout and return to the start';
+  get('city-new').title = 'New City: create a different layout and return to the start';
   container.querySelector('.city-toolbar')!.append(cityActions, get('city-reset-description'), get('city-remix-description'));
   for (const button of container.querySelectorAll<HTMLButtonElement>('.city-toolbar button, .city-view-tools button')) {
     if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', button.textContent!); button.title = button.getAttribute('aria-label')!;
@@ -257,7 +257,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   function selectStreet(id: string) {
     if (!city) return;
     selected = id; controlsHud.open = true;
-    if (!city.journey.ready && !city.journey.complete && !city.journey.blocked) city.journey.setPaused(true);
     mode = 'edit'; plan.scrollTop = 0; streetSelect.value = id; city.highlight(id); panelKey = ''; refresh();
   }
   function updateCityMusic() {
