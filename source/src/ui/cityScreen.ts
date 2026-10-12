@@ -46,6 +46,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <div class="city-tools" role="group" aria-label="City tools">
         <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
         <button id="city-pause" type="button">Start robot</button>
+        <button id="city-fast-forward" type="button" aria-pressed="false" aria-label="Fast forward at 10 times speed">⏩ Fast forward</button>
       </div>
       <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
       <button id="back-to-designer" type="button" aria-label="Back to robot editor" title="Back to robot editor">Back</button>
@@ -174,6 +175,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const statusHud = document.createElement('div'); statusHud.className = 'city-status-hud';
   statusHud.innerHTML = '<p id="city-hud-status" role="status" aria-live="polite"></p>'; map.append(statusHud);
   const pause = get<HTMLButtonElement>('city-pause'), streetSelect = get<HTMLSelectElement>('city-street');
+  const fastForward = get<HTMLButtonElement>('city-fast-forward');
+  let fastForwarding = false;
+  fastForward.addEventListener('click', () => {
+    fastForwarding = !fastForwarding;
+    fastForward.setAttribute('aria-pressed', String(fastForwarding));
+    fastForward.textContent = fastForwarding ? '⏩ 10× speed' : '⏩ Fast forward';
+    fastForward.setAttribute('aria-label', fastForwarding ? 'Return to normal speed' : 'Fast forward at 10 times speed');
+    fastForward.title = fastForward.getAttribute('aria-label')!;
+  });
   const sizeInput = get<HTMLInputElement>('city-size');
   const turnRadiusInput = get<HTMLSelectElement>('city-turn-radius');
   let minimumTurnRadius = 3;
@@ -774,7 +784,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     map.prepend(canvas); canvas.id = 'city-canvas';
     canvas.setAttribute('aria-label', 'Your robot travels from the Workshop to the flagged Duet studio.');
   }
-  const renderCity = () => { if (!active || !city || !engine || document.hidden) return; city.update(Math.min(.1, engine.getDeltaTime() / 1000)); refresh(); city.scene.render(); };
+  const renderCity = () => {
+    if (!active || !city || !engine || document.hidden) return;
+    const seconds = Math.min(.1, engine.getDeltaTime() / 1000);
+    // Keep physics and interaction checks at their normal timestep while
+    // advancing the entire city ten times further per rendered frame.
+    for (let step = 0; step < (fastForwarding ? 10 : 1); step++) city.update(seconds);
+    refresh(); city.scene.render();
+  };
   return {
     introduceRobot,
     get zebraPairs() { return zebraPairs; },

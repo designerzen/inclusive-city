@@ -87,6 +87,7 @@ const buttonSignatures = {
   'city-tool-shape': { root: 68, intervals: [0, 5, 14], pattern: 'up', stepBeats: .08 },
   'city-tool-pan': { root: 58, intervals: [0, 5, 14], pattern: 'down', stepBeats: .08 },
   'city-pause': { root: 64, intervals: [0, 3], pattern: 'up', durationBeats: 0.18, release: 0.06 },
+  'city-fast-forward': { root: 72, intervals: [0, 4, 7, 12], pattern: 'up', stepBeats: .04, durationBeats: .12, release: .04 },
   'city-restart': { root: 55, intervals: [0, 5, 9, 17], pattern: 'up', stepBeats: 0.1 },
   'fix-barrier': { root: 60, intervals: [0, 7, 14], pattern: 'up', waveform: 'sine', stepBeats: 0.08, pitchBend: 0.1 },
   'sound-mute': { root: 72, intervals: [0, 12], pattern: 'down', waveform: 'sine', stepBeats: 0.1, echoGain: 0 },
