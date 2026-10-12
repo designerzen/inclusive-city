@@ -153,7 +153,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     button.setAttribute('aria-label', label!);
   }
   get('city-new').title = 'Random city: create a different layout and return to the start';
-  map.append(cityActions, get('city-reset-description'), get('city-remix-description'));
+  container.querySelector('.city-toolbar')!.append(cityActions, get('city-reset-description'), get('city-remix-description'));
   for (const button of container.querySelectorAll<HTMLButtonElement>('.city-toolbar button, .city-view-tools button')) {
     if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', button.textContent!); button.title = button.getAttribute('aria-label')!;
   }
@@ -169,6 +169,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   } catch { /* Settings remain usable when browser storage is unavailable. */ }
   let sizeId: string | null = null;
   let city: ReturnType<typeof createCityScene> | null = null;
+  let originalWorld: ProceduralCity | null = null;
   let renderLoopStarted = false;
   let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
   let mode: 'route' | 'edit' = 'edit', selected: string | null = null, lastBlock: string | null = null;
@@ -497,13 +498,21 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     let seed = reset && previousSeed !== undefined ? previousSeed : crypto.getRandomValues(new Uint32Array(1))[0]!;
     if (!reset && seed === previousSeed) seed = (seed + 1) >>> 0;
     city?.resizer.finish(false);
-    pointers.clear(); drawing = false; sounds.stop(); city?.journey.leave(); city?.scene.dispose();
-    const world = savedWorld ?? generateCity(seed, robots.length ? robots : [bot]);
+    drawing = false;
+    for (const pointerId of pointers.keys()) {
+      if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+    }
+    pointers.clear(); pinch = 0; savedRoute = []; canvas.style.cursor = '';
+    sounds.stop(); city?.journey.leave(); city?.scene.dispose();
+    const world = savedWorld ?? (reset && originalWorld ? structuredClone(originalWorld) : generateCity(seed, robots.length ? robots : [bot]));
+    // Keep an untouched layout: edits and scene preparation mutate the live world.
+    if (!reset || !originalWorld) originalWorld = structuredClone(world);
     world.minimumTurnRadius = minimumTurnRadius;
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
     city.journey.setMinimumTurnRadius(minimumTurnRadius); city.sync();
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
-    selected = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
+    selected = null; sizeId = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
+    get('city-hover').hidden = true;
     streetSelect.replaceChildren();
     const initial = document.createElement('option'); initial.value = ''; initial.textContent = 'Choose a street…'; streetSelect.append(initial);
     const entrance = document.createElement('option'); entrance.value = 'studio-entrance'; entrance.textContent = 'Duet studio · Entrance door'; streetSelect.append(entrance);

@@ -3,8 +3,9 @@
 #city-screen .city-toolbar { position: static; display: flex; flex-wrap: wrap; justify-self: start; max-width: calc(100% - 60px); gap: 6px; padding: 0; border: 0; background: transparent; }
 #city-screen .city-tools { display: flex; flex-wrap: wrap; gap: 6px; width: auto; }
 #city-screen .city-tools button { flex: 0 1 auto; }
-#city-screen .city-new-actions { position: absolute; top: 12px; right: 12px; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0; max-width: calc(100% - 24px); }
-#city-screen .city-new-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; width: auto; min-height: 44px; }
+#city-screen .city-toolbar { justify-self: stretch; }
+#city-screen .city-new-actions { position: static; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0 0 0 auto; max-width: 100%; }
+#city-screen .city-toolbar .city-new-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; width: auto; height: auto; min-height: 44px; padding: 8px 10px; font-size: .8125rem; }
 #city-screen .city-new-actions button::before { display: none; }
 #city-screen button { padding: 8px 10px; border-radius: 8px; font-size: .8125rem; }
 #city-screen .city-map { position: relative; inset: auto; grid-column: 1; grid-row: 2; width: 100%; min-height: 0; }
@@ -53,8 +54,7 @@
   #city-screen .city-tools button { flex: 0 0 44px; }
   .city-status-hud { top: 72px; bottom: auto; width: max-content; max-width: calc(100% - 24px); padding: 8px; }
   #city-screen .city-view-tools { top: 8px; left: 8px; }
-  #city-screen .city-new-actions { top: 8px; right: 8px; max-width: calc(100% - 16px); }
-  #city-screen .city-view-tools { top: 64px; }
+  #city-screen .city-new-actions { margin-left: auto; }
   .city-interaction-hud { right: 16px; bottom: 16px; width: min(340px, calc(100% - 32px)); }
   #city-screen .city-plan { max-height: 48dvh; }
   #city-screen:has(.city-controls-hud[open]) .city-status-hud { display: none; }
