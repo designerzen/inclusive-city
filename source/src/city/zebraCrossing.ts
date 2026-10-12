@@ -5,9 +5,11 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { ProceduralCity } from './proceduralCity';
 import type { cityRoadNetwork } from './cityRoadNetwork';
+import { normalizeZebraPairs } from '../app/zebraPreferences';
 
 /** Ordinary straight road sections only: never overlay a signalised crossing. */
-export function zebraRoadSites(world: ProceduralCity, network: ReturnType<typeof cityRoadNetwork>) {
+export function zebraRoadSites(world: ProceduralCity, network: ReturnType<typeof cityRoadNetwork>, pairs = 4) {
+  // Reserve one beacon pair for the foreground crossing.
   return world.streets.flatMap(street => {
     if (street.id === world.steamTrain?.street || (street.kind !== 'clear' && street.kind !== 'width')) return [];
     const span = network.spans.get(street.id);
@@ -16,8 +18,7 @@ export function zebraRoadSites(world: ProceduralCity, network: ReturnType<typeof
     if ((span.b.x - span.a.x) * (b.x - a.x) + (span.b.z - span.a.z) * (b.z - a.z) <= 0) return [];
     return [{ street, x: (span.a.x + span.b.x) / 2, z: (span.a.z + span.b.z) / 2,
       horizontal: Math.abs(span.b.x - span.a.x) > Math.abs(span.b.z - span.a.z) }];
-  // Reserve one of the four beacon pairs for the foreground crossing.
-  }).slice(0, 3);
+  }).slice(0, Math.max(0, normalizeZebraPairs(pairs) - 1));
 }
 
 /** The angled city camera looks from negative Z. Keep this clear of buildings. */

@@ -7,6 +7,7 @@ import { mountCityDisplayControls } from './cityDisplayControls';
 import { mountRouteProjection } from './routeProjection';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
+import { normalizeZebraPairs, readZebraPairs } from '../app/zebraPreferences';
 import type { ProceduralCity } from '../city/proceduralCity';
 import type { CityView } from '../city/cityCamera';
 import { sides } from '../city/cityDimensions';
@@ -70,6 +71,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <div class="city-view-tools" role="group" aria-label="City view">
         <button type="button" data-view="overhead" aria-pressed="true">Map view</button>
         <button type="button" data-view="angled" aria-pressed="false">3D view</button>
+        <button id="city-rotate-left" type="button" data-rotate-city="-1" aria-label="Rotate city anticlockwise" hidden><span aria-hidden="true">↶</span></button>
+        <button id="city-rotate-right" type="button" data-rotate-city="1" aria-label="Rotate city clockwise" hidden><span aria-hidden="true">↷</span></button>
         <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
         <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
         <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
@@ -163,6 +166,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const sizeInput = get<HTMLInputElement>('city-size');
   const turnRadiusInput = get<HTMLSelectElement>('city-turn-radius');
   let minimumTurnRadius = 3;
+  let zebraPairs = readZebraPairs();
   try {
     const savedRadius = Number(localStorage.getItem('inclusive-city-turn-radius'));
     if ([1, 2, 3, 4, 6, 8, 12].includes(savedRadius)) minimumTurnRadius = savedRadius;
@@ -346,6 +350,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       button.setAttribute('aria-pressed', String(button.dataset.view === city.view));
     }
     const canPan = city.view === 'overhead' || city.view === 'angled';
+    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-rotate-city]')) {
+      button.hidden = city.view !== 'angled';
+      button.disabled = j.complete;
+    }
     for (const button of plan.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
     pause.disabled = j.ready ? !j.canStart : j.complete;
     setText('city-pause', j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Start robot' : 'Stop robot');
@@ -507,7 +515,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     // Keep an untouched layout: edits and scene preparation mutate the live world.
     if (!reset || !originalWorld) originalWorld = structuredClone(world);
     world.minimumTurnRadius = minimumTurnRadius;
-    engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme);
+    engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme); city.setZebraPairs(zebraPairs);
     city.journey.setMinimumTurnRadius(minimumTurnRadius); city.sync();
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
     selected = null; sizeId = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
@@ -611,6 +619,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     refresh();
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
+  for (const button of container.querySelectorAll<HTMLButtonElement>('[data-rotate-city]')) button.addEventListener('click', () => {
+    if (!city || button.disabled) return;
+    city.resizer.finish(false);
+    city.rotateCity(Number(button.dataset.rotateCity) as -1 | 1);
+    refresh();
+  });
   function setMinimumTurnRadius(radius: number) {
     if (![1, 2, 3, 4, 6, 8, 12].includes(radius) || (city && !city.journey.ready)) { refresh(); return; }
     const route = city?.journey.route;
@@ -723,6 +737,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const renderCity = () => { if (!active || !city || !engine || document.hidden) return; city.update(Math.min(.1, engine.getDeltaTime() / 1000)); refresh(); city.scene.render(); };
   return {
     introduceRobot,
+    get zebraPairs() { return zebraPairs; },
+    setZebraPairs(value: number) {
+      zebraPairs = normalizeZebraPairs(value);
+      try { localStorage.setItem('inclusive-city-zebra-pairs', String(zebraPairs)); } catch { /* Retain the session preference. */ }
+      city?.setZebraPairs(zebraPairs);
+    },
     get turnRadiusSettings() { return { radius: city?.journey.minimumTurnRadius ?? minimumTurnRadius, locked: !!city && !city.journey.ready }; },
     setMinimumTurnRadius,
     exhibitionPerformer(value: FinishedJourney) { return city?.exhibitionPerformer(canvas, value) ?? null; },

@@ -66,6 +66,11 @@ test('zebra crossings occupy straight ordinary roads and never another crossing 
     const world = generateCity(seed, [bot]), network = cityRoadNetwork(world, 3);
     const sites = zebraRoadSites(world, network);
     assert.ok(sites.length + 1 <= 4, 'road pairs plus the foreground pair stay within the city limit');
+    const expandedSites = zebraRoadSites(world, network, 12);
+    assert.ok(expandedSites.length <= 11, 'reserve the foreground pair within the twelve-pair limit');
+    assert.deepEqual(sites, expandedSites.slice(0, 3));
+    assert.deepEqual(zebraRoadSites(world, network, 0), []);
+    assert.deepEqual(zebraRoadSites(world, network, 1), []);
     for (const site of sites) {
       assert.ok(site.street.kind === 'clear' || site.street.kind === 'width');
       assert.notEqual(site.street.id, world.steamTrain?.street);

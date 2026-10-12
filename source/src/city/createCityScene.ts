@@ -37,6 +37,7 @@ import { studioApproach } from './studioApproach';
 import { createRiver } from './createRiver';
 import { createCityEditTransitions } from './cityEditTransitions';
 import { createZebraCrossing, foregroundCrossingPosition, zebraRoadSites } from './zebraCrossing';
+import { normalizeZebraPairs } from '../app/zebraPreferences';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -111,11 +112,27 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     return { street, surface, road, parts, bridge, humpback, dx, dz, originalWidth: width };
   });
   const foreground = foregroundCrossingPosition(world);
-  box('foreground-crossing-road', foreground.x, .025, foreground.z, 9, .1, 3, pavement);
+  const foregroundRoad = box('foreground-crossing-road', foreground.x, .025, foreground.z, 9, .1, 3, pavement);
   const frontZebra = createZebraCrossing(scene, 'foreground', flagWhite, flagBlack);
   frontZebra.place(foreground.x, foreground.z, 3);
-  const cityZebras = zebraRoadSites(world, initialNetwork).map(site => ({ ...site,
+  const cityZebras = zebraRoadSites(world, initialNetwork, 12).map(site => ({ ...site,
     zebra: createZebraCrossing(scene, site.street.id, flagWhite, flagBlack) }));
+  // Unusual layouts may have too few suitable roads: complete the chosen count
+  // with spaced crossings on the clear foreground road.
+  const extraZebras = Array.from({ length: 11 - cityZebras.length }, (_, i) => {
+    const zebra = createZebraCrossing(scene, `foreground-extra-${i}`, flagWhite, flagBlack);
+    zebra.place(foreground.x + (i + 1) * 5, foreground.z, 3);
+    return zebra;
+  });
+  function setZebraPairs(value: number) {
+    const count = normalizeZebraPairs(value);
+    [frontZebra, ...cityZebras.map(site => site.zebra), ...extraZebras].forEach((zebra, i) => zebra.root.setEnabled(i < count));
+    const extras = Math.max(0, count - 1 - cityZebras.length);
+    foregroundRoad.setEnabled(count > 0);
+    foregroundRoad.scaling.x = (9 + extras * 5) / 9;
+    foregroundRoad.position.x = foreground.x + extras * 2.5;
+  }
+  setZebraPairs(4);
   let tempoClock: (() => number) | null = null;
   let tempoBpm = 120;
   const crossings = streetModels.filter(m => m.street.kind === 'crossing').map(({ street, dx }) => {
@@ -354,6 +371,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function update(seconds: number) {
     const musicTime = tempoClock?.() ?? -1;
     frontZebra.update(musicTime, tempoBpm);
+    extraZebras.forEach(zebra => zebra.update(musicTime, tempoBpm));
     for (const { zebra, street, x, z, horizontal } of cityZebras) {
       zebra.place(x, z, street.width, horizontal);
       zebra.update(musicTime, tempoBpm);
@@ -481,7 +499,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     physicsStatus = 'unavailable';
     console.warn('City physics could not be loaded; using route movement.', error);
   });
-  return { scene, journey, update, sync, setTheme,
+  return { scene, journey, update, sync, setTheme, setZebraPairs,
     get robotConditions() { return [{ name: journey.bot.name, state: journey.machine.state, condition: journey.machine.record.condition }, ...(autonomousBots?.bots.map((bot, i) => ({ name: `City robot ${i + 1}`, state: bot.stuck > 0 ? 'blocked' : bot.condition.speed > .01 ? 'following' : 'waiting', condition: bot.condition })) ?? [])]; }, nodeAt, streetAt, projectNode, projectRobotBounds, highlight,
     get musicPosition() { const p = physics?.position ?? journey.position; return { x: p.x, y: p.y, z: p.z }; },
     physicsReady, get physicsStatus() { return physicsStatus; },
@@ -497,6 +515,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     danceToMusic(value: FinishedJourney, clock: () => number) { dance = new JourneyDance(value.score, value.bpm, value.artist.musician === 'waltz' ? 3 : 4); instruments.setScore(value.score); musicClock = clock; },
     stopDancing() { musicClock = null; instruments.update(0, false, true); },
     get arrivalComplete() { return camera.arrivalComplete; },
-    setView: camera.setView,
+    setView: camera.setView, rotateCity: camera.rotateCity,
     get view() { return camera.view; } };
 }

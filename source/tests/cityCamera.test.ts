@@ -6,6 +6,32 @@ import { Camera } from '@babylonjs/core/Cameras/camera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createCityCamera, type CityView } from '../src/city/cityCamera';
 
+test('city rotation visits four edges, reverses and preserves focus and zoom', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }));
+  try {
+    controls.setView('angled'); controls.update(2);
+    controls.pan(3, 4); controls.setZoom(.8);
+    const start = controls.camera.position.clone();
+    const zoom = controls.camera.orthoTop;
+    for (const offset of [new Vector3(55, 55, 0), new Vector3(0, 55, 55), new Vector3(-55, 55, 0), new Vector3(0, 55, -55)]) {
+      const before = controls.camera.position.clone();
+      controls.rotateCity(1);
+      assert.ok(controls.camera.position.equalsWithEpsilon(before));
+      controls.update(2);
+      assert.ok(controls.camera.position.equalsWithEpsilon(offset.add(new Vector3(3, 0, 4))));
+    }
+    assert.ok(controls.camera.position.equalsWithEpsilon(start));
+    assert.equal(controls.camera.orthoTop, zoom);
+    controls.rotateCity(-1); controls.update(0, true);
+    assert.ok(controls.camera.position.equalsWithEpsilon(new Vector3(-52, 55, 4)));
+    controls.setView('overhead'); controls.update(2);
+    const overhead = controls.camera.position.clone();
+    controls.rotateCity(1); controls.update(2);
+    assert.ok(controls.camera.position.equalsWithEpsilon(overhead));
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('studio arrival orbits, descends to the face and respects reduced motion', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   const pose = { position: new Vector3(22, .035, 8), heading: -Math.PI / 2, eyeHeight: 1.8 };

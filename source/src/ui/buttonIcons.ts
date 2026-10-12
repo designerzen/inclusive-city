@@ -46,7 +46,7 @@ export function mountButtonIcons(root: HTMLElement) {
   const update = (buttons: Iterable<HTMLButtonElement>) => {
     for (const button of buttons) {
       // Illustrated environment choices already have a full explanatory drawing.
-      if (button.classList.contains('environment-choice') || button.id === 'city-controls-window') continue;
+      if (button.classList.contains('environment-choice') || button.id === 'city-controls-window' || button.hasAttribute('data-rotate-city')) continue;
       const icon = buttonIcon(button.getAttribute('aria-label') ?? button.textContent ?? '', button.id);
       if (button.dataset.buttonIcon === icon) continue;
       button.dataset.buttonIcon = icon;

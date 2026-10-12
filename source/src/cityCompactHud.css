@@ -16,6 +16,8 @@
 #city-screen .city-view-tools { position: absolute; top: 12px; left: 12px; bottom: auto; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 24px); margin: 0; padding: 4px; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525ee; z-index: 4; }
 #city-screen .city-view-tools button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; font-size: 0; }
 #city-screen .city-view-tools button::before { margin: 0; }
+#city-screen .city-view-tools button[data-rotate-city] { font-size: 24px; }
+#city-screen .city-view-tools button[hidden] { display: none; }
 .city-interaction-hud { position: absolute; right: 24px; bottom: 24px; z-index: 5; width: min(340px, calc(100% - 48px)); max-height: calc(100dvh - 180px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525f5; box-shadow: 0 4px 20px #0003; }
 .city-interaction-hud:has(#city-issue[hidden]):has(.city-controls-hud:not([open])) { width: max-content; }
 .city-controls-hud { position: static; width: auto; }

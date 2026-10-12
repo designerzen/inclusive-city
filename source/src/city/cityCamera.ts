@@ -13,6 +13,7 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
   scene.activeCamera = camera;
   let view: CityView = 'overhead';
   let zoom = 1;
+  let cityAngle = 0;
   let arrival: { elapsed: number; position: Vector3; target: Vector3; projection: Matrix } | null = null;
   let transition: { elapsed: number; position: Vector3; rotation: Quaternion; projection: Matrix; focalDistance: number } | null = null;
   let focalDistance = 55;
@@ -68,7 +69,8 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
       return;
     }
     const extent = bounds();
-    const halfHeight = Math.max(24, extent.depth / 2, Math.max(29, extent.width / 2) / aspect) * zoom;
+    const sideways = view === 'angled' && Math.abs(Math.sin(cityAngle)) > .5;
+    const halfHeight = Math.max(24, (sideways ? extent.width : extent.depth) / 2, Math.max(29, (sideways ? extent.depth : extent.width) / 2) / aspect) * zoom;
     camera.orthoTop = halfHeight;
     camera.orthoBottom = -halfHeight;
     camera.orthoLeft = -halfHeight * aspect;
@@ -76,7 +78,7 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
     camera.mode = canPan() ? Camera.ORTHOGRAPHIC_CAMERA : Camera.PERSPECTIVE_CAMERA;
     camera.fov = view === 'robot-eye' ? Math.max(0.35, Math.min(1.3, 0.9 * zoom)) : 0.8;
     if (canPan()) {
-      camera.position.set(target.x, 55, target.z - (view === 'angled' ? 55 : 0.01));
+      camera.position.set(target.x + (view === 'angled' ? Math.sin(cityAngle) * 55 : 0), 55, target.z - (view === 'angled' ? Math.cos(cityAngle) * 55 : 0.01));
       lookAt(target);
     } else {
       const pose = robotPose();
@@ -108,6 +110,12 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
     arrival = null; performanceTime = 0; view = value; zoom = 1; update();
   }
   function setZoom(factor: number) { if (arrival) return; zoom = Math.max(0.3, Math.min(1.5, zoom * factor)); update(); }
+  function rotateCity(direction: -1 | 1) {
+    if (arrival || view !== 'angled') return;
+    transition = { elapsed: 0, position: camera.position.clone(), rotation: Quaternion.FromEulerVector(camera.rotation), projection: projection(), focalDistance };
+    cityAngle = (cityAngle + direction * Math.PI / 2) % (Math.PI * 2);
+    update();
+  }
   function pan(x: number, z: number) {
     if (arrival || !canPan()) return;
     target.x = Math.max(-25, Math.min(25, target.x + x));
@@ -117,7 +125,7 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
   function fit() { target.setAll(0); setView('overhead'); }
   function focus(x: number, z: number, scale = 0.3) { target.set(x, 0, z); zoom = scale; update(); }
   update();
-  return { camera, update, setView, setZoom, pan, fit, focus, canPan,
+  return { camera, update, setView, setZoom, rotateCity, pan, fit, focus, canPan,
     beginArrival() {
       const startProjection = projection();
       transition = null;

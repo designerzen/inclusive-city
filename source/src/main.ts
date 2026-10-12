@@ -65,6 +65,15 @@ app.innerHTML = `
         </select>
         <p id="app-turn-radius-help" class="accessibility-hint">Larger radii make wider road curves. The roads, white line and robot use the same setting. Set before starting the robot.</p>
       </section>
+      <section aria-labelledby="options-zebra-title"><h3 id="options-zebra-title">Zebra crossings</h3>
+        <label for="app-zebra-pairs">Number of beacon pairs</label>
+        <select id="app-zebra-pairs" aria-describedby="app-zebra-help">
+          <option value="0">0 pairs</option><option value="1">1 pair</option><option value="2">2 pairs</option><option value="3">3 pairs</option><option value="4">4 pairs</option>
+          <option value="5">5 pairs</option><option value="6">6 pairs</option><option value="7">7 pairs</option><option value="8">8 pairs</option>
+          <option value="9">9 pairs</option><option value="10">10 pairs</option><option value="11">11 pairs</option><option value="12">12 pairs</option>
+        </select>
+        <p id="app-zebra-help" class="accessibility-hint">Includes the foreground crossing. Changes apply immediately and are saved for future cities.</p>
+      </section>
       <section id="accessibility-controls" aria-labelledby="options-accessibility-title"></section>
       <section class="options-audio" aria-labelledby="options-audio-title"><h3 id="options-audio-title">Sound</h3>
       <button id="sound-mute" type="button" aria-pressed="false">Mute sound</button>
@@ -280,6 +289,12 @@ function startCity() {
 import.meta.hot?.dispose(() => cityScreen.dispose());
 cityScreen.setTheme(theme);
 const appTurnRadius = document.querySelector<HTMLSelectElement>('#app-turn-radius')!;
+const appZebraPairs = document.querySelector<HTMLSelectElement>('#app-zebra-pairs')!;
+appZebraPairs.value = String(cityScreen.zebraPairs);
+appZebraPairs.addEventListener('change', () => {
+  cityScreen.setZebraPairs(Number(appZebraPairs.value));
+  appZebraPairs.value = String(cityScreen.zebraPairs);
+});
 function refreshTurnRadiusSettings() {
   const setting = cityScreen.turnRadiusSettings;
   appTurnRadius.value = String(setting.radius);
