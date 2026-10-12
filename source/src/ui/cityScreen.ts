@@ -144,6 +144,16 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const interactionHud = controlsHud.parentElement!;
   const map = container.querySelector<HTMLElement>('.city-map')!;
   map.append(container.querySelector('.city-view-tools')!);
+  const cityActions = container.querySelector<HTMLElement>('.city-new-actions')!;
+  cityActions.setAttribute('role', 'group');
+  cityActions.setAttribute('aria-label', 'Restart or change city');
+  for (const [id, label] of [['city-restart', 'Reset city'], ['city-new', 'Random city']]) {
+    const button = get<HTMLButtonElement>(id!);
+    button.append(document.createTextNode(label!));
+    button.setAttribute('aria-label', label!);
+  }
+  get('city-new').title = 'Random city: create a different layout and return to the start';
+  map.append(cityActions, get('city-reset-description'), get('city-remix-description'));
   for (const button of container.querySelectorAll<HTMLButtonElement>('.city-toolbar button, .city-view-tools button')) {
     if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', button.textContent!); button.title = button.getAttribute('aria-label')!;
   }
@@ -585,7 +595,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   get('city-crossing-cues').addEventListener('click', () => { if (selected && city?.journey.repair(`signals:${selected}`)) { city.sync(); feedback('Beeper and tactile cues added. They signal when the pedestrian light is green.'); refresh(); } });
   get('city-undo').addEventListener('click', () => { if (city?.journey.undoRepair()) { city.sync(); feedback('City change undone.'); refresh(); } });
   get('city-restart').addEventListener('click', () => { newCity(true); feedback('City reset. Original layout restored.'); });
-  get('city-new').addEventListener('click', () => { newCity(); feedback('City remixed. A different layout is ready.'); });
+  get('city-new').addEventListener('click', () => { newCity(); feedback('Random city generated. A different layout is ready.'); });
   container.querySelector('.city-view-tools')!.addEventListener('click', event => {
     const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('button[data-view]') : null;
     if (!button || button.disabled || !city) return;
@@ -711,7 +721,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setTheme(value: Theme) { theme = value; city?.setTheme(value); },
     showInstructions() { /* Instructions stay beside the map; no blocking tutorial. */ },
     suspend(keepMusic = false) { void projection.close(); controlsWindow.restore(); window.clearTimeout(speechTimer); robotSpeech = null; city?.setSinging(false); voicePanel.stop(); active = false; if (!keepMusic) sounds.stop(); speech?.stop(); city?.resizer.finish(false); if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); } pointers.clear(); drawing = false; },
-    resume() { showCanvas(); active = true; engine?.resize(); city?.resize(); refresh(); },
+    resume() {
+      showCanvas(); active = true; engine?.resize();
+      // A finished journey cannot accept input. Returning from its performance
+      // starts a fresh run, including new art and music, in the same city layout.
+      if (city?.journey.complete) newCity(true);
+      else { city?.resize(); refresh(); }
+    },
     enter(value: ArtBot, remembered: readonly ArtBot[] = [value]) {
       showCanvas(); bot = value; robots = remembered; active = true; sounds.unlock();
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }

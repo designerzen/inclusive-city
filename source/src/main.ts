@@ -319,7 +319,7 @@ function returnToAttract(from: HTMLElement) {
     attract.enter();
   }, document.querySelector<HTMLButtonElement>('#attract-enter')!);
 }
-document.querySelector('#exhibition-attract')!.addEventListener('click', () => returnToAttract(exhibitionContainer));
+document.querySelector('#exhibition-attract')!.addEventListener('click', backToCity);
 const onBackspace = (event: KeyboardEvent) => {
   if (event.key !== 'Backspace' || event.defaultPrevented || event.isComposing || event.repeat
     || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
