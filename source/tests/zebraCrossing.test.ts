@@ -46,6 +46,7 @@ test('zebra stripes and paired Belisha globes follow road width and share the sa
     }
     const globes = scene.meshes.filter(m => m.name.startsWith('belisha-globe'));
     assert.equal(globes.length, 2);
+    assert.equal(scene.meshes.filter(m => m.name.startsWith('belisha-cap')).length, 0);
     assert.equal(globes[0]!.material, globes[1]!.material);
     assert.deepEqual(globes.map(m => m.parent!.position.z), [-2.45, 2.45]);
     zebra.update(0, 120);
@@ -63,7 +64,9 @@ test('zebra crossings occupy straight ordinary roads and never another crossing 
   const bot = new BotHistory(['Curie', 'Einstein']).current;
   for (let seed = 0; seed < 100; seed++) {
     const world = generateCity(seed, [bot]), network = cityRoadNetwork(world, 3);
-    for (const site of zebraRoadSites(world, network)) {
+    const sites = zebraRoadSites(world, network);
+    assert.ok(sites.length + 1 <= 4, 'road pairs plus the foreground pair stay within the city limit');
+    for (const site of sites) {
       assert.ok(site.street.kind === 'clear' || site.street.kind === 'width');
       assert.notEqual(site.street.id, world.steamTrain?.street);
       const span = network.spans.get(site.street.id)!;

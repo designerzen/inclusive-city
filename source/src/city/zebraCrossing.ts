@@ -16,7 +16,8 @@ export function zebraRoadSites(world: ProceduralCity, network: ReturnType<typeof
     if ((span.b.x - span.a.x) * (b.x - a.x) + (span.b.z - span.a.z) * (b.z - a.z) <= 0) return [];
     return [{ street, x: (span.a.x + span.b.x) / 2, z: (span.a.z + span.b.z) / 2,
       horizontal: Math.abs(span.b.x - span.a.x) > Math.abs(span.b.z - span.a.z) }];
-  });
+  // Reserve one of the four beacon pairs for the foreground crossing.
+  }).slice(0, 3);
 }
 
 /** The angled city camera looks from negative Z. Keep this clear of buildings. */
@@ -54,7 +55,6 @@ export function createZebraCrossing(scene: Scene, id: string, white: StandardMat
     }
     const globe = MeshBuilder.CreateSphere(`belisha-globe-${id}-${side}`, { diameter: .62, segments: 16 }, scene);
     globe.parent = pole; globe.position.y = 2.75; globe.material = amber; globe.isPickable = false;
-    const cap = box(`belisha-cap-${side}`, 0, 3.04, 0, .32, .06, .32, black); cap.parent = pole;
     return { pole, side };
   });
   return {
