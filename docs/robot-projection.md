@@ -5,11 +5,22 @@ Opening this mode completes any unfinished plan to the studio, using the same
 planner as **Start robot**, without starting the simulation. The projection uses
 the simulation's actual curved trajectory, including the selected turn radius.
 
-Review **Barcode event legend**, then choose **Start projection**. Only the black
-line and its black transverse event bars remain on a white background. Fullscreen is
-requested when supported; the clean display also works without it. These colours
-are fixed independently of the app theme. Escape or a tap
-on the projection restores the controls; **Back to city** leaves projection mode.
+Projection opens immediately with a black line and black transverse event bars on
+white. The only control is the **×** close button at the top right. Click it or
+press Escape to return to the city. Colours are fixed independently of the app theme.
+
+Open **City controls → Line and barcode settings** to adjust line width, curve
+radius, barcode width across the line, gap between bars, short and long data-bar
+lengths, start/stop-bar length, gap between barcodes, and clearance from bends.
+Dimensions use city metres; the projector determines their physical table size.
+The shared curve radius is set before starting the virtual robot, so the projected
+route and simulation stay aligned. Settings are remembered in this browser.
+
+Turn off **Allow barcodes to shrink to fit straight sections** to use exactly the
+entered lengths and gaps. If those dimensions cannot fit, the city settings show
+an explanation and projection stays closed. With fitting enabled, the settings
+show the applied percentage. Line width and transverse barcode width retain their
+entered values. The barcode event legend is also in these settings.
 
 The route is fitted without stretching, and does not move with the virtual robot.
 Adjust the projector's size, focus and alignment on the table, and calibrate the
@@ -45,7 +56,7 @@ Codes identify event types consistently across city remixes. A junction with
 several events has consecutive separate barcodes. Each complete barcode is placed
 on a straight section near its junction, with six parallel bars perpendicular to
 the line and clearance from bends. Codes stay in travel order. When space is
-limited, a common smaller bar/line width preserves timing ratios across the route.
+limited, optional fitting reduces bar lengths and gaps together across the route.
 Routes without enough straight track show an explanation instead of placing
 barcodes on curves or overlapping them.
 

@@ -4,15 +4,15 @@
 }
 .route-projection::backdrop { background: #fff; }
 .route-projection > svg { display: block; width: 100%; height: 100%; background: #fff; }
-.route-projection .projection-controls {
-  position: absolute; inset: auto 16px 16px; margin: auto; max-width: 680px;
-  max-height: calc(100% - 32px); overflow: auto; padding: 20px;
-  background: #102232; color: #fff; border: 1px solid #8295a3; border-radius: 12px;
+.route-projection .projection-close {
+  position: absolute; top: 12px; right: 12px; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  background: #fff; color: #000; border: 1px solid #aaa; border-radius: 8px;
 }
-.projection-controls[hidden] { display: none; }
-.projection-controls h2 { margin-top: 0; }
-.projection-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-.projection-actions button { min-width: 44px; min-height: 44px; padding: 10px 16px; }
-.projection-controls summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
-.projection-controls a { color: #b9e9ff; }
+.projection-close:focus-visible { outline: 3px solid #000; outline-offset: 3px; }
+.projection-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+.projection-fields label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.projection-fields input { box-sizing: border-box; width: 100%; min-width: 44px; min-height: 44px; }
+.projection-fit { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-block: 12px; }
+.projection-fit input { flex: 0 0 24px; }
 .projection-legend { padding-left: 24px; }

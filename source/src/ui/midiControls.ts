@@ -1,7 +1,9 @@
 import type { CityMidiOutput } from '../audio/MidiOutput';
+import { mountMidiCcReference } from './midiCcReference';
+import './midiCcReference.css';
 
 export function mountMidiControls(container: HTMLElement, midi: CityMidiOutput) {
-  container.innerHTML = `<h3>MIDI output</h3><div class="midi-settings">
+  container.innerHTML = `<div class="midi-panel-heading"><h3>MIDI output</h3><button id="midi-cc-reference" type="button" aria-haspopup="dialog" aria-controls="midi-cc-dialog">CC reference</button></div><div class="midi-settings">
     <button id="midi-connect" type="button">Enable MIDI</button>
     <button id="midi-disconnect" type="button" disabled>Disconnect MIDI</button>
     <label for="midi-output">Output device</label><select id="midi-output"></select>
@@ -9,6 +11,7 @@ export function mountMidiControls(container: HTMLElement, midi: CityMidiOutput) 
     <p id="midi-status" role="status" aria-live="polite"></p>
     <p>Robot cues, soundtrack and journey music play through this output alongside browser audio.</p>
   </div>`;
+  mountMidiCcReference(container);
   const connect = container.querySelector<HTMLButtonElement>('#midi-connect')!;
   const disconnect = container.querySelector<HTMLButtonElement>('#midi-disconnect')!;
   const output = container.querySelector<HTMLSelectElement>('#midi-output')!;

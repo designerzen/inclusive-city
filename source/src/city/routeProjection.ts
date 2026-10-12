@@ -1,6 +1,7 @@
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { streetBetween, streetNames } from './proceduralCity';
 import type { RouteTrajectory } from './routeTrajectory';
+import { defaultProjectionSettings, validateProjectionSettings, type ProjectionSettings } from './projectionSettings';
 
 // Half, single and double tape widths, as in the RIX line-reader format.
 export const barcodeUnit = .08;
@@ -9,13 +10,13 @@ export const barcodeSpan = 1.44;
 export const projectionLineWidth = .16;
 export const projectionCodes = ['Start journey', 'Raised curb', 'Bridge / steps', 'Narrow passage', 'Pelican crossing', 'Route cues', 'Train boarding', 'Bicycle', 'Music discovery', 'Art discovery', 'Harmony discovery', 'Colour discovery', 'Studio arrival', 'Junction reached'] as const;
 
-export function barcodeWidths(code: number) {
+export function barcodeWidths(code: number, settings: ProjectionSettings = defaultProjectionSettings) {
   if (!Number.isInteger(code) || code < 0 || code > 15) throw new RangeError('Barcode must be a four-bit integer.');
-  return [barcodeUnit * 4, ...code.toString(2).padStart(4, '0').split('').map(bit => barcodeUnit * (bit === '1' ? 2 : 1)), barcodeUnit * 4];
+  return [settings.markerLength, ...code.toString(2).padStart(4, '0').split('').map(bit => bit === '1' ? settings.longLength : settings.shortLength), settings.markerLength];
 }
 
 /** Merge only collinear segments; short curve facets cannot fit a barcode. */
-export function straightSections(trajectory: Pick<RouteTrajectory, 'points' | 'distances'>) {
+export function straightSections(trajectory: Pick<RouteTrajectory, 'points' | 'distances'>, clearance = .4) {
   const sections: { start: number; end: number; heading: number; dx: number; dz: number }[] = [];
   for (let i = 1; i < trajectory.points.length; i++) {
     const a = trajectory.points[i - 1]!, b = trajectory.points[i]!;
@@ -29,11 +30,12 @@ export function straightSections(trajectory: Pick<RouteTrajectory, 'points' | 'd
     } else sections.push({ start: trajectory.distances[i - 1]!, end: trajectory.distances[i]!, heading: Math.atan2(-dx, -dz), dx, dz });
   }
   // Keep the entire barcode away from the transition into each bend.
-  return sections.map(section => ({ ...section, start: section.start + .4, end: section.end - .4 }))
+  return sections.map(section => ({ ...section, start: section.start + clearance, end: section.end - clearance }))
     .filter(section => section.end > section.start);
 }
 
-export function routeProjection(journey: PlannedJourney) {
+export function routeProjection(journey: PlannedJourney, preferences: ProjectionSettings = defaultProjectionSettings) {
+  const settings = validateProjectionSettings(preferences);
   const trajectory = journey.trajectory;
   const markers: { code: number; node: string; label: string; distance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
   const junctions = journey.route.map((id, index) => {
@@ -55,14 +57,14 @@ export function routeProjection(journey: PlannedJourney) {
     return { events, milestone };
   }).filter(junction => junction.events.length);
   const events = junctions.flatMap(junction => junction.events.map(event => ({ ...event, milestone: junction.milestone,
-    length: barcodeWidths(event.code).reduce((a, b) => a + b, 0) + barcodeGap * 5 })));
-  const sections = straightSections(trajectory);
+    length: barcodeWidths(event.code, settings).reduce((a, b) => a + b, 0) + settings.barGap * 5 })));
+  const sections = straightSections(trajectory, settings.bendClearance);
   const reversedSections = [...sections].reverse();
   let scale = 1;
   let placements: { distance: number; heading: number }[] | undefined;
-  for (let step = 10; step >= 1 && !placements; step--) {
+  for (let step = 10; step >= (settings.autoFit ? 1 : 10) && !placements; step--) {
     scale = step / 10;
-    const gap = barcodeGap * 2 * scale;
+    const gap = settings.codeGap * scale;
     // Reserve enough room for later events before choosing the nearest straight
     // section. This prevents an early event from consuming the final free space.
     const latest: number[] = [];
@@ -96,16 +98,16 @@ export function routeProjection(journey: PlannedJourney) {
   events.forEach((event, index) => {
     const placement = placements[index]!;
     let distance = placement.distance;
-    const bars = barcodeWidths(event.code).map(unscaledWidth => {
+    const bars = barcodeWidths(event.code, settings).map(unscaledWidth => {
       const width = unscaledWidth * scale;
       const sample = trajectory.sample(distance + width / 2);
-      distance += width + barcodeGap * scale;
+      distance += width + settings.barGap * scale;
       return { x: sample.position.x, z: sample.position.z, angle: -placement.heading * 180 / Math.PI, width };
     });
     markers.push({ code: event.code, node: event.node, label: event.label, distance: placement.distance, bars });
   });
   const points = trajectory.points;
-  const xs = points.map(p => p.x), zs = points.map(p => p.z), padding = barcodeSpan + .5;
+  const xs = points.map(p => p.x), zs = points.map(p => p.z), padding = Math.max(settings.barcodeWidth, settings.lineWidth) + .5;
   const x = Math.min(...xs) - padding, z = Math.min(...zs) - padding;
-  return { points, markers, scale, lineWidth: projectionLineWidth * scale, viewBox: `${x} ${z} ${Math.max(...xs) - x + padding} ${Math.max(...zs) - z + padding}` };
+  return { points, markers, scale, barcodeWidth: settings.barcodeWidth, lineWidth: settings.lineWidth, viewBox: `${x} ${z} ${Math.max(...xs) - x + padding} ${Math.max(...zs) - z + padding}` };
 }

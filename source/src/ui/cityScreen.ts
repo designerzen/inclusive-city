@@ -108,13 +108,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-garage-status" role="status" aria-live="polite"></p>
       </details>
       <div id="city-finished" hidden><p id="city-result"></p></div>
-      <details class="city-route-options"><summary>Line-following settings</summary>
+      <details class="city-route-options"><summary>Line and barcode settings</summary>
         <label for="city-turn-radius">Minimum turn radius</label>
         <select id="city-turn-radius" aria-describedby="city-turn-radius-help">
           <option value="1">1 metre</option><option value="2">2 metres</option><option value="3" selected>3 metres</option>
           <option value="4">4 metres</option><option value="6">6 metres</option><option value="8">8 metres</option><option value="12">12 metres</option>
         </select>
         <p id="city-turn-radius-help">Set before starting the robot. Larger radii make wider road curves. The roads, white line and robot use the same setting.</p>
+        <div id="city-projection-settings"></div>
       </details>
       <details class="city-music-options"><summary>Music monitor settings</summary><div id="city-music-monitor-controls" class="music-monitor-controls"></div></details>
       <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>

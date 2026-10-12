@@ -1,0 +1,32 @@
+.midi-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.midi-panel-heading h3 { margin: 0; }
+.midi-panel-heading button { flex-shrink: 0; padding: 8px 12px; }
+.midi-cc-dialog { width: min(820px, calc(100vw - 24px)); padding: 24px; }
+.midi-cc-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.midi-cc-heading h2 { margin: 4px 0 12px; font-size: 1.4rem; }
+.midi-cc-heading button { flex-shrink: 0; padding: 8px 12px; }
+.midi-cc-eyebrow { margin: 0; font-size: .65rem; letter-spacing: .12em; opacity: .75; }
+.midi-cc-dialog > p { font-size: .8125rem; line-height: 1.6; }
+.midi-cc-dialog code { font-size: .9em; overflow-wrap: anywhere; }
+.midi-cc-table-wrap { max-height: 48dvh; overflow: auto; border: 1px solid #ffffff30; border-radius: 8px; }
+.midi-cc-table-wrap:focus-visible { outline: 3px solid #ffe6a5; outline-offset: 3px; }
+.midi-cc-dialog table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: .8125rem; line-height: 1.5; }
+.midi-cc-dialog caption { text-align: left; padding: 12px; font-weight: 600; }
+.midi-cc-dialog :is(th, td) { padding: 10px 12px; text-align: left; vertical-align: top; border-top: 1px solid #ffffff20; }
+.midi-cc-dialog thead th { position: sticky; top: 0; background: #26353a; z-index: 1; }
+.midi-cc-dialog tbody tr:nth-child(even) { background: #ffffff05; }
+.midi-cc-dialog tbody th { font-variant-numeric: tabular-nums; }
+.midi-cc-dialog td:nth-child(2) code { white-space: nowrap; overflow-wrap: normal; }
+.midi-cc-mode { color: #ffe6a5; }
+.midi-cc-source a { color: inherit; text-underline-offset: 3px; }
+[data-theme='light'] .midi-cc-table-wrap { border-color: #a5bbb1; }
+[data-theme='light'] .midi-cc-dialog :is(th, td) { border-color: #c9d5ca; }
+[data-theme='light'] .midi-cc-dialog thead th { background: #e1ebe4; }
+[data-theme='light'] .midi-cc-dialog tbody tr:nth-child(even) { background: #203b3c05; }
+[data-theme='light'] .midi-cc-mode { color: #71511c; }
+@media (max-width: 480px) {
+  .midi-cc-dialog { padding: 16px; }
+  .midi-cc-heading h2 { font-size: 1.1rem; }
+  .midi-cc-dialog :is(th, td) { padding: 8px 6px; }
+  .midi-cc-dialog table { font-size: .75rem; }
+}

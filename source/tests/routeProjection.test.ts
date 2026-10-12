@@ -5,6 +5,7 @@ import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { generateCity, routeToGoal, type ProceduralCity } from '../src/city/proceduralCity';
 import { barcodeGap, barcodeUnit, barcodeWidths, routeProjection, straightSections } from '../src/city/routeProjection';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { defaultProjectionSettings, validateProjectionSettings } from '../src/city/projectionSettings';
 
 test('RIX codes read MSB first with double-tape guards and half/single-tape bits', () => {
   assert.deepEqual(barcodeWidths(1), [4, 1, 1, 1, 2, 4].map(n => n * barcodeUnit));
@@ -35,6 +36,24 @@ test('projection shares the exact trajectory and covers feature, discovery, trai
     }
   }
   assert.equal(journey.ready, true, 'projecting does not start the robot');
+  const settings = { ...defaultProjectionSettings, lineWidth: .4, barcodeWidth: 2, barGap: .23,
+    shortLength: .12, longLength: .24, markerLength: .48, codeGap: .6, bendClearance: .7, autoFit: false };
+  const configured = routeProjection(journey, settings);
+  assert.equal(configured.scale, 1, 'fixed dimensions are never silently shrunk');
+  assert.equal(configured.lineWidth, .4);
+  assert.equal(configured.barcodeWidth, 2);
+  for (const marker of configured.markers) {
+    assert.deepEqual(marker.bars.map(bar => bar.width), barcodeWidths(marker.code, settings));
+    const length = barcodeWidths(marker.code, settings).reduce((a, b) => a + b, 0) + settings.barGap * 5;
+    assert.ok(straightSections(journey.trajectory, .7).some(section => marker.distance >= section.start - 1e-8
+      && marker.distance + length <= section.end + 1e-8));
+    for (let i = 1; i < marker.bars.length; i++) {
+      const a = marker.bars[i - 1]!, b = marker.bars[i]!;
+      const centreDistance = Math.hypot(a.x - b.x, a.z - b.z);
+      assert.ok(Math.abs(centreDistance - (a.width / 2 + settings.barGap + b.width / 2)) < 1e-8);
+    }
+  }
+  assert.throws(() => routeProjection(journey, { ...settings, shortLength: 2, longLength: 4, markerLength: 8 }), /straight track/);
 });
 
 test('reachable generated routes cover every junction with non-overlapping event barcodes', () => {
@@ -49,8 +68,8 @@ test('reachable generated routes cover every junction with non-overlapping event
     const markedNodes = new Set(projection.markers.map(marker => marker.node));
     for (const id of route) assert.ok(markedNodes.has(world.nodes.find(node => node.id === id)!.label), `seed ${seed}: ${id}`);
     for (const marker of projection.markers) {
-      assert.equal(marker.bars[0]!.width, projection.lineWidth * 2);
-      assert.equal(marker.bars[5]!.width, projection.lineWidth * 2);
+      assert.equal(marker.bars[0]!.width, defaultProjectionSettings.markerLength * projection.scale);
+      assert.equal(marker.bars[5]!.width, defaultProjectionSettings.markerLength * projection.scale);
       const length = (barcodeWidths(marker.code).reduce((a, b) => a + b, 0) + barcodeGap * 5) * projection.scale;
       assert.ok(straightSections(journey.trajectory).some(section => marker.distance >= section.start - 1e-8
         && marker.distance + length <= section.end + 1e-8), 'entire barcode fits on one straight section');
@@ -62,6 +81,14 @@ test('reachable generated routes cover every junction with non-overlapping event
       assert.ok(previous.distance + length < projection.markers[i]!.distance, 'event codes do not overlap');
     }
   }
+});
+
+test('projection dimensions reject invalid or indistinguishable barcode settings', () => {
+  for (const change of [{ lineWidth: NaN }, { barGap: 0 }, { shortLength: .2 }, { markerLength: .1 }, { barcodeWidth: .1 }])
+    assert.throws(() => validateProjectionSettings({ ...defaultProjectionSettings, ...change }));
+  const saved = validateProjectionSettings(defaultProjectionSettings);
+  saved.lineWidth = .5;
+  assert.equal(defaultProjectionSettings.lineWidth, .16, 'settings do not mutate defaults');
 });
 
 test('straight sections merge collinear samples but exclude curves and direction reversals', () => {
