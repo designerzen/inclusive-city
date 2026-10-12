@@ -338,12 +338,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const canPan = city.view === 'overhead' || city.view === 'angled';
     for (const button of plan.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
     pause.disabled = j.ready ? !j.canStart : j.complete;
-    pause.textContent = j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Start robot' : 'Stop robot';
+    setText('city-pause', j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Start robot' : 'Stop robot');
     if (pause.getAttribute('aria-label') !== pause.textContent) { pause.setAttribute('aria-label', pause.textContent!); pause.title = pause.textContent!; }
     get('city-route-controls').hidden = mode !== 'route' || !j.ready;
     get('city-change-controls').hidden = mode !== 'edit' || j.complete;
-    get('city-tool-route').textContent = mode === 'route' && controlsHud.open ? 'Done with route' : 'Create route';
-    get('city-tool-route').setAttribute('aria-label', get('city-tool-route').textContent!);
+    setText('city-tool-route', mode === 'route' && controlsHud.open ? 'Done with route' : 'Create route');
+    const routeButton = get('city-tool-route');
+    if (routeButton.getAttribute('aria-label') !== routeButton.textContent) routeButton.setAttribute('aria-label', routeButton.textContent!);
     interactionHud.hidden = !j.blocked && (controlsWindow.detached || !controlsHud.open);
     get('city-finished').hidden = !j.complete;
     get('city-exhibition').hidden = !j.complete;

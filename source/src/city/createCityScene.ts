@@ -30,9 +30,8 @@ import { createStudioInstruments } from '../app/createStudioInstruments';
 import { createBicycleGarage } from './bicycleGarage';
 import { createStudioBuilding } from './studioBuilding';
 import { createRoadSurface, updateRoadSurface } from './roadSurface';
-import { routeRoadPolygons } from './routeRoad';
 import { cityRoadNetwork } from './cityRoadNetwork';
-import { roadPolygonUnion } from './roadPolygonUnion';
+import { createRoadGeometryCache } from './roadGeometryCache';
 import { createGoalFlag } from './goalFlag';
 import { studioApproach } from './studioApproach';
 import { createRiver } from './createRiver';
@@ -207,6 +206,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   });
   let onResizeSelected = (_id: string) => {};
   const resizer = createProceduralResizer(scene, engine, journey, syncDimensions, id => onResizeSelected(id));
+  const roadGeometry = createRoadGeometryCache();
+  let renderedRoads: ReturnType<typeof roadGeometry> | undefined;
   function syncDimensions() {
     for (const { b, pieces, eaves, roof, threshold, windows, originalW, originalD } of buildingModels) {
       const left = resizer.value(`wall:${b.name}:left`), right = resizer.value(`wall:${b.name}:right`);
@@ -232,19 +233,16 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       parts.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = scale; });
       if (bridge) bridge.scaling.z = scale * (street.id === world.steamTrain?.street ? street.width / 2.6 : 1);
     }
-    const routeStreets = journey.route.slice(1).map((id, i) => world.streets.find(s =>
-      s.a === id && s.b === journey.route[i] || s.b === id && s.a === journey.route[i])!);
-    const corridors = routeRoadPolygons(journey.trajectory, routeStreets.map(street => ({
-      id: street.id, width: resizer.value(`width:${street.id}`),
-      transport: false,
-    })));
-    const network = cityRoadNetwork(world, journey.minimumTurnRadius, street => resizer.value(`width:${street.id}`));
-    const roads = roadPolygonUnion([...network.polygons, ...corridors]);
-    for (const { street, road, dx } of streetModels) {
-      updateRoadSurface(road, roads.get(street.id) ?? { positions: [], normals: [], indices: [] });
-      const width = resizer.value(`width:${street.id}`);
-      editTransitions?.roadWidth(road, dx ? 'z' : 'x', renderedRoadWidths.get(street.id)! / width);
-      renderedRoadWidths.set(street.id, width);
+    const roads = roadGeometry(world, journey.trajectory, journey.route, journey.minimumTurnRadius,
+      street => resizer.value(`width:${street.id}`));
+    if (roads !== renderedRoads) {
+      renderedRoads = roads;
+      for (const { street, road, dx } of streetModels) {
+        updateRoadSurface(road, roads.get(street.id) ?? { positions: [], normals: [], indices: [] });
+        const width = resizer.value(`width:${street.id}`);
+        editTransitions?.roadWidth(road, dx ? 'z' : 'x', renderedRoadWidths.get(street.id)! / width);
+        renderedRoadWidths.set(street.id, width);
+      }
     }
     const extentX = Math.max(28, ...world.nodes.map(n => Math.abs(n.x) + 5), ...world.buildings.map(b => Math.abs(b.x) + b.w / 2 + 4), Math.abs(world.bicycleGarage?.x ?? 0) + 6);
     const extentZ = Math.max(22, ...world.nodes.map(n => Math.abs(n.z) + 5), ...world.buildings.map(b => Math.abs(b.z) + b.d / 2 + 4), Math.abs(world.bicycleGarage?.z ?? 0) + 6);

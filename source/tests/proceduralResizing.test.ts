@@ -63,11 +63,17 @@ test('generated-city wall drags preview live, commit one undo step, and restore 
     const point = Vector3.Project(new Vector3(b.x, b.h, b.z - b.d / 2 + .1), Matrix.Identity(), scene.getTransformMatrix(), camera.viewport.toGlobal(200, 200));
     let syncs = 0;
     const resizer = createProceduralResizer(scene, engine, j, () => syncs++, () => {}), original = j.dimensions.get(key)!;
+    resizer.finish(false); resizer.finish();
+    resizer.previewSize(key, original);
+    assert.equal(syncs, 0, 'opening controls and unchanged previews do not rebuild the city');
     assert.equal(resizer.inspect(point.x, point.y)?.id, key);
     assert.equal(resizer.begin(point.x, point.y), true);
     for (let y = 1; y <= 15; y++) resizer.move(point.x, point.y + y);
     assert.equal(j.undoAvailable, false); assert.equal(j.dimensions.get(key), original);
     assert.notEqual(resizer.value(key), original); assert.ok(syncs >= 15);
+    const beforeRepeat = syncs;
+    resizer.move(point.x, point.y + 15);
+    assert.equal(syncs, beforeRepeat, 'identical pointer positions reuse the current preview');
     assert.equal(resizer.finish(), key); assert.equal(j.undoAvailable, true);
     assert.equal(j.undoRepair(), true); assert.equal(j.dimensions.get(key), original); assert.equal(j.undoAvailable, false);
     assert.equal(resizer.begin(point.x, point.y), true); resizer.move(point.x, point.y + 10); resizer.finish(false);

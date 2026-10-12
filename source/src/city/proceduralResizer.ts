@@ -20,7 +20,9 @@ export function createProceduralResizer(scene: Scene, engine: Engine, journey: P
     previewSize(id: string, value: number) {
       const limits = journey.dimensions.limits(id);
       if (!limits || !journey.canEdit(id) || !Number.isFinite(value)) return;
-      preview = { id, value: Math.max(limits.min, Math.min(limits.max, value)) }; sync();
+      const next = Math.max(limits.min, Math.min(limits.max, value));
+      if (this.value(id) === next) return;
+      preview = { id, value: next }; sync();
     },
     inspect(x: number, y: number) {
       // Respect occlusion: a doorway cannot be dragged through the roof above it.
@@ -57,11 +59,14 @@ export function createProceduralResizer(scene: Scene, engine: Engine, journey: P
       if (!drag) return;
       const { id, dx, dy, before, multiplier } = drag, limits = journey.dimensions.limits(id)!;
       const delta = ((x - drag.x) * dx + (y - drag.y) * dy) / (dx * dx + dy * dy) * multiplier;
-      preview = { id, value: Math.max(limits.min, Math.min(limits.max, Math.round((before + delta) * 100) / 100)) };
+      const value = Math.max(limits.min, Math.min(limits.max, Math.round((before + delta) * 100) / 100));
+      if (this.value(id) === value) return;
+      preview = { id, value };
       sync();
     },
     finish(commit = true) {
       const change = preview; preview = null; drag = null;
+      if (!change) return;
       if (commit && change) journey.editDimension(change.id, change.value);
       sync(); return commit ? change?.id : undefined;
     },

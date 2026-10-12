@@ -42,19 +42,38 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
 
 /** CSS masks preserve labels and survive controls whose text changes during rendering. */
 export function mountButtonIcons(root: HTMLElement) {
-  const update = () => {
-    for (const button of root.querySelectorAll<HTMLButtonElement>('button')) {
+  const iconUrls = new Map<string, string>();
+  const update = (buttons: Iterable<HTMLButtonElement>) => {
+    for (const button of buttons) {
       // Illustrated environment choices already have a full explanatory drawing.
       if (button.classList.contains('environment-choice') || button.id === 'city-controls-window') continue;
       const icon = buttonIcon(button.getAttribute('aria-label') ?? button.textContent ?? '', button.id);
       if (button.dataset.buttonIcon === icon) continue;
       button.dataset.buttonIcon = icon;
-      const svg = mapIcon(icon).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
-      button.style.setProperty('--button-icon', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
+      let url = iconUrls.get(icon);
+      if (!url) {
+        const svg = mapIcon(icon).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+        url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+        iconUrls.set(icon, url);
+      }
+      button.style.setProperty('--button-icon', url);
     }
   };
-  const observer = new MutationObserver(update);
+  const observer = new MutationObserver(records => {
+    const buttons = new Set<HTMLButtonElement>();
+    for (const record of records) {
+      const target = record.target instanceof Element ? record.target : record.target.parentElement;
+      const button = target?.closest<HTMLButtonElement>('button');
+      if (button && root.contains(button)) buttons.add(button);
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node instanceof HTMLButtonElement) buttons.add(node);
+        for (const added of node.querySelectorAll<HTMLButtonElement>('button')) buttons.add(added);
+      }
+    }
+    update(buttons);
+  });
   observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['aria-label'] });
-  update();
+  update(root.querySelectorAll<HTMLButtonElement>('button'));
   return () => observer.disconnect();
 }

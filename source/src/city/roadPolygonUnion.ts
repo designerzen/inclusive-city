@@ -2,10 +2,58 @@ import type { RoadClearance, RoadSurfaceData } from './roadSurface';
 
 export interface RoadPolygon { id: string; points: readonly (readonly number[])[]; needsClearance?: boolean }
 
+/** Remove the internal edges of consecutive ribbon quads before the sweep.
+ * Only simple boundaries can replace a strip: looping/self-overlapping routes
+ * must retain the original polygons and their union semantics.
+ */
+export function mergeRoadStrips(polygons: readonly RoadPolygon[]): RoadPolygon[] {
+  const same = (a: readonly number[], b: readonly number[]) => a[0] === b[0] && a[1] === b[1];
+  const cross = (a: readonly number[], b: readonly number[], c: readonly number[]) =>
+    (b[0]! - a[0]!) * (c[1]! - a[1]!) - (b[1]! - a[1]!) * (c[0]! - a[0]!);
+  function winding(points: RoadPolygon['points']) {
+    if (points.length !== 4) return 0;
+    const sign = Math.sign(cross(points[0]!, points[1]!, points[2]!));
+    return sign && points.every((p, i) => sign * cross(p, points[(i + 1) % 4]!, points[(i + 2) % 4]!) > 1e-12) ? sign : 0;
+  }
+  function simple(points: readonly (readonly number[])[]) {
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i]!, b = points[(i + 1) % points.length]!;
+      for (let j = i + 2; j < points.length; j++) {
+        if (i === 0 && j === points.length - 1) continue;
+        const c = points[j]!, d = points[(j + 1) % points.length]!;
+        if (Math.max(a[0]!, b[0]!) < Math.min(c[0]!, d[0]!) || Math.max(c[0]!, d[0]!) < Math.min(a[0]!, b[0]!) ||
+            Math.max(a[1]!, b[1]!) < Math.min(c[1]!, d[1]!) || Math.max(c[1]!, d[1]!) < Math.min(a[1]!, b[1]!)) continue;
+        if (cross(a, b, c) * cross(a, b, d) <= 0 && cross(c, d, a) * cross(c, d, b) <= 0) return false;
+      }
+    }
+    return true;
+  }
+  const merged: RoadPolygon[] = [];
+  for (let start = 0; start < polygons.length;) {
+    const first = polygons[start]!;
+    const direction = winding(first.points);
+    if (!direction) { merged.push(first); start++; continue; }
+    const left = [first.points[0]!, first.points[1]!], right = [first.points[3]!, first.points[2]!];
+    let end = start + 1;
+    while (end < polygons.length) {
+      const next = polygons[end]!;
+      if (next.id !== first.id || next.needsClearance !== first.needsClearance || winding(next.points) !== direction ||
+          !same(left.at(-1)!, next.points[0]!) || !same(right.at(-1)!, next.points[3]!)) break;
+      left.push(next.points[1]!); right.push(next.points[2]!); end++;
+    }
+    const points = [...left, ...right.reverse()];
+    if (end > start + 1 && simple(points)) merged.push({ ...first, points });
+    else for (let i = start; i < end; i++) merged.push(polygons[i]!);
+    start = end;
+  }
+  return merged;
+}
+
 /** Sweep the polygon union into disjoint trapezoids, including curved road ribbons.
  * Edge intersections split the sweep so overlapping streets never share a face.
  */
 export function roadPolygonUnion(polygons: readonly RoadPolygon[], occupied: readonly RoadClearance[] = []) {
+  polygons = mergeRoadStrips(polygons);
   const result = new Map<string, RoadSurfaceData>();
   type Edge = { lo: number; hi: number; z: (x: number) => number; polygon: number };
   const edges: Edge[] = [], cuts = new Set<number>();
