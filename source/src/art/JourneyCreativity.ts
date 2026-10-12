@@ -68,6 +68,11 @@ export class JourneyCreativity {
   consume(event: RobotEvent) {
     if (event.sequence <= this.lastSequence) return;
     this.lastSequence = event.sequence;
+    if (event.type === 'building_encounter') {
+      if (event.data.kind === 'gallery') this.composer.galleryInfluence = true;
+      if (event.data.kind === 'record-store') this.composer.recordLayers = Math.min(3, this.composer.recordLayers + 1);
+      if (event.data.kind === 'museum') { this.composer.galleryInfluence = false; this.composer.museumInfluence = true; }
+    }
     this.painting.consume(event);
     this.state = event.state;
     const moods: Partial<Record<RobotEvent['type'], RobotMood>> = {

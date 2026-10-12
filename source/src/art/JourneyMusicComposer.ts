@@ -66,6 +66,9 @@ const hooks: Partial<Record<MusicianStyle, Figure>> = {
 
 /** Genre grammar + a recurring robot motif. Resolved notes and voices remain JSON-replayable. */
 export class JourneyMusicComposer {
+  galleryInfluence = false;
+  recordLayers = 0;
+  museumInfluence = false;
   readonly bpm: number;
   readonly beats: number;
   private readonly identity;
@@ -217,7 +220,8 @@ export class JourneyMusicComposer {
       : style === 'chimes' ? regular([0, 4, 2, 6, 4, 2], 4, .75)
       : style === 'chiptune' ? regular([0, 2, 4, 7, 4, 2, 0, 4, 2, 4, 7, 9, 7, 4, 2, 0], 4, .12)
       : style === 'synthwave' ? regular([0, 4, 7, 4, 0, 4, 7, 6]) : regular([0, 0, 4, 0, 2, 0, 4, 2]));
-    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoGain: .1, ...this.identity.voice(recipes[style].voice), echoTime: beat / 2 }).toScore();
+    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoGain: .1, ...this.identity.voice(recipes[style].voice),
+      ...(this.galleryInfluence ? { waveform: 'sine' as const, fm: fmPatches.bell, attack: .012, release: .45 } : {}), echoTime: beat / 2 }).toScore();
     melody.notes = figure.map(([degree, start, duration], i) => {
       const identityNote = (slot * figure.length + i) % 16;
       let resolved = degree + this.identity.contour[identityNote]!;
@@ -368,6 +372,15 @@ export class JourneyMusicComposer {
         duration: Math.min(note.duration, ending - note.start) }));
       melody.notes.push({ midi: root + 12, start: ending, duration: beat });
     }
+    for (let layer = 0; layer < this.recordLayers; layer++) {
+      const figure: Figure = layer === 0 ? [[7, .5, .6], [third, this.beats / 2 + .5, .6]]
+        : layer === 1 ? [[0, 0, this.beats - .2], [fifth, 0, this.beats - .2]]
+        : regular([0, fifth, third, fifth], this.beats, .15);
+      add(`backing:record-store:${layer}`, { waveform: layer === 2 ? 'triangle' : 'sine', gain: .045,
+        attack: .08, release: .3, cutoff: 1700, pan: layer % 2 ? -.25 : .25, echoGain: .04 }, notes(figure, root + (layer === 1 ? -12 : 0)));
+    }
+    if (this.museumInfluence) add('backing:museum', { waveform: 'triangle', gain: .035, attack: .04, release: .3, cutoff: 1300, pan: -.25 },
+      melody.notes.filter(note => note.start + beat / 2 < this.beats * beat).map(note => ({ ...note, midi: note.midi - 12, start: note.start + beat / 2 })));
     return result;
   }
 

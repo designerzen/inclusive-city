@@ -35,6 +35,7 @@ import { createRoadGeometryCache } from './roadGeometryCache';
 import { createGoalFlag } from './goalFlag';
 import { studioApproach } from './studioApproach';
 import { createRiver } from './createRiver';
+import { creativeBuildingModel } from './creativeBuildingModel';
 import { createCityEditTransitions } from './cityEditTransitions';
 import { createZebraCrossing, foregroundCrossingPosition, zebraRoadSites } from './zebraCrossing';
 import { normalizeZebraPairs } from '../app/zebraPreferences';
@@ -219,14 +220,16 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     threshold.metadata = { dimension: `door:${b.name}`, axis: 'x' }; threshold.isPickable = true;
     const windows: { mesh: ReturnType<typeof box>; side: number }[] = [];
     for (let y = .8; y < b.h - .3; y += 1) for (const side of [-1, 1]) windows.push({ mesh: box(`window-${b.name}-${y}-${side}`, 0, y, 0, .4, .5, .04, details), side });
-    return { b, pieces, eaves, roof, threshold, windows, originalW: b.w, originalD: b.d };
+    const landmark = b.creativeRole ? creativeBuildingModel(b.creativeRole, scene, details, walls) : null;
+    const frontageLandmark = b.creativeRole ? creativeBuildingModel(b.creativeRole, scene, details, walls) : null;
+    return { b, pieces, eaves, roof, threshold, windows, landmark, frontageLandmark, originalW: b.w, originalD: b.d };
   });
   let onResizeSelected = (_id: string) => {};
   const resizer = createProceduralResizer(scene, engine, journey, syncDimensions, id => onResizeSelected(id));
   const roadGeometry = createRoadGeometryCache();
   let renderedRoads: ReturnType<typeof roadGeometry> | undefined;
   function syncDimensions() {
-    for (const { b, pieces, eaves, roof, threshold, windows, originalW, originalD } of buildingModels) {
+    for (const { b, pieces, eaves, roof, threshold, windows, landmark, frontageLandmark, originalW, originalD } of buildingModels) {
       const left = resizer.value(`wall:${b.name}:left`), right = resizer.value(`wall:${b.name}:right`);
       const front = resizer.value(`wall:${b.name}:front`), back = resizer.value(`wall:${b.name}:back`);
       const width = right - left, depth = back - front, x = (left + right) / 2, z = (front + back) / 2;
@@ -241,6 +244,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       eaves.position.set(x, b.h + .05, z); eaves.scaling.set(width + .4, 1, depth + .4);
       roof.position.set(x, b.h + .12, z); roof.scaling.set((width + .4) / (originalW + .4), 1, (depth + .4) / (originalD + .4));
       threshold.position.set(x, .11, front - .3); threshold.scaling.x = door;
+      landmark?.position.set(x, b.h + 1.6, z);
+      frontageLandmark?.position.set(x, Math.min(b.h - 1.2, 1.8), front - .2);
       for (const { mesh, side } of windows) { mesh.position.x = x + side * (door / 2 + wing / 2); mesh.position.z = front - .1; }
     }
     for (const { street, surface, parts, bridge, humpback, dx, originalWidth } of streetModels) {

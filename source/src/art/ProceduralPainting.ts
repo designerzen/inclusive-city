@@ -42,7 +42,7 @@ const clamp = (value: number) => Math.max(0.09, Math.min(0.91, value));
 /** Ordered event data becomes a permanent, normalized, JSON-safe painting score. */
 export class ProceduralPainting {
   readonly marks: PaintStroke[] = [];
-  readonly palette: readonly string[];
+  palette: readonly string[];
   readonly family: CompositionFamily;
   private cursor = 0;
   private steps = 0;
@@ -53,9 +53,11 @@ export class ProceduralPainting {
   private tension = 0;
   private joy = 0.3;
   private readonly breadth: number;
+  private readonly originalStyle: CreativePreferences['artStyle'] | undefined;
   lastAction = 'A fresh canvas · every step leaves paint';
 
   constructor(readonly seed: number, private brushScale = 1, private style?: CreativePreferences['artStyle']) {
+    this.originalStyle = style;
     const traits = paintStream(seed, 'composition');
     this.family = compositionFamilies[Math.floor(paintStream(seed, 'family')() * compositionFamilies.length)]!;
     this.breadth = .65 + traits() * .7;
@@ -65,9 +67,20 @@ export class ProceduralPainting {
     this.head = { x: 0.24 + (seed % 29) / 100, y: 0.58 };
   }
 
+  private setStyle(style: CreativePreferences['artStyle'] | undefined) {
+    this.style = style;
+    this.palette = style && style !== 'impressionist'
+      ? painterStyles.find(item => item.id === (style === 'expressive' ? 'expressionist' : style))!.colours
+      : palettes[this.seed % palettes.length]!;
+  }
+
   consume(event: RobotEvent) {
     if (event.sequence <= this.cursor) return;
     this.cursor = event.sequence;
+    if (event.type === 'building_encounter') {
+      if (event.data.kind === 'gallery') this.setStyle('geometric');
+      if (event.data.kind === 'museum') this.setStyle(this.originalStyle);
+    }
     if (event.type === 'pickup') {
       if (event.data.kind === 'art') this.rich = true;
       if (event.data.kind === 'colour') this.colourful = true;
@@ -76,7 +89,7 @@ export class ProceduralPainting {
     if (event.type === 'step') kind = 'step';
     else if (event.type === 'blocked') kind = 'barrier';
     else if (event.type === 'intervention') kind = 'repair';
-    else if (event.type === 'pickup') kind = 'discovery';
+    else if (event.type === 'pickup' || event.type === 'building_encounter') kind = 'discovery';
     else if (event.type === 'achievement') kind = 'achievement';
     else if (event.type === 'arrived') kind = 'arrival';
     else if (event.type === 'segment' || event.type === 'exploration'

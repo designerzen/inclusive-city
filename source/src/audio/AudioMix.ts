@@ -10,7 +10,7 @@ export function mixPart(label = ''): MixPart {
   if (label.includes('bass')) return 'bass';
   if (/pulse|kick|backbeat|hi-hat|percussion|attract:tick/.test(label)) return 'rhythm';
   if (label.includes('harmony')) return 'harmony';
-  if (/counter|tango-piano|tango-strings/.test(label)) return 'backing';
+  if (/counter|tango-piano|tango-strings|backing:record-store|backing:museum/.test(label)) return 'backing';
   if (/melody|attract:discovery|attract:answer/.test(label)) return 'lead';
   return 'effect';
 }

@@ -12,6 +12,7 @@ import { RouteTrajectory } from '../city/routeTrajectory';
 import { reserveRoadSpace } from '../city/reserveRoadSpace';
 import { fitCurveLayout } from '../city/curveLayout';
 import { cityRouteClearance } from '../city/routeClearance';
+import { buildingFrontage, passedFrontage } from '../city/creativeBuildings';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
@@ -192,6 +193,8 @@ export class PlannedJourney {
   blocked: { id: string; reason: string } | null = null;
   private encountered: string | null = null;
   private crossingRequestEdge = -1;
+  private creativeEncounterRun = -1;
+  private readonly visitedBuildings = new Set<string>();
   constructor(bot: ArtBot, readonly world: ProceduralCity) {
     if (Number.isFinite(world.minimumTurnRadius) && world.minimumTurnRadius! >= .5 && world.minimumTurnRadius! <= 12) this.turnRadius = world.minimumTurnRadius!;
     this.dimensions = new CityDimensions(world);
@@ -429,6 +432,20 @@ export class PlannedJourney {
     }
   }
 
+  private encounterBuildings(before: RoutePoint, streetId: string) {
+    if (this.creativeEncounterRun !== this.machine.run.id) {
+      this.creativeEncounterRun = this.machine.run.id; this.visitedBuildings.clear();
+    }
+    for (const building of this.world.buildings) {
+      if (!building.creativeRole || this.visitedBuildings.has(building.name)) continue;
+      const frontage = buildingFrontage(building, this.world);
+      if (frontage.street === streetId && passedFrontage(before, this.position, frontage)) {
+        this.visitedBuildings.add(building.name);
+        this.machine.emit('building_encounter', { id: building.name, kind: building.creativeRole });
+      }
+    }
+  }
+
   private updateJourney(seconds: number) {
     if (!Number.isFinite(seconds) || seconds <= 0 || this.ready || this.machine.run.status !== 'active') return;
     if (this.paused) { this.machine.advance(seconds, 'pausedSeconds'); return; }
@@ -549,7 +566,9 @@ export class PlannedJourney {
       // A collision sweep consumes its requested time even when a step or
       // contact slows it down. Do not retry a tiny remainder in the same tick.
       const duration = this.constrainTravel && !collision ? requestedDuration : distance / this.speed;
+      const beforeTravel = this.position;
       this.distanceOnEdge += distance; this.machine.add('distance', distance); this.machine.advance(duration, 'movingSeconds'); remaining = Math.max(0, remaining - duration);
+      this.encounterBuildings(beforeTravel, street.id);
       if (this.lineFollowing && distance > 0) this.heading = this.trajectory.atEdge(this.edge, this.distanceOnEdge).heading;
       if (this.metrics.distance >= this.metrics.stepsTaken + 1 - 1e-8) { this.machine.add('stepsTaken', 1); this.machine.emit('step', { step: this.metrics.stepsTaken, distance: this.metrics.distance, speed: this.speed }); }
       if (this.distanceOnEdge >= length - 1e-8) {

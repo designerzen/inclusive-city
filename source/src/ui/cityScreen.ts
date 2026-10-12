@@ -7,6 +7,8 @@ import { mountCityDisplayControls } from './cityDisplayControls';
 import { mountRouteProjection } from './routeProjection';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
+import { buildingDescriptions, buildingSymbols } from '../city/creativeBuildings';
+import type { CreativeBuilding } from '../city/proceduralCity';
 import { normalizeZebraPairs, readZebraPairs } from '../app/zebraPreferences';
 import type { ProceduralCity } from '../city/proceduralCity';
 import type { CityView } from '../city/cityCamera';
@@ -37,6 +39,9 @@ import './cityMusicCues.css';
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney, continuationClock?: () => number) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
+    <p id="creative-building-guide" class="sr-only"></p>
+    <div id="creative-building-discoveries" role="img" aria-label="No creative buildings discovered yet"></div>
+    <p id="creative-building-status" class="sr-only" role="status"></p>
     <header class="city-toolbar">
       <div class="city-tools" role="group" aria-label="City tools">
         <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
@@ -248,6 +253,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   function beginCreation() {
     if (!city) return;
+    get('creative-building-discoveries').replaceChildren();
+    get('creative-building-discoveries').setAttribute('aria-label', 'No creative buildings discovered yet');
+    setText('creative-building-status', '');
+    setText('creative-building-guide', city.journey.world.buildings.filter(b => b.creativeRole)
+      .map(b => buildingDescriptions[b.creativeRole!]).join(' '));
     musicCues.clear(); keyCueCursor = 0;
     monitorNotes = []; syncMusicMonitor();
     setText('city-music-key', 'Music follows city actions.'); setText('city-music-notes', 'Journey music ready.');
@@ -480,6 +490,18 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!j.ready && !j.complete && !j.paused && j.currentStreet?.kind === 'crossing' && j.hasCrossingCues(j.currentStreet) && j.signal(j.currentStreet).green) sounds.crossingBeep();
     for (const event of j.machine.record.events.slice(eventCursor)) {
       creation?.consume(event);
+      if (event.type === 'building_encounter') {
+        const role = event.data.kind as CreativeBuilding;
+        const description = buildingDescriptions[role];
+        const symbol = document.createElement('span');
+        symbol.textContent = buildingSymbols[role]; symbol.setAttribute('aria-hidden', 'true');
+        symbol.style.fontSize = '2rem'; symbol.style.marginInlineEnd = '.5rem';
+        get('creative-building-discoveries').append(symbol);
+        get('creative-building-discoveries').setAttribute('aria-label', j.machine.record.events
+          .filter(e => e.runId === j.machine.run.id && e.type === 'building_encounter')
+          .map(e => buildingDescriptions[e.data.kind as CreativeBuilding]).join(' '));
+        setText('creative-building-status', description);
+      }
       if (event.type === 'collision') sounds.collision(Number(event.data.speed), String(event.data.kind));
     }
     eventCursor = j.machine.record.events.length;

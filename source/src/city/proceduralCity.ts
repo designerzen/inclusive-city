@@ -5,7 +5,8 @@ import type { RoutePoint } from './cityLayout';
 export type StreetKind = 'clear' | 'bridge' | 'curb' | 'stairs' | 'width' | 'crossing' | 'guidance';
 export interface CityNode extends RoutePoint { id: string; label: string; discovery?: 'music' | 'art' | 'harmony' | 'colour' }
 export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number; buttonHeight?: number; bridgeAccess?: BridgeAccess }
-export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number }
+export type CreativeBuilding = 'gallery' | 'record-store' | 'museum';
+export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number; creativeRole?: CreativeBuilding }
 export const studioDoorTypes = ['revolving', 'automatic', 'push'] as const;
 export type StudioDoorType = typeof studioDoorTypes[number];
 export interface StudioEntrance { width: number; doorType: StudioDoorType }
@@ -96,9 +97,10 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const places = shuffle(nodes.filter(n => n.id !== start && n.id !== destination));
   ['Library', 'Café', 'Market', 'Cinema', 'Museum', 'Studios'].forEach((name, i) => { places[i]!.label = name; places[i]!.discovery = (['art', 'music', 'colour', 'colour', 'harmony', 'art'] as const)[i]; });
   nodes.find(n => n.id === start)!.label = 'Workshop'; nodes.find(n => n.id === destination)!.label = 'Duet studio';
-  const names = shuffle(['Library', 'Café', 'Studios', 'Market', 'Offices', 'Flats', 'Cinema', 'School', 'Museum', 'Hall', 'Tower', 'Workshop', 'Gallery']);
+  const names = shuffle(['Library', 'Café', 'Studios', 'Market', 'Offices', 'Flats', 'Cinema', 'Record store', 'Museum', 'Hall', 'Tower', 'Workshop', 'Gallery']);
   const lots = shuffle(zs.slice(0, -1).flatMap((z, row) => xs.slice(0, -1).flatMap((x, col) => col === 2 ? [] : [{ x: (x + xs[col + 1]!) / 2, z: (z + zs[row + 1]!) / 2 }])));
-  const buildings = names.map((name, i) => ({ name, ...lots[i]!, w: 3 + random(), d: 3 + random(), h: 1.8 + random() * 3 }));
+  const buildings: CityBuilding[] = names.map((name, i) => ({ name, ...lots[i]!, w: 3 + random(), d: 3 + random(), h: 1.8 + random() * 3,
+    ...(name === 'Gallery' ? { creativeRole: 'gallery' as const } : name === 'Museum' ? { creativeRole: 'museum' as const } : name === 'Record store' ? { creativeRole: 'record-store' as const } : {}) }));
   const bicycleStreets = [...new Set([
     ...streets.filter(s => s.a === start || s.b === start),
     ...streets.filter(s => s.kind !== 'bridge').slice(0, 3),
@@ -131,6 +133,13 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
   const garageLots = lots.filter(lot => outsideStations({ ...lot, w: 5.5, d: 4.5 }));
   const bicycleGarage = garageLots.find(lot => !stationBuildings.some(building => building.x === lot.x && building.z === lot.z)) ?? garageLots[0]!;
   const openBuildings = stationBuildings.filter(building => building.x !== bicycleGarage.x || building.z !== bicycleGarage.z);
+  // Station/garage clearance may remove a named lot. Preserve all three landmarks
+  // by reusing a remaining decorative building rather than introducing a collider.
+  for (const [name, role] of [['Gallery', 'gallery'], ['Record store', 'record-store'], ['Museum', 'museum']] as const) {
+    if (openBuildings.some(building => building.creativeRole === role)) continue;
+    const replacement = openBuildings.find(building => !building.creativeRole);
+    if (replacement) { replacement.name = name; replacement.creativeRole = role; }
+  }
   return { curvedRoadLayout: true, steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings: openBuildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
