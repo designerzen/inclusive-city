@@ -14,6 +14,8 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
   let view: CityView = 'overhead';
   let zoom = 1;
   let cityAngle = 0;
+  let orbit: { from: number; to: number; elapsed: number } | null = null;
+  let zoomTransition: { from: number; to: number; elapsed: number } | null = null;
   let arrival: { elapsed: number; position: Vector3; target: Vector3; projection: Matrix } | null = null;
   let transition: { elapsed: number; position: Vector3; rotation: Quaternion; projection: Matrix; focalDistance: number } | null = null;
   let focalDistance = 55;
@@ -47,6 +49,16 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
 
   function update(seconds = 0, reducedMotion = reduceMotion) {
     reduceMotion = reducedMotion;
+    if (orbit) {
+      orbit.elapsed = reducedMotion ? transitionDuration : Math.min(transitionDuration, orbit.elapsed + Math.max(0, seconds));
+      cityAngle = orbit.from + (orbit.to - orbit.from) * smooth(orbit.elapsed / transitionDuration);
+      if (orbit.elapsed === transitionDuration) orbit = null;
+    }
+    if (zoomTransition) {
+      zoomTransition.elapsed = reducedMotion ? .3 : Math.min(.3, zoomTransition.elapsed + Math.max(0, seconds));
+      zoom = zoomTransition.from + (zoomTransition.to - zoomTransition.from) * smooth(zoomTransition.elapsed / .3);
+      if (zoomTransition.elapsed === .3) zoomTransition = null;
+    }
     camera.unfreezeProjectionMatrix();
     projectionFrozen = false;
     const aspect = Math.max(0.1, engine.getRenderWidth() / Math.max(1, engine.getRenderHeight()));
@@ -69,8 +81,10 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
       return;
     }
     const extent = bounds();
-    const sideways = view === 'angled' && Math.abs(Math.sin(cityAngle)) > .5;
-    const halfHeight = Math.max(24, (sideways ? extent.width : extent.depth) / 2, Math.max(29, (sideways ? extent.depth : extent.width) / 2) / aspect) * zoom;
+    // Continuous projected bounds avoid a projection jump halfway around an edge.
+    const sine = view === 'angled' ? Math.abs(Math.sin(cityAngle)) : 0;
+    const cosine = view === 'angled' ? Math.abs(Math.cos(cityAngle)) : 1;
+    const halfHeight = Math.max(24, (extent.depth * cosine + extent.width * sine) / 2, Math.max(29, (extent.width * cosine + extent.depth * sine) / 2) / aspect) * zoom;
     camera.orthoTop = halfHeight;
     camera.orthoBottom = -halfHeight;
     camera.orthoLeft = -halfHeight * aspect;
@@ -106,14 +120,19 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
     }
   }
   function setView(value: CityView) {
+    orbit = null; zoomTransition = null;
     transition = { elapsed: 0, position: camera.position.clone(), rotation: Quaternion.FromEulerVector(camera.rotation), projection: projection(), focalDistance };
     arrival = null; performanceTime = 0; view = value; zoom = 1; update();
   }
-  function setZoom(factor: number) { if (arrival) return; zoom = Math.max(0.3, Math.min(1.5, zoom * factor)); update(); }
+  function setZoom(factor: number) {
+    if (arrival) return;
+    zoomTransition = { from: zoom, to: Math.max(0.3, Math.min(1.5, (zoomTransition?.to ?? zoom) * factor)), elapsed: 0 };
+    update();
+  }
   function rotateCity(direction: -1 | 1) {
     if (arrival || view !== 'angled') return;
-    transition = { elapsed: 0, position: camera.position.clone(), rotation: Quaternion.FromEulerVector(camera.rotation), projection: projection(), focalDistance };
-    cityAngle = (cityAngle + direction * Math.PI / 2) % (Math.PI * 2);
+    transition = null;
+    orbit = { from: cityAngle, to: (orbit?.to ?? cityAngle) + direction * Math.PI / 2, elapsed: 0 };
     update();
   }
   function pan(x: number, z: number) {
@@ -123,12 +142,13 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
     update();
   }
   function fit() { target.setAll(0); setView('overhead'); }
-  function focus(x: number, z: number, scale = 0.3) { target.set(x, 0, z); zoom = scale; update(); }
+  function focus(x: number, z: number, scale = 0.3) { zoomTransition = null; target.set(x, 0, z); zoom = scale; update(); }
   update();
   return { camera, update, setView, setZoom, rotateCity, pan, fit, focus, canPan,
     beginArrival() {
       const startProjection = projection();
       transition = null;
+      orbit = null; zoomTransition = null;
       arrival = { elapsed: 0, position: camera.position.clone(), target: camera.position.add(camera.getTarget().subtract(camera.position).normalize().scale(focalDistance)), projection: startProjection };
     },
     setPerformanceTime(seconds: number) { performanceTime = Math.max(0, seconds); },

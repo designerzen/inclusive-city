@@ -11,7 +11,7 @@ test('city rotation visits four edges, reverses and preserves focus and zoom', (
   const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }));
   try {
     controls.setView('angled'); controls.update(2);
-    controls.pan(3, 4); controls.setZoom(.8);
+    controls.pan(3, 4); controls.setZoom(.8); controls.update(.3);
     const start = controls.camera.position.clone();
     const zoom = controls.camera.orthoTop;
     for (const offset of [new Vector3(55, 55, 0), new Vector3(0, 55, 55), new Vector3(-55, 55, 0), new Vector3(0, 55, -55)]) {
@@ -22,13 +22,44 @@ test('city rotation visits four edges, reverses and preserves focus and zoom', (
       assert.ok(controls.camera.position.equalsWithEpsilon(offset.add(new Vector3(3, 0, 4))));
     }
     assert.ok(controls.camera.position.equalsWithEpsilon(start));
-    assert.equal(controls.camera.orthoTop, zoom);
+    assert.ok(Math.abs(controls.camera.orthoTop! - zoom!) < 1e-5);
     controls.rotateCity(-1); controls.update(0, true);
     assert.ok(controls.camera.position.equalsWithEpsilon(new Vector3(-52, 55, 4)));
     controls.setView('overhead'); controls.update(2);
     const overhead = controls.camera.position.clone();
     controls.rotateCity(1); controls.update(2);
     assert.ok(controls.camera.position.equalsWithEpsilon(overhead));
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('rotation keeps its orbit radius and target through every frame and repeated clicks', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }));
+  try {
+    controls.setView('angled'); controls.update(2);
+    controls.rotateCity(1);
+    for (let frame = 0; frame < 72; frame++) {
+      controls.update(1 / 60);
+      const position = controls.camera.position;
+      assert.ok(Math.abs(Math.hypot(position.x, position.z) - 55) < 1e-5);
+      assert.equal(position.y, 55);
+      controls.camera.getViewMatrix(true);
+      assert.ok(controls.camera.getTarget().subtract(position).normalize().equalsWithEpsilon(position.negate().normalize(), 1e-5));
+      if (frame === 20) {
+        const before = position.clone();
+        controls.rotateCity(1);
+        assert.ok(position.equalsWithEpsilon(before));
+      }
+    }
+    controls.update(2);
+    assert.ok(controls.camera.position.equalsWithEpsilon(new Vector3(0, 55, 55)));
+    const before = controls.camera.orthoTop!;
+    controls.setZoom(.8);
+    assert.equal(controls.camera.orthoTop, before);
+    controls.update(.15);
+    assert.ok(Math.abs(controls.camera.orthoTop! - before * .9) < 1e-5);
+    controls.update(.15);
+    assert.ok(Math.abs(controls.camera.orthoTop! - before * .8) < 1e-5);
   } finally { scene.dispose(); engine.dispose(); }
 });
 
@@ -87,6 +118,7 @@ test('camera presets track robot turns and elevation, then fit restores the map'
     assert.ok(controls.camera.position.equalsWithEpsilon(pose.position.add(new Vector3(0, 1.8, 0))));
     assert.ok(controls.camera.getTarget().z > pose.position.z);
     controls.setZoom(0.8);
+    controls.update(.3);
     assert.ok(controls.camera.fov < 0.9);
     controls.fit();
     controls.update(2);

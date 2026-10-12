@@ -70,9 +70,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <div class="city-controls-window-actions"><button id="city-controls-window" type="button" aria-label="Move controls to new window" title="Move controls to new window" aria-pressed="false"></button></div>
       <div class="city-view-tools" role="group" aria-label="City view">
         <button type="button" data-view="overhead" aria-pressed="true">Map view</button>
-        <button type="button" data-view="angled" aria-pressed="false">3D view</button>
-        <button id="city-rotate-left" type="button" data-rotate-city="-1" aria-label="Rotate city anticlockwise" hidden><span aria-hidden="true">↶</span></button>
-        <button id="city-rotate-right" type="button" data-rotate-city="1" aria-label="Rotate city clockwise" hidden><span aria-hidden="true">↷</span></button>
+        <div class="city-isometric-menu">
+          <button type="button" data-view="angled" aria-pressed="false" aria-expanded="false" aria-controls="city-isometric-options">3D view</button>
+          <div id="city-isometric-options" class="city-isometric-options" role="group" aria-label="Isometric camera controls" aria-hidden="true" inert>
+            <button id="city-rotate-left" type="button" data-rotate-city="-1" aria-label="Rotate city anticlockwise"><span aria-hidden="true">↶</span></button>
+            <button id="city-rotate-right" type="button" data-rotate-city="1" aria-label="Rotate city clockwise"><span aria-hidden="true">↷</span></button>
+            <button type="button" data-map="zoom-in">Zoom in</button>
+            <button type="button" data-map="zoom-out">Zoom out</button>
+          </div>
+        </div>
         <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
         <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
         <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
@@ -350,11 +356,19 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       button.setAttribute('aria-pressed', String(button.dataset.view === city.view));
     }
     const canPan = city.view === 'overhead' || city.view === 'angled';
+    const isometricOptions = get('city-isometric-options');
+    const isometricOpen = city.view === 'angled';
+    if (!isometricOpen && isometricOptions.contains(document.activeElement)) {
+      container.querySelector<HTMLButtonElement>(`[data-view="${city.view}"]`)?.focus();
+    }
+    isometricOptions.classList.toggle('is-open', isometricOpen);
+    isometricOptions.inert = !isometricOpen;
+    isometricOptions.setAttribute('aria-hidden', String(!isometricOpen));
+    container.querySelector('[data-view="angled"]')!.setAttribute('aria-expanded', String(isometricOpen));
     for (const button of container.querySelectorAll<HTMLButtonElement>('[data-rotate-city]')) {
-      button.hidden = city.view !== 'angled';
       button.disabled = j.complete;
     }
-    for (const button of plan.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
+    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-map]')) button.disabled = j.complete || !canPan && !button.dataset.map?.startsWith('zoom-');
     pause.disabled = j.ready ? !j.canStart : j.complete;
     setText('city-pause', j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Start robot' : 'Stop robot');
     if (pause.getAttribute('aria-label') !== pause.textContent) { pause.setAttribute('aria-label', pause.textContent!); pause.title = pause.textContent!; }
@@ -619,6 +633,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     refresh();
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
+  for (const button of container.querySelectorAll<HTMLButtonElement>('.city-view-tools [data-map]')) button.addEventListener('click', () => {
+    if (!city || button.disabled) return;
+    city.setZoom(button.dataset.map === 'zoom-in' ? .8 : 1.25);
+  });
   for (const button of container.querySelectorAll<HTMLButtonElement>('[data-rotate-city]')) button.addEventListener('click', () => {
     if (!city || button.disabled) return;
     city.resizer.finish(false);
