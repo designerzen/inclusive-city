@@ -31,10 +31,17 @@ export function fitCurveLayout(world: ProceduralCity, radius: number, moveBuildi
         if (approach.a === station.id) approach.b = outside.id; else approach.a = outside.id;
         // The old grid span overlapped this access road. Keeping it let a route
         // walk past the platform, reverse, and retrace the same painted line.
+        const previousStreets = world.streets;
         world.streets = world.streets.filter(s => s === approach || ![s.a, s.b].includes(outside.id) || ![s.a, s.b].some(other => {
           const n = world.nodes.find(p => p.id === other)!;
           return n !== outside && Math.abs(n.x - station.x) < 1e-6 && (n.z - station.z) * sign < 0;
         }));
+        // Bicycles on the replaced span belong to its new access road. Leaving
+        // the old ID makes scene creation fail when the garage places them.
+        const removed = new Set(previousStreets.filter(s => !world.streets.includes(s)).map(s => s.id));
+        for (const bicycle of world.bicycles ?? []) {
+          if (removed.has(bicycle.street)) bicycle.street = approach.id;
+        }
       }
     }
   }

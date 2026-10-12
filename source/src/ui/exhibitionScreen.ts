@@ -32,7 +32,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
               <button id="exhibition-download-mp3" type="button">Save song (MP3)</button>
             </div>
           </details>
-          <button id="exhibition-attract" type="button">Play again</button>
+          <button id="exhibition-attract" type="button">Start Again</button>
         </div>
       </div>
     </aside>

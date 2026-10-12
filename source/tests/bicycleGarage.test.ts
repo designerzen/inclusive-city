@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { BotHistory } from '../src/robot/botHistory';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { generateCity } from '../src/city/proceduralCity';
+import { fitCurveLayout } from '../src/city/curveLayout';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -19,6 +20,23 @@ function setup(reverse = false) {
   };
   return new PlannedJourney(bot, world);
 }
+
+test('preparing random cities preserves bicycle streets when station roads are replaced', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  let replacements = 0;
+  for (let seed = 0; seed < 1000; seed++) {
+    const world = generateCity(seed, [bot]);
+    const initial = new Map(world.bicycles!.map(bike => [bike.id, bike.street]));
+    for (const radius of [1, 3, 6, 12]) {
+      fitCurveLayout(world, radius, (name, x, z) => Object.assign(world.buildings.find(b => b.name === name)!, { x, z }));
+      for (const bike of world.bicycles!) {
+        assert.ok(world.streets.some(street => street.id === bike.street), `Seed ${seed}, radius ${radius}: ${bike.id} must have an existing street`);
+        if (bike.street !== initial.get(bike.id)) replacements++;
+      }
+    }
+  }
+  assert.ok(replacements > 0, 'Exercise bicycles on replaced station roads');
+});
 
 test('bicycles stop travel in either direction until the user stores them, including with physics', () => {
   for (const reverse of [false, true]) for (const physics of [false, true]) {
