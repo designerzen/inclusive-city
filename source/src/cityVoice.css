@@ -1,13 +1,17 @@
-.city-reply { border-top: 1px solid currentColor; margin-top: 16px; padding-top: 12px; }
-.city-reply p { line-height: 1.5; overflow-wrap: anywhere; }
+.city-reply { padding: 12px; }
+.city-reply p { margin: 8px 0; line-height: 1.4; overflow-wrap: anywhere; }
+.city-reply-heading { display: flex; align-items: center; gap: 12px; }
+.city-reply-heading [data-reply-sentence] { flex: 1; min-width: 0; margin: 0; }
+#city-screen .city-reply [data-reply-talk] { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 48px; width: 48px; height: 48px; padding: 0; border-radius: 50%; touch-action: none; user-select: none; }
+.city-reply [data-reply-talk]::before { display: none; }
+.city-reply[data-listening='true'] [data-reply-talk] { outline: 3px solid currentColor; outline-offset: 2px; }
 .city-reply-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .city-reply button { min-height: 44px; min-width: 44px; flex-shrink: 0; }
-.city-reply form { display: grid; gap: 8px; }
-.city-reply select { display: block; width: 100%; box-sizing: border-box; font: inherit; margin: 8px 0; }
-.city-command-variations { display: block; font-size: .8125rem; line-height: 1.4; margin-top: 4px; font-weight: normal; }
-.city-reply textarea { width: 100%; min-height: 72px; box-sizing: border-box; font: inherit; padding: 10px; border-radius: 8px; }
-.city-reply[data-listening='true'] [data-reply-status] { font-weight: bold; }
-.city-reply [data-reply-record] { touch-action: none; user-select: none; }
-.city-reply [data-reply-record][aria-pressed='true'] { outline: 3px solid currentColor; outline-offset: 2px; }
-.city-reply [data-reply-proposal]:not([hidden]) { border: 2px solid currentColor; padding: 12px; border-radius: 8px; }
-.city-reply [data-reply-proposal] button + button { margin-top: 8px; }
+.city-reply .city-prompt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 12px; }
+.city-reply textarea { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit; padding: 10px; border-radius: 8px; resize: vertical; }
+.city-reply [data-reply-status], .city-reply [data-command-transcript], .city-reply [data-reply-result] { font-size: .8125rem; }
+.city-reply p:empty { display: none; }
+.city-reply [data-reply-proposal]:not([hidden]) { border: 1px solid currentColor; padding: 10px; border-radius: 8px; margin: 8px 0; }
+.city-reply [data-reply-choices] { margin-top: 8px; }
+.city-command-variations { display: block; margin-top: 4px; font-size: .75rem; line-height: 1.4; }
+#city-screen .city-reply [data-reply-choices] button { flex: 1 1 120px; }

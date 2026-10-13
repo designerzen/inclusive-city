@@ -15,6 +15,7 @@ interface SpeechRuntime {
   utterance(text: string): SpeechSynthesisUtterance;
 }
 export interface NeuralSpeech {
+  preload?(text: string, voice: SpeechVoice, priority?: number): Promise<void>;
   generate(text: string, voice?: SpeechVoice): Promise<{ audio: Float32Array; sampling_rate: number }>;
   dispose(): void;
 }
@@ -37,10 +38,16 @@ export class ScreenSpeech {
   private gain: GainNode | null = null;
   private role: SpeechRole = 'presets';
   private roleVoices = savedRoleVoices();
+  precache(texts: readonly string[], role: SpeechRole = 'city', priority = 2) {
+    if (!this.enabled || this.disposed || !this.neural?.preload) return;
+    const voice = this.voiceForRole(role);
+    for (const text of new Set(texts)) void this.neural.preload(text, voice, priority).catch(() => {});
+  }
   voiceForRole(role: SpeechRole) { return role === 'city' ? cityVoice : this.roleVoices[role]; }
   setRoleVoice(role: Exclude<SpeechRole, 'city'>, voice: SpeechVoice) {
     this.stop(); this.roleVoices[role] = voice;
     try { localStorage.setItem('inclusive-city-role-voices', JSON.stringify(this.roleVoices)); } catch { /* Session settings still work. */ }
+    this.precache([screenIntroduction(role)], role);
   }
   private settingsListeners = new Set<() => void>();
   constructor(private runtime: SpeechRuntime | null = browserSpeech(), private neural?: NeuralSpeech) {}
@@ -69,7 +76,7 @@ export class ScreenSpeech {
     this.role = screen;
     this.say(screenIntroduction(screen, robotName), undefined, undefined, { role: screen });
   }
-  say(text: string, onStart?: () => void, onFinish?: () => void, options?: { role?: SpeechRole; previewVoice?: SpeechVoice }) {
+  say(text: string, onStart?: () => void, onFinish?: () => void, options?: { role?: SpeechRole; previewVoice?: SpeechVoice; shouldPlay?: () => boolean }) {
     if (this.disposed) return false;
     this.stop();
     if (!this.canSpeak) return false;
@@ -82,6 +89,7 @@ export class ScreenSpeech {
         const voice = options?.previewVoice ?? this.voiceForRole(options?.role ?? this.role);
         void Promise.all([this.neural.generate(text, voice), resumed]).then(([result]) => {
           if (generation !== this.generation || !this.canSpeak) return;
+          if (options?.shouldPlay && !options.shouldPlay()) { this.stop(); return; }
           const context = this.context!;
           const buffer = context.createBuffer(1, result.audio.length, result.sampling_rate);
           buffer.copyToChannel(new Float32Array(result.audio), 0);
@@ -97,6 +105,7 @@ export class ScreenSpeech {
           source.start(); onStart?.();
         }).catch(() => {
           if (generation !== this.generation) return;
+          if (options?.shouldPlay && !options.shouldPlay()) { this.stop(); return; }
           this.saySystem(text, onStart, onFinish);
         });
         return true;

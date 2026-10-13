@@ -128,3 +128,33 @@ test('neural generation failure uses the system voice and preserves guidance cal
     speech.dispose();
   } finally { globalThis.AudioContext = previous; }
 });
+
+test('pre-generation uses role voices without speaking and respects disabled narration', async () => {
+  const prepared: string[] = [];
+  const speech = new ScreenSpeech(null, {
+    generate: async () => { throw new Error('Pre-generation must not play'); },
+    preload: async (text, voice, priority) => { prepared.push(`${voice}:${priority}:${text}`); }, dispose() {},
+  });
+  speech.precache(['Upcoming crossing', 'Upcoming crossing'], 'city', 1);
+  assert.deepEqual(prepared, ['bf_emma:1:Upcoming crossing']);
+  speech.setEnabled(false); speech.precache(['Silent']);
+  assert.equal(prepared.length, 1);
+  speech.dispose();
+});
+
+test('a resolved action discards audio that finishes generating late', async () => {
+  const previous = globalThis.AudioContext;
+  globalThis.AudioContext = class { resume() { return Promise.resolve(); } close() { return Promise.resolve(); } } as unknown as typeof AudioContext;
+  try {
+    let complete!: (value: { audio: Float32Array; sampling_rate: number }) => void;
+    let started = 0, finished = 0, relevant = true;
+    const speech = new ScreenSpeech(null, {
+      generate: () => new Promise(resolve => { complete = resolve; }), dispose() {},
+    });
+    speech.say('Crossing blocked', () => started++, () => finished++, { shouldPlay: () => relevant });
+    relevant = false; complete({ audio: new Float32Array(24), sampling_rate: 24000 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(started, 0); assert.equal(finished, 1);
+    speech.dispose();
+  } finally { globalThis.AudioContext = previous; }
+});

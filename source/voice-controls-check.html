@@ -1,6 +1,0 @@
-<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Voice settings check</title><body><dialog open class="options-dialog"><section class="options-audio"><h3>Sound</h3><div id="voices"></div><button id="speech-preview">Use natural voice</button><p id="status" role="status">Ready</p></section></dialog><script type="module">
-import './src/styles.css'; import './src/uiDesign.css'; import './src/accessibility.css';
-import { ScreenSpeech } from './src/audio/ScreenSpeech.ts'; import { KokoroSpeech } from './src/audio/KokoroSpeech.ts'; import { mountSpeechVoiceControls } from './src/ui/speechVoiceControls.ts';
-const speech = new ScreenSpeech(undefined, new KokoroSpeech(message => document.querySelector('#status').textContent = message));
-document.querySelector('#speech-preview').onclick = mountSpeechVoiceControls(document.querySelector('#voices'), speech);
-</script></body></html>

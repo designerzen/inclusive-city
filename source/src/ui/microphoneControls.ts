@@ -1,14 +1,20 @@
 import { discoverMicrophones, onMicrophoneChange, selectedMicrophone, selectMicrophone } from '../audio/microphone';
 import type { MicrophoneDevices } from '../audio/microphone';
+import { readVoiceCommandModel, saveVoiceCommandModel } from '../audio/voiceCommandSettings';
 
 export function mountMicrophoneControls(container: HTMLElement, media: MicrophoneDevices | undefined = navigator.mediaDevices) {
   container.innerHTML = `<h3 id="options-microphone-title">Microphone</h3>
-    <div class="accessibility-field"><label for="app-microphone">Speech input</label>
+    <div class="accessibility-field"><label for="app-command-model">Spoken command model</label>
+    <select id="app-command-model"><option value="moonshine">Moonshine — transcription to action</option><option value="neudecide">NeuDecide — private model files required</option></select>
+    <label for="app-microphone">Speech input</label>
     <select id="app-microphone" aria-describedby="microphone-hint"><option value="">System default</option></select>
     <p id="microphone-hint" class="accessibility-hint">Used for spoken city commands and prompt recording. Changing it stops any recording in progress.</p>
     <button type="button" id="microphone-discover">Find microphones</button>
     <p id="microphone-status" class="accessibility-hint" role="status" aria-live="polite">Choose Find microphones to allow access and show device names. The microphone is released after discovery.</p></div>`;
   const select = container.querySelector<HTMLSelectElement>('#app-microphone')!;
+  const model = container.querySelector<HTMLSelectElement>('#app-command-model')!; model.value = readVoiceCommandModel();
+  const changeModel = () => { saveVoiceCommandModel(model.value === 'neudecide' ? 'neudecide' : 'moonshine'); };
+  model.addEventListener('change', changeModel);
   const button = container.querySelector<HTMLButtonElement>('#microphone-discover')!;
   const status = container.querySelector<HTMLElement>('#microphone-status')!;
   let disposed = false, generation = 0;
@@ -49,5 +55,6 @@ export function mountMicrophoneControls(container: HTMLElement, media: Microphon
   return { refresh, dispose() {
     disposed = true; ++generation; unsubscribe(); media?.removeEventListener('devicechange', deviceChange);
     select.removeEventListener('change', change); button.removeEventListener('click', discover);
+    model.removeEventListener('change', changeModel);
   } };
 }

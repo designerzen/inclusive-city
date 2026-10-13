@@ -27,7 +27,7 @@
 }
 :root[data-reduced-motion='true'] #city-screen .city-isometric-options { transition: none; transform: none; }
 .city-interaction-hud { position: absolute; right: 24px; bottom: 24px; z-index: 5; width: min(340px, calc(100% - 48px)); max-height: calc(100dvh - 180px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525f5; box-shadow: 0 4px 20px #0003; }
-.city-interaction-hud:has(#city-issue[hidden]):has(.city-controls-hud:not([open])) { width: max-content; }
+.city-interaction-hud:has(#city-issue[hidden]):has(.city-controls-hud:not([open])):not(:has(#city-reply)) { width: max-content; }
 .city-controls-hud { position: static; width: auto; }
 .city-issue { padding: 16px; }
 .city-issue h2 { margin: 0; font-size: 1.125rem; }
@@ -95,4 +95,4 @@
 #city-screen #city-fast-forward::before { display: inline-block; margin: 0; }
 #city-screen #city-controls-window { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
 #city-screen #city-controls-window::before { display: none; }
-.city-interaction-hud[data-controls-detached]:has(#city-issue[hidden]) { display: none; }
+.city-interaction-hud[data-controls-detached]:has(#city-issue[hidden]):not(:has(#city-reply)) { display: none; }

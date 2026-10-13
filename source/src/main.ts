@@ -10,7 +10,8 @@ import scientistSurnamesText from './data/scientist-surnames.txt?raw';
 import { parseScientistSurnames } from './robot/scientistNames';
 import { mountCityScreen } from './ui/cityScreen';
 import { CitySounds } from './audio/CitySounds';
-import { ScreenSpeech } from './audio/ScreenSpeech';
+import { ScreenSpeech, screenIntroduction } from './audio/ScreenSpeech';
+import { cityAlertNarration, cityStartNarration, cityResumeNarration } from './ui/cityNarration';
 import { KokoroSpeech } from './audio/KokoroSpeech';
 import { mountSpeechVoiceControls } from './ui/speechVoiceControls';
 import { mountMidiControls } from './ui/midiControls';
@@ -164,9 +165,15 @@ document.querySelector<HTMLButtonElement>('#speech-preview')!.addEventListener('
 const speechEnabled = document.querySelector<HTMLInputElement>('#speech-enabled')!;
 try { speechEnabled.checked = localStorage.getItem('inclusive-city-speech') !== 'disabled'; } catch { /* Settings work when storage is unavailable. */ }
 screenSpeech.setEnabled(speechEnabled.checked);
+function warmNarration() {
+  screenSpeech.precache([...cityAlertNarration, cityStartNarration, cityResumeNarration], 'city');
+  for (const role of ['presets', 'editor', 'art'] as const) screenSpeech.precache([screenIntroduction(role)], role);
+}
+warmNarration();
 speechEnabled.disabled = !screenSpeech.supported;
 speechEnabled.addEventListener('change', () => {
   screenSpeech.setEnabled(speechEnabled.checked);
+  if (speechEnabled.checked) warmNarration();
   try { localStorage.setItem('inclusive-city-speech', speechEnabled.checked ? 'enabled' : 'disabled'); } catch { /* Keep this session's preference. */ }
 });
 const screenTransition = createScreenTransition(workshop, {

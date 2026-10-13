@@ -31,6 +31,7 @@ import { mountCityVoicePanel } from './cityVoicePanel';
 import { interpretCityReply, applyCityReply } from './cityReply';
 import { citySpokenChoices } from './citySpokenActions';
 import { cityRobotAlert } from './cityRobotAlert';
+import { cityAlertNarration, cityStartNarration, cityResumeNarration, cityIntroduction, upcomingCityNarration } from './cityNarration';
 import { cityIssueAction } from './cityIssueAction';
 import { CityMusicCues } from './cityMusicCues';
 import { musicMonitorChanges, musicMonitorPreferences } from '../app/musicMonitorPreferences';
@@ -64,6 +65,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
     <div class="city-interaction-hud">
+    <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
     <section id="city-issue" class="city-issue" aria-label="Help your robot" hidden>
       <h2>Your robot is stuck</h2>
       <p id="city-issue-description" role="status" aria-live="polite"></p>
@@ -72,7 +74,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <button id="city-roboramp" type="button" hidden>Roboramp</button>
       <button id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
       <p id="city-issue-feedback" role="status" aria-live="polite"></p>
-      <details id="city-issue-reply"><summary>Say or choose a city change</summary><div id="city-issue-reply-slot"></div></details>
     </section>
     <details class="city-controls-hud" id="city-controls-hud"><summary><span id="city-controls-label">City controls</span> <span class="disclosure-chevron" aria-hidden="true">&#8964;</span></summary>
     <aside class="city-plan" aria-label="Route and city changes">
@@ -120,7 +121,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <button id="city-undo" type="button" disabled>Undo city change</button>
       </section>
       <p id="city-feedback" role="status" aria-live="polite"></p>
-      <details class="city-reply-options"><summary>Talk or type to your robot</summary><section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section></details>
       <details class="city-journey-details"><summary>Journey details</summary>
       <div class="city-route-stats" id="city-route-stats"></div>
       <p id="city-garage-status" role="status" aria-live="polite"></p>
@@ -247,7 +247,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   physicalStop.title = 'Stop physical robots';
   physicalStop.addEventListener('click', () => physicalRobots.halt('Operator stopped the fleet.'));
   container.querySelector('.city-toolbar')!.append(physicalStop);
-  const replyHome = container.querySelector<HTMLElement>('.city-reply-options')!;
   const voicePanel = mountCityVoicePanel(get('city-reply'), {
     interpret: text => city ? interpretCityReply(text, city.journey) : { message: 'Open the city to reply to your robot.' },
     choices: () => city ? citySpokenChoices(city.journey) : [],
@@ -262,19 +261,21 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   });
   let robotSpeech: string | null = null;
   let speechTimer: number | undefined;
-  function sayRobot(message: string) {
+  function sayRobot(message: string, actionAlert = false) {
     speech?.stop(); window.clearTimeout(speechTimer);
     const speakingCity = city;
     if (!speakingCity) return;
-    robotSpeech = message; speakingCity.setSinging(true);
+    robotSpeech = message; speakingCity.setSinging(false);
     const finish = () => { robotSpeech = null; speakingCity.setSinging(false); window.clearTimeout(speechTimer); };
-    if (!speech?.say(message, undefined, finish, { role: 'city' })) {
+    if (!speech?.say(message, () => speakingCity.setSinging(true), finish, {
+      role: 'city', shouldPlay: () => city === speakingCity && (!actionAlert || cityRobotAlert(speakingCity.journey) === message),
+    })) {
       // Keep the same explanation visible when narration is muted or unavailable.
       speechTimer = window.setTimeout(finish, Math.max(4000, message.length * 65));
     }
   }
   function introduceRobot() {
-    if (city) sayRobot(`Hello, adventure buddy! I'm ${city.journey.bot.name}. Let's explore the city together! We're heading to the Duet studio to make art and music.`);
+    if (city) sayRobot(cityIntroduction(city.journey.bot.name));
   }
   function beginCreation() {
     if (!city) return;
@@ -329,12 +330,19 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   }
   // Audio keeps its beat even when rendering is slow or animation frames are throttled.
   const musicTimer = window.setInterval(updateCityMusic, 50);
+  let narrationPlan = '';
   function refresh() {
     projection.refresh();
     if (!city) return;
     voicePanel.update();
     updateRobotConditions(city.robotConditions);
     const j = city.journey;
+    const nextNarrationPlan = JSON.stringify([j.bot.name, j.edge, j.route]);
+    if (nextNarrationPlan !== narrationPlan) {
+      narrationPlan = nextNarrationPlan;
+      speech?.precache(upcomingCityNarration(j), 'city', 1);
+      speech?.precache([cityIntroduction(j.bot.name), cityStartNarration, cityResumeNarration, ...cityAlertNarration], 'city');
+    }
     turnRadiusInput.disabled = !j.ready;
     turnRadiusInput.value = String(j.minimumTurnRadius);
     const bikes = j.world.bicycles ?? [];
@@ -342,6 +350,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
     const alert = cityRobotAlert(j);
+    voicePanel.sentence(robotSpeech ?? alert ?? `Tell me what you would like to change, or hold the mic to speak.`);
     setText('city-robot-name', robotSpeech ?? alert ?? j.bot.name);
     nameTag.classList.toggle('is-alert', !!alert);
     nameTag.classList.toggle('is-speaking', !!robotSpeech);
@@ -349,7 +358,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (alertKey !== lastAlert && !voiceCapturing) {
       lastAlert = alertKey;
       if (alert && active && !document.hidden) {
-        sayRobot(alert);
+        sayRobot(alert, true);
       }
     }
     // A screen-space billboard faces the camera even in the overhead view.
@@ -412,7 +421,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setText('city-tool-route', mode === 'route' && controlsHud.open ? 'Done with route' : 'Create route');
     const routeButton = get('city-tool-route');
     if (routeButton.getAttribute('aria-label') !== routeButton.textContent) routeButton.setAttribute('aria-label', routeButton.textContent!);
-    interactionHud.hidden = !j.blocked && (controlsWindow.detached || !controlsHud.open);
+    interactionHud.hidden = false;
     get('city-finished').hidden = !j.complete;
     get('city-exhibition').hidden = !j.complete;
     get<HTMLButtonElement>('city-exhibition').disabled = !finished || !city.arrivalComplete;
@@ -420,10 +429,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       selected = j.blocked.id; mode = 'edit'; controlsHud.open = false; plan.scrollTop = 0;
       get('city-issue').parentElement!.scrollTop = 0;
       streetSelect.value = selected; panelKey = ''; feedback('');
-      get<HTMLDetailsElement>('city-issue-reply').open = true;
     }
-    const replySlot = j.blocked ? get('city-issue-reply-slot') : replyHome;
-    if (get('city-reply').parentElement !== replySlot) replySlot.append(get('city-reply'));
     lastBlock = j.blocked?.id ?? null;
     get('city-issue').hidden = !j.blocked;
     setText('city-controls-label', j.blocked ? 'More options' : 'City controls');
@@ -633,11 +639,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!city) return;
     if (city.journey.physicalControl) { feedback('Use the Physical robots controls to start, hold or stop the hardware.'); return; }
     if (city.journey.ready) {
-      if (city.journey.start()) { mode = 'edit'; controlsHud.open = false; sayRobot("Here we go! I'll follow our route to the Duet studio. Let's make art and music along the way!"); }
+      if (city.journey.start()) { mode = 'edit'; controlsHud.open = false; sayRobot(cityStartNarration); }
     } else {
       city.journey.setPaused(!city.journey.paused);
       if (city.journey.paused) { speech?.stop(); window.clearTimeout(speechTimer); robotSpeech = null; city.setSinging(false); }
-      else { controlsHud.open = false; sayRobot("Ready, adventure buddy? Let's keep going to the Duet studio!"); }
+      else { controlsHud.open = false; sayRobot(cityResumeNarration); }
     }
     refresh();
   });

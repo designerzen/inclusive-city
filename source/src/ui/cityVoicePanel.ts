@@ -5,171 +5,126 @@ import type { CommandCallbacks, CommandController } from '../audio/CitySpokenCom
 import { spokenTools, validateSpokenCall } from './citySpokenActions';
 import type { SpokenChoice } from './citySpokenActions';
 import type { CityReply } from './cityReply';
-import { readVoiceCommandModel, saveVoiceCommandModel } from '../audio/voiceCommandSettings';
-import type { VoiceCommandModel } from '../audio/voiceCommandSettings';
+import { readVoiceCommandModel, onVoiceCommandModelChange } from '../audio/voiceCommandSettings';
 import { onMicrophoneChange } from '../audio/microphone';
 
 export function mountCityVoicePanel(container: HTMLElement, options: {
   context(): string; choices(): SpokenChoice[]; submit(text: string): string; capture(active: boolean): void;
-  interpret(text: string): CityReply;
-  dictationFactory?: VoiceFactory;
+  interpret(text: string): CityReply; dictationFactory?: VoiceFactory;
   commandFactory?: (callbacks: CommandCallbacks) => CommandController;
 }) {
-  container.innerHTML = `<h3>Tell the city what to change</h3>
-    <p>Choose a change below, or say it out loud using Speak a city command.</p>
-    <label for="city-command-model">Spoken command model</label>
-    <select id="city-command-model"><option value="moonshine">Moonshine — transcription to action</option><option value="neudecide">NeuDecide — private model files required</option></select>
-    <p>Both process speech on this device. Prompt dictation always uses Moonshine.</p>
-    <div class="city-reply-buttons" data-reply-choices aria-label="Changes you can say or choose"></div>
-    <div class="city-reply-buttons"><button type="button" data-reply-talk>Speak a city command</button><button type="button" data-reply-done disabled>Done</button><button type="button" data-reply-cancel disabled>Cancel</button></div>
-    <p data-reply-status role="status" aria-live="polite">Speech stays on this device. First use downloads a model.</p>
+  container.innerHTML = `<div class="city-reply-heading">
+    <p data-reply-sentence role="status" aria-live="polite">Tell me what you would like to change.</p>
+    <button type="button" data-reply-talk aria-label="Hold to talk" title="Hold to talk; release to finish" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    </button></div>
+    <form class="city-prompt-row"><label class="sr-only" for="city-reply-text">City prompt</label>
+      <textarea id="city-reply-text" rows="1" maxlength="500" placeholder="Type a change, or hold the mic…"></textarea><button type="submit">Send</button></form>
+    <p data-reply-status role="status" aria-live="polite">Hold the mic to speak. Focus the prompt to dictate into it.</p>
     <p data-command-transcript aria-label="Spoken command transcript"></p>
-    <div data-reply-proposal hidden><p data-reply-proposal-text></p><button type="button" data-reply-confirm>Apply this change</button><button type="button" data-reply-dismiss>Discard</button></div>
-    <form><label for="city-reply-text">City prompt — focus here to dictate</label><textarea id="city-reply-text" rows="2" maxlength="500" placeholder="For example: add a cut curb"></textarea>
-    <div class="city-reply-buttons"><button type="button" data-reply-record>Hold to record prompt</button><button type="submit">Send prompt</button></div>
-    <p>Dictation fills this box. Send prompt applies it. Hold the record button with a pointer, Space or Enter, then release; or focus the box and choose Done.</p></form>
+    <div data-reply-proposal hidden><p data-reply-proposal-text></p><div class="city-reply-buttons"><button type="button" data-reply-confirm>Apply</button><button type="button" data-reply-dismiss>Discard</button></div></div>
+    <div class="city-reply-buttons" data-reply-choices aria-label="Suggested changes"></div>
     <p data-reply-result role="status" aria-live="polite"></p>`;
   const get = <T extends HTMLElement>(selector: string) => container.querySelector<T>(selector)!;
-  const talk = get<HTMLButtonElement>('[data-reply-talk]'), done = get<HTMLButtonElement>('[data-reply-done]');
-  const cancel = get<HTMLButtonElement>('[data-reply-cancel]'), record = get<HTMLButtonElement>('[data-reply-record]');
-  const textarea = get<HTMLTextAreaElement>('textarea'), result = get('[data-reply-result]'), status = get('[data-reply-status]');
-  const proposal = get('[data-reply-proposal]');
-  const modelSelect = get<HTMLSelectElement>('#city-command-model');
-  let model: VoiceCommandModel = readVoiceCommandModel(); modelSelect.value = model;
-  let disposed = false, dictationContext = '', commandContext = '', previous = '';
-  let choices: SpokenChoice[] = [], commandChoices: SpokenChoice[] = [];
+  const mic = get<HTMLButtonElement>('[data-reply-talk]'), textarea = get<HTMLTextAreaElement>('textarea');
+  const result = get('[data-reply-result]'), status = get('[data-reply-status]'), proposal = get('[data-reply-proposal]');
+  let disposed = false, held = false, promptIntent = false, context = '', previous = '', mode: 'prompt' | 'command' | 'neu' = 'command';
+  let base = '', choices: SpokenChoice[] = [], turnChoices: SpokenChoice[] = [];
   let proposed: { text: string; actionKey: string; choiceName?: string } | undefined;
-  let held = false, dictationBase = '', dictationGeneration = 0;
-  function submit(text: string) {
-    if (!disposed) { clearProposal(); result.textContent = options.submit(text); status.textContent = 'Microphone off. City reply processed.'; }
-  }
   function clearProposal() { proposed = undefined; proposal.hidden = true; }
+  function submit(text: string) { clearProposal(); result.textContent = options.submit(text); status.textContent = 'Microphone off.'; }
   function propose(text: string, choiceName?: string) {
-    if (disposed || commandContext !== options.context()) {
-      if (!disposed) result.textContent = 'The situation changed. Please reply to the current barrier.';
-      return;
-    }
+    if (disposed || context !== options.context()) { if (!disposed) result.textContent = 'The situation changed. Try the current barrier.'; return; }
     const reply = options.interpret(text);
     if (!reply.action) { submit(text); return; }
-    proposed = { text, actionKey: JSON.stringify(reply.action), choiceName };
-    proposal.hidden = false;
+    proposed = { text, actionKey: JSON.stringify(reply.action), choiceName }; proposal.hidden = false;
     get('[data-reply-proposal-text]').textContent = `Heard: “${text}”. Apply this change?`;
-    get<HTMLButtonElement>('[data-reply-confirm]').focus(); status.textContent = 'Microphone off. Review the proposed change.';
+    status.textContent = 'Microphone off. Review the change.';
   }
   function active() {
     if (disposed) return;
-    const busy = dictation.busy || command.busy;
-    talk.disabled = busy; done.disabled = !(dictation.listening || command.listening); cancel.disabled = !busy;
-    record.disabled = command.busy; record.setAttribute('aria-pressed', String(held && dictation.busy));
-    container.dataset.listening = String(dictation.listening || command.listening); options.capture(busy);
+    const busy = speech.busy || neu.busy, listening = speech.listening || neu.listening;
+    mic.disabled = busy && !held; mic.setAttribute('aria-pressed', String(held));
+    mic.setAttribute('aria-label', held ? 'Listening — release to finish' : 'Hold to talk');
+    container.dataset.listening = String(listening); options.capture(busy);
   }
-  const dictation = new CityVoiceReply({
-    status: text => { if (!disposed) status.textContent = text; },
+  const speech = new CityVoiceReply({
+    status: text => { if (!disposed) status.textContent = text.startsWith('Listening') ? 'Listening… release the mic to finish.' : text; }, active,
     transcript: text => {
-      if (!disposed && (held || textarea.ownerDocument.activeElement === textarea) && dictationContext === options.context())
-        textarea.value = [dictationBase, text].filter(Boolean).join(' ');
-    }, active,
+      if (disposed || context !== options.context()) return;
+      if (mode === 'prompt') { if (text) textarea.value = [base, text].filter(Boolean).join(' '); }
+      else get('[data-command-transcript]').textContent = text;
+    },
     submit: text => {
-      if (!disposed && dictationContext === options.context()) {
-        textarea.value = [dictationBase, text].filter(Boolean).join(' ');
-        if (textarea.value.length > 500) status.textContent = 'Your prompt is too long. Shorten it to one change under 500 characters before sending.';
-      }
+      if (disposed || context !== options.context()) return;
+      if (mode === 'prompt') {
+        textarea.value = [base, text].filter(Boolean).join(' ');
+        status.textContent = textarea.value.length > 500 ? 'Shorten your prompt to under 500 characters before sending.' : 'Microphone off. Send when ready.';
+      } else propose(text);
     },
   }, options.dictationFactory);
-  const createCommand = options.commandFactory ?? (callbacks => new CitySpokenCommand(callbacks));
-  const neuCommand = createCommand({
-    status: text => { if (!disposed) status.textContent = text; }, active,
+  const neu = (options.commandFactory ?? (callbacks => new CitySpokenCommand(callbacks)))({
+    status: text => { if (!disposed) status.textContent = text.startsWith('Listening') ? 'Listening… release the mic to finish.' : text; }, active,
     result: calls => {
-      if (!disposed) status.textContent = 'Microphone off. Your command was processed on this device.';
-      if (disposed || commandContext !== options.context()) { if (!disposed) result.textContent = 'The situation changed. Please reply to the current barrier.'; return; }
-      const choice = validateSpokenCall(calls, commandChoices);
-      if (!choice) { result.textContent = 'No single available change was understood. Try one of the choices or type a prompt.'; return; }
-      if (choice.name === 'noAction' || choice.name === 'explainCurrentBarrier') { submit(choice.phrase); return; }
-      propose(choice.phrase, choice.name);
+      if (disposed || context !== options.context()) return;
+      const choice = validateSpokenCall(calls, turnChoices);
+      if (choice) propose(choice.phrase, choice.name);
+      else result.textContent = 'Try one suggested change or type a prompt.';
     },
   });
-  const moonCommand = new CityVoiceReply({
-    status: text => { if (!disposed) status.textContent = text; }, active,
-    transcript: text => { if (!disposed) get('[data-command-transcript]').textContent = text; },
-    submit: text => propose(text),
-  }, options.dictationFactory);
-  const command = {
-    get busy() { return neuCommand.busy || moonCommand.busy; },
-    get listening() { return neuCommand.listening || moonCommand.listening; },
-    start() { return model === 'moonshine' ? moonCommand.start() : neuCommand.start(spokenTools(commandChoices)); },
-    finish() { if (moonCommand.busy) void moonCommand.finish(); else neuCommand.finish(); },
-    cancel() { moonCommand.cancel(); neuCommand.cancel(); },
-  };
-  function startDictation() {
-    if (disposed || command.busy || dictation.busy) return;
-    clearProposal(); dictationContext = options.context(); dictationBase = textarea.value.trim();
-    ++dictationGeneration; void dictation.start();
-  }
-  function finishDictation() {
-    if (dictation.listening) void dictation.finish();
-    else if (dictation.busy) { dictation.cancel(); status.textContent = 'Released before the microphone was ready. Try again when ready.'; }
-  }
   function stop() {
-    ++dictationGeneration; held = false; dictation.cancel(); command.cancel(); clearProposal();
-    if (!disposed) status.textContent = 'Microphone off. No spoken city change submitted.';
+    held = false; speech.cancel(); neu.cancel(); clearProposal();
+    if (!disposed) status.textContent = 'Microphone off.';
   }
-  textarea.addEventListener('focus', startDictation);
-  modelSelect.addEventListener('change', () => {
-    stop(); model = modelSelect.value === 'neudecide' ? 'neudecide' : 'moonshine'; saveVoiceCommandModel(model);
-    status.textContent = model === 'moonshine' ? 'Moonshine selected. Speak one city change, then choose Done.' : 'NeuDecide selected. Authorised private model files must be installed to use it.';
-  });
-  textarea.addEventListener('input', () => {
-    if (dictation.busy) { const draft = textarea.value; dictation.cancel(); textarea.value = draft; status.textContent = 'Microphone off while you type.'; }
-  });
-  textarea.addEventListener('blur', () => {
-    const generation = dictationGeneration;
-    queueMicrotask(() => {
-      if (disposed || held || generation !== dictationGeneration) return;
-      if (textarea.ownerDocument.activeElement === done || textarea.ownerDocument.activeElement === cancel) return;
-      finishDictation();
-    });
-  });
-  talk.addEventListener('click', () => {
-    dictation.cancel(); clearProposal(); commandContext = options.context(); commandChoices = options.choices();
-    get('[data-command-transcript]').textContent = ''; void command.start();
-  });
-  done.addEventListener('click', () => { if (command.busy) command.finish(); else finishDictation(); });
-  cancel.addEventListener('click', stop);
-  const hold = () => { if (!command.busy && !held) { held = true; startDictation(); active(); } };
-  const release = () => { if (held) { finishDictation(); held = false; active(); } };
-  record.addEventListener('pointerdown', event => {
-    if (event.button !== 0) return;
-    event.preventDefault(); record.setPointerCapture(event.pointerId); hold();
-  });
-  record.addEventListener('pointerup', release);
-  record.addEventListener('pointercancel', stop);
-  record.addEventListener('lostpointercapture', release);
-  record.addEventListener('keydown', event => { if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); if (!event.repeat) hold(); } });
-  record.addEventListener('keyup', event => { if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); release(); } });
-  record.addEventListener('blur', () => { if (held) stop(); });
-  container.addEventListener('keydown', event => { if (event.key === 'Escape') { stop(); talk.focus(); } });
+  function hold() {
+    if (disposed || held || speech.busy || neu.busy) return;
+    clearProposal(); held = true; context = options.context(); turnChoices = options.choices();
+    const focused = textarea.ownerDocument.activeElement;
+    mode = focused === textarea || promptIntent && focused === mic ? 'prompt' : readVoiceCommandModel() === 'neudecide' ? 'neu' : 'command';
+    base = textarea.value.trim(); get('[data-command-transcript]').textContent = '';
+    if (mode === 'neu') void neu.start(spokenTools(turnChoices)); else void speech.start();
+    active();
+  }
+  function release() {
+    if (!held) return;
+    held = false;
+    if (mode === 'neu' && neu.listening) neu.finish();
+    else if (mode !== 'neu' && speech.listening) void speech.finish();
+    else { stop(); status.textContent = 'Released before the microphone was ready. Hold again to speak.'; }
+    active();
+  }
+  mic.addEventListener('pointerdown', event => { if (event.button !== 0) return; event.preventDefault(); mic.setPointerCapture(event.pointerId); hold(); });
+  mic.addEventListener('pointerup', release); mic.addEventListener('lostpointercapture', release);
+  mic.addEventListener('pointercancel', stop);
+  mic.addEventListener('keydown', event => { if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); if (!event.repeat) hold(); } });
+  mic.addEventListener('keyup', event => { if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); release(); } });
+  mic.addEventListener('blur', () => { if (held) stop(); });
+  textarea.addEventListener('focus', () => { promptIntent = true; });
+  textarea.addEventListener('blur', () => { queueMicrotask(() => { if (!held && textarea.ownerDocument.activeElement !== mic) promptIntent = false; }); });
+  textarea.addEventListener('input', () => { if (speech.busy && mode === 'prompt') stop(); });
+  container.addEventListener('keydown', event => { if (event.key === 'Escape') stop(); });
+  get<HTMLFormElement>('form').addEventListener('submit', event => { event.preventDefault(); const text = textarea.value; stop(); submit(text); });
   get<HTMLButtonElement>('[data-reply-confirm]').addEventListener('click', () => {
-    if (proposed && commandContext === options.context()
-      && (!proposed.choiceName || options.choices().some(choice => choice.name === proposed!.choiceName))
+    if (proposed && context === options.context() && (!proposed.choiceName || options.choices().some(c => c.name === proposed!.choiceName))
       && JSON.stringify(options.interpret(proposed.text).action) === proposed.actionKey) submit(proposed.text);
     else { clearProposal(); result.textContent = 'The situation changed. Choose a current change.'; }
   });
   get<HTMLButtonElement>('[data-reply-dismiss]').addEventListener('click', clearProposal);
-  get<HTMLFormElement>('form').addEventListener('submit', event => { event.preventDefault(); const text = textarea.value; stop(); submit(text); });
-  const unsubscribeMicrophone = onMicrophoneChange(stop);
+  const unsubscribeMic = onMicrophoneChange(stop), unsubscribeModel = onVoiceCommandModelChange(stop);
   return {
+    sentence(text: string) { const sentence = get('[data-reply-sentence]'); if (sentence.textContent !== text) sentence.textContent = text; },
     update() {
       const next = options.context(); if (next === previous && choices.length) return;
-      if (dictation.busy || command.busy || proposed) stop();
-      previous = next; choices = options.choices();
+      if (speech.busy || neu.busy || proposed) stop(); previous = next; choices = options.choices();
       get('[data-reply-choices]').replaceChildren(...choices.map(choice => {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = choice.phrase;
+        button.title = choice.variations?.join(' · ') ?? choice.phrase;
         if (choice.variations?.length) {
-          const variations = document.createElement('span'); variations.className = 'city-command-variations';
-          variations.textContent = `Also say: ${choice.variations.slice(0, 2).join(' · ')}`; button.append(variations);
+          const alternate = document.createElement('span'); alternate.className = 'city-command-variations';
+          alternate.textContent = `Also say: ${choice.variations[0]}`; button.append(alternate);
         }
         button.addEventListener('click', () => { stop(); submit(choice.phrase); }); return button;
       }));
-    }, stop, dispose() { stop(); unsubscribeMicrophone(); disposed = true; },
+    }, stop, dispose() { stop(); unsubscribeMic(); unsubscribeModel(); disposed = true; },
   };
 }
