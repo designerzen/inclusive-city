@@ -17,6 +17,7 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
   const id = journey.blocked?.id;
   const reason = journey.blocked ? journey.blockedExplanation : 'Your robot is not blocked. You can pause, resume, or undo the last city change.';
   if (!text) return { message: 'I didn’t hear a reply. Try again, type a reply, or use the city choices.' };
+  if (input.length > 500) return { message: 'That prompt is too long. Please shorten it to one change under 500 characters. No change made.' };
   if (/\b(don't|dont|do not|never|not|no|cancel|stop listening|without|instead|remove the ramp|raise the bridge|raise the curb|raise the kerb)\b/.test(text)) return { message: 'No city change made. Tell me what you would like to change.' };
   if (/\b(undo|change my mind|put it back)\b/.test(text)) return { message: 'Undo the last city change.', action: { kind: 'undo' } };
   if (/\b(ask|get)\b.*\b(robot|somebody|someone)\b.*\b(press|push)\b.*\bbutton\b/.test(text)) {
@@ -39,12 +40,13 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
     /\b(door|entrance)\b/.test(text), /\b(directions|guidance|route cues)\b/.test(text),
   ];
   // A single request may describe both a door and its width, or route cues.
-  const count = requests.filter(Boolean).length - (requests[5] && requests[8] ? 1 : 0) - (requests[3] && requests[9] ? 1 : 0);
+  const count = requests.filter(Boolean).length - (requests[5] && requests[8] ? 1 : 0) - (requests[3] && requests[9] ? 1 : 0) - (requests[0] && requests[1] && street?.kind === 'curb' ? 1 : 0);
   if (count > 1 || /\b(then|also|and (wait|pause|resume|continue|add|move|make|lower|give))\b/.test(text)) return { message: 'Let’s change one thing at a time. Which change would you like first?' };
   if (/\b(remove|take away|raise|higher|narrow|shorter)\b/.test(text) && !requests[7]) return { message: 'No city change made. Use the city choices to try a different setting.' };
   if (!/\b(add|put|make|move|lower|widen|give|increase|extend|open|clear|fix|repair|need|can|could|please|remove|change)\b/.test(text)) return { message: 'Tell me the change you want, for example “add a ramp” or “make it wider”.' };
   if (/\b(fix|repair)\b/.test(text) && count === 0) return { message: 'What would you like to change? Use the city choices beside the barrier for ideas.' };
   if (requests[0] && street && isHumpbackBridge(street, journey.world)) return { message: 'Bridge access updated.', action: { kind: 'bridge-access', id, access: /\b(elevator|elevators|lift|lifts)\b/.test(text) ? 'elevator' : 'ramp' } };
+  if ((requests[0] || requests[1]) && street?.kind === 'curb' && !/\b(elevator|elevators|lift|lifts)\b/.test(text)) return { message: 'A dropped curb with ramp access is in place.', action: { kind: 'feature', id } };
   if (requests[0] && street?.kind === 'stairs' || requests[1] && street?.kind === 'curb' || requests[2] && street?.kind === 'bridge' || requests[9] && street?.kind === 'guidance') return { message: 'City setting updated.', action: { kind: 'feature', id } };
   if (requests[3] && street?.kind === 'crossing') return { message: 'Beeper and tactile crossing cues added.', action: { kind: 'feature', id: `signals:${id}` } };
   if (requests[4] && street?.kind === 'crossing') return { message: 'Crossing button panel lowered.', action: { kind: 'dimension', id: `panel:${id}`, value: Math.min(.8, robotButtonReach(journey.bot)) } };

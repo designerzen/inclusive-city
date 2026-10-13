@@ -61,6 +61,7 @@ Routes without enough straight track show an explanation instead of placing
 barcodes on curves or overlapping them.
 
 The legend lists the junction and event for each code in travel order. Map these
-codes to actions or audio tracks in the physical robot's firmware. The application
-does not connect to the robot or send commands, and the displayed codes do not
-automatically synchronize the physical and simulated robots.
+codes to actions or audio tracks in the physical robot's firmware. Normal
+projection alone does not connect or synchronise a robot. Use **City controls →
+Physical robots** for BLE/gateway connections and calibrated hardware-driven runs.
+See [physical robot setup and firmware protocol](physical-robot-protocol.md).

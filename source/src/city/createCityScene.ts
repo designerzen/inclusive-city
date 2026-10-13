@@ -392,7 +392,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (journey.complete && !arrived) { arrived = true; camera.beginArrival(); }
     if (!journey.complete && arrived) { arrived = false; musicClock = null; dance = null; robot.setSpeaking(false); camera.fit(); }
     robot.robot.position.set(p.x, p.y - .125, p.z); robot.robot.rotation.y = journey.heading;
-    if (physics && !journey.onTrainLink && !journey.onBridgeElevator) robot.robot.position.copyFrom(physics.position);
+    if (physics && !journey.physicalControl && !journey.onTrainLink && !journey.onBridgeElevator) robot.robot.position.copyFrom(physics.position);
     instruments.root.setEnabled(journey.complete);
     if (journey.complete) { instruments.root.position.copyFrom(robot.robot.position); instruments.root.rotation.y = journey.heading; }
     const moved = Math.hypot(p.x - before.x, p.z - before.z);

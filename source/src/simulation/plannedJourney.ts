@@ -46,6 +46,83 @@ export class PlannedJourney {
   /** The renderer can constrain route travel to distance actually allowed by physics. */
   constrainTravel?: (from: RoutePoint, to: RoutePoint, seconds: number) => { distance: number; blocker?: { id: string; reason: string } };
   syncTransport?: () => void;
+  /** Physical runs advance only from validated observations, never frame time. */
+  physicalControl = false;
+  private physicalDistance = 0;
+  private physicalSpeed = 0;
+  private physicalFault: string | null = null;
+  reservePhysical() {
+    if (!this.ready) throw new Error('Reset the virtual journey before connecting a physical run.');
+    this.departureRevision = this.dimensionRevision;
+    this.physicalControl = true;
+  }
+  physicalAccessProblem(routeIndex: number, code: number) {
+    const street = streetBetween(this.world, this.path[routeIndex]!, this.path[routeIndex + 1]!);
+    if (!street) return null;
+    if (code === 6) return this.repaired.has(`physical-train:${street.id}`) ? null : 'Provide a boarding ramp in the city.';
+    if (code === 7) return this.world.bicycles?.some(b => b.street === street.id && !this.repaired.has(b.id)) ? 'Move the bicycles out of the route.' : null;
+    return this.problem(street);
+  }
+  adaptPhysicalStop(routeIndex: number, code: number) {
+    if (!this.physicalControl || !this.paused) return false;
+    const street = streetBetween(this.world, this.path[routeIndex]!, this.path[routeIndex + 1]!);
+    if (!street) return false;
+    if (code === 6) {
+      const id = `physical-train:${street.id}`;
+      if (this.repaired.has(id)) return false;
+      this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
+    }
+    if (code === 7) { const bicycle = this.world.bicycles?.find(b => b.street === street.id && !this.repaired.has(b.id)); return bicycle ? this.repair(bicycle.id) : false; }
+    return this.repair(street.id);
+  }
+  beginPhysical() {
+    if (!this.physicalControl || !this.ready) return;
+    this.machine.depart();
+  }
+  observePhysical(distance: number, speed: number, seconds: number, state: 'following' | 'held' | 'stopped' | 'fault', reason?: string) {
+    if (!this.physicalControl || this.complete || this.ready) return;
+    const previous = this.physicalDistance;
+    this.physicalDistance = Math.max(previous, Math.min(this.trajectory.length, distance));
+    this.physicalSpeed = speed;
+    while (this.edge < this.path.length - 2 && this.physicalDistance >= this.trajectory.milestones[this.edge + 1]!) {
+      this.edge++; this.machine.add('segmentsCompleted', 1); this.machine.emit('segment', { segment: this.edge - 1, source: 'physical' });
+    }
+    this.distanceOnEdge = this.physicalDistance - (this.trajectory.milestones[this.edge] ?? 0);
+    this.heading = this.trajectory.sample(this.physicalDistance).heading;
+    this.paused = state !== 'following';
+    const next = state === 'following' ? 'following' : 'paused';
+    if (this.machine.state !== next) this.machine.transition(next);
+    this.machine.add('distance', this.physicalDistance - previous);
+    this.machine.advance(seconds, state === 'following' ? 'movingSeconds' : 'pausedSeconds');
+    const steps = Math.floor(this.metrics.distance);
+    if (steps > this.metrics.stepsTaken) {
+      this.machine.add('stepsTaken', steps - this.metrics.stepsTaken);
+      this.machine.emit('step', { step: steps, distance: this.metrics.distance, speed, source: 'physical' });
+    }
+    if (reason && reason !== this.physicalFault) {
+      this.physicalFault = reason; this.machine.emit('collision', { reason, source: 'physical' });
+    }
+    this.machine.record.condition.direction = this.heading;
+    this.machine.record.condition.speed = speed;
+    this.machine.record.telemetry = { edge: this.edge, position: this.position, speed,
+      progress: this.trajectory.length ? this.physicalDistance / this.trajectory.length : 0 };
+  }
+  physicalPickup(nodeId: string) {
+    if (!this.physicalControl || this.ready || this.complete) return;
+    const state = this.machine.state;
+    if (state !== 'following') this.machine.transition('following');
+    this.collectAt(nodeId);
+    if (state !== 'following') this.machine.transition(state);
+  }
+  finishPhysical() {
+    if (!this.physicalControl || this.ready || this.complete) return;
+    if (this.machine.state !== 'following') this.machine.transition('following');
+    this.physicalSpeed = 0;
+    this.machine.transition('arrived'); this.machine.add('journeysCompleted', 1);
+    this.machine.emit('arrived', { distance: this.metrics.distance, source: 'physical' });
+    this.machine.end('completed');
+    if (this.machine.record.telemetry) this.machine.record.telemetry.speed = 0;
+  }
   readonly machine: RobotStateMachine;
   readonly bot: ArtBot;
   private path: string[];
@@ -54,10 +131,10 @@ export class PlannedJourney {
   private trajectoryCache?: RouteTrajectory;
   private turnRadius = 3;
   private departureRevision = 0;
-  get routeGeometryRevision() { return this.ready ? this.dimensionRevision : this.departureRevision; }
+  get routeGeometryRevision() { return this.ready && !this.physicalControl ? this.dimensionRevision : this.departureRevision; }
   get minimumTurnRadius() { return this.turnRadius; }
   setMinimumTurnRadius(radius: number) {
-    if (!this.ready || !Number.isFinite(radius) || radius < .5 || radius > 12 || radius === this.turnRadius) return false;
+    if (this.physicalControl || !this.ready || !Number.isFinite(radius) || radius < .5 || radius > 12 || radius === this.turnRadius) return false;
     this.turnRadius = radius; this.world.minimumTurnRadius = radius;
     if (this.lineFollowing) this.reserveBends();
     this.savePlan(); return true;
@@ -208,7 +285,7 @@ export class PlannedJourney {
   get route(): readonly string[] { return this.path; }
   get ready() { return this.machine.state === 'ready'; }
   get complete() { return this.machine.run.status === 'completed'; }
-  get speed() { return robotSpeed(this.bot); }
+  get speed() { return this.physicalControl ? this.physicalSpeed : robotSpeed(this.bot); }
   get metrics() { return this.machine.run.metrics; }
   get canStart() { return this.ready && !!routeToGoal(this.world, this.path.at(-1)!); }
   get nextStops() { return this.ready && this.path.at(-1) !== this.world.destination ? neighbours(this.world, this.path.at(-1)!) : []; }
@@ -220,18 +297,21 @@ export class PlannedJourney {
   }
   private node(id: string) { return this.world.nodes.find(n => n.id === id)!; }
   appendStop(id: string) {
+    if (this.physicalControl) return false;
     if (!this.ready || !this.nextStops.some(n => n.id === id) || this.path.length >= 160) return false;
     this.path.push(id); this.savePlan(); return true;
   }
-  undoStop() { if (!this.ready || this.path.length < 2) return false; this.path.pop(); this.savePlan(); return true; }
-  clearRoute() { if (!this.ready) return false; this.path = [this.world.start]; this.savePlan(); return true; }
+  undoStop() { if (this.physicalControl || !this.ready || this.path.length < 2) return false; this.path.pop(); this.savePlan(); return true; }
+  clearRoute() { if (this.physicalControl || !this.ready) return false; this.path = [this.world.start]; this.savePlan(); return true; }
   setRoute(route: readonly string[]) {
+    if (this.physicalControl) return false;
     if (!this.ready || route.length < 1 || route.length > 160 || route[0] !== this.world.start || route.some((id, i) => !this.world.nodes.some(n => n.id === id) || i > 0 && !streetBetween(this.world, route[i - 1]!, id))) return false;
     const destinationIndex = route.indexOf(this.world.destination);
     if (destinationIndex !== -1 && destinationIndex !== route.length - 1) return false;
     this.path = [...route]; this.savePlan(); return true;
   }
   start() {
+    if (this.physicalControl) return false;
     if (!this.canStart) return false;
     this.departureRevision = this.dimensionRevision;
     const remaining = routeToGoal(this.world, this.path.at(-1)!)!;
@@ -244,6 +324,7 @@ export class PlannedJourney {
     this.machine.depart(); this.syncTransport?.(); this.collectAt(this.path[0]!); return true;
   }
   get position(): RoutePoint {
+    if (this.physicalControl) return this.trajectory.sample(this.physicalDistance).position;
     if (this.trainPose) return this.trainPose.position;
     if (this.onBridgeElevator) {
       const pose = elevatorPose(this.node(this.path[this.edge]!), this.node(this.path[this.edge + 1]!), this.bridgeSeconds, this.speed);
@@ -293,7 +374,7 @@ export class PlannedJourney {
   }
   get entranceProblem() { return studioEntranceProblem(this.world.studioEntrance, this.bot); }
   setStudioDoor(type: StudioDoorType) { return this.editDimension('studio:type', studioDoorTypes.indexOf(type)); }
-  canEdit(id: string) { const street = id.replace(/^(width|crossing|signals|panel|humpback):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0 && this.bridgeSeconds === 0) && (id !== 'communication' || this.ready || this.metrics.distance === 0); }
+  canEdit(id: string) { if (this.physicalControl) return this.paused && !this.complete && !/^(wall|door|building):/.test(id); const street = id.replace(/^(width|crossing|signals|panel|humpback):/, ''); return !this.complete && (street !== this.currentStreet?.id || this.distanceOnEdge === 0 && this.bridgeSeconds === 0) && (id !== 'communication' || this.ready || this.metrics.distance === 0); }
   editDimension(id: string, value: number) {
     if (!this.canEdit(id)) return false;
     const before = this.dimensions.get(id);
@@ -369,7 +450,7 @@ export class PlannedJourney {
     if (street?.kind === 'crossing') {
       if (this.reachProblem(street)) return this.lowerCrossingPanel(street);
       if (!this.bot.profile.enabledFunctions.includes('vision') && !this.hasCrossingCues(street)) return this.repair(`signals:${id}`);
-      return this.editDimension(`crossing:${id}`, Math.min(20, Math.max(street.crossingSeconds, this.crossingLength(street) / this.speed + 1)));
+      return this.editDimension(`crossing:${id}`, Math.min(20, Math.max(street.crossingSeconds, this.crossingLength(street) / (this.physicalControl ? robotSpeed(this.bot) : this.speed) + 1)));
     }
     this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
   }
@@ -406,6 +487,7 @@ export class PlannedJourney {
     this.savePlan();
   }
   setPaused(value: boolean) {
+    if (this.physicalControl) return;
     if (this.ready || this.complete) return;
     this.paused = value; this.machine.transition(value ? 'paused' : this.blocked ? 'blocked' : 'following');
   }
@@ -423,6 +505,7 @@ export class PlannedJourney {
     this.machine.emit('pickup', { id, kind: node.discovery, value: 1 }); this.machine.transition('following');
   }
   update(seconds: number) {
+    if (this.physicalControl) return;
     const before = this.position;
     try { this.updateJourney(seconds); } finally {
       const condition = this.machine.record.condition;

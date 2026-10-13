@@ -9,9 +9,9 @@ export const projectionFields = [
   { key: 'bendClearance', label: 'Clearance from bends', value: .4, min: .05, max: 5 },
 ] as const;
 export type ProjectionDimension = typeof projectionFields[number]['key'];
-export type ProjectionSettings = Record<ProjectionDimension, number> & { autoFit: boolean; mirror: boolean };
+export type ProjectionSettings = Record<ProjectionDimension, number> & { autoFit: boolean; mirror: boolean; mirrorVertical: boolean };
 export const defaultProjectionSettings = Object.fromEntries([
-  ...projectionFields.map(field => [field.key, field.value]), ['autoFit', true], ['mirror', false],
+  ...projectionFields.map(field => [field.key, field.value]), ['autoFit', true], ['mirror', false], ['mirrorVertical', false],
 ]) as ProjectionSettings;
 
 export function validateProjectionSettings(value: ProjectionSettings): ProjectionSettings {
@@ -24,6 +24,6 @@ export function validateProjectionSettings(value: ProjectionSettings): Projectio
   if (value.barcodeWidth <= value.lineWidth) throw new Error('Barcode width must be wider than the line.');
   if (typeof value.autoFit !== 'boolean') throw new Error('Choose whether barcodes can shrink to fit.');
   if (typeof value.mirror !== 'boolean') throw new Error('Choose whether to mirror the route.');
+  if (typeof value.mirrorVertical !== 'boolean') throw new Error('Choose whether to reflect the route vertically.');
   return { ...value };
 }
-

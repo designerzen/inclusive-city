@@ -1,0 +1,35 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>City voice panel browser fixture</title>
+<style>body{margin:24px;font:16px system-ui;background:#252525;color:white}main{max-width:340px}button{font:inherit;padding:10px;border-radius:6px}button:disabled{opacity:.6}textarea{color:black}#city-issue{padding:16px}</style>
+<main id="city-screen" style="display:block;position:static;height:auto;overflow:visible"><label><input type="checkbox" id="simulate">Simulate command result</label><section id="city-issue" class="city-issue" style="position:static;max-height:none;overflow:visible"><h2>High curb fixture</h2><section id="reply" class="city-reply"></section></section><p id="capture-state"></p><p id="edits">Edits: 0</p><button id="new-context">Change encounter</button></main>
+<script type="module">
+import '../src/styles.css'; import '../src/cityHud.css'; import '../src/uiDesign.css'; import '../src/accessibility.css'; import '../src/cityVoice.css'; import '../src/cityCompactHud.css';
+import { mountCityVoicePanel } from '../src/ui/cityVoicePanel';
+import { citySpokenChoices } from '../src/ui/citySpokenActions';
+import { interpretCityReply, applyCityReply } from '../src/ui/cityReply';
+import { BotHistory } from '../src/robot/botHistory';
+import { generateCity } from '../src/city/proceduralCity';
+import { PlannedJourney } from '../src/simulation/plannedJourney';
+import { CitySpokenCommand } from '../src/audio/CitySpokenCommand';
+const history = new BotHistory(['Curie','Einstein']); history.selectPreset('monet'); const bot = history.all[0];
+const journey = new PlannedJourney(bot, generateCity(42, [bot]));
+const curb = journey.world.streets.find(s => s.kind === 'curb'); journey.blocked = {id:curb.id,reason:'The curb is too high'};
+let encounter=0, edits=0;
+const panel=mountCityVoicePanel(document.querySelector('#reply'),{
+  context:()=>`${encounter}:${journey.dimensionRevision}:${[...journey.repaired]}`,
+  choices:()=>citySpokenChoices(journey), capture:active=>document.querySelector('#capture-state').textContent=`Microphone active: ${active}`,
+  interpret:text=>interpretCityReply(text,journey),
+  submit:text=>{const result=applyCityReply(journey,interpretCityReply(text,journey));document.querySelector('#edits').textContent=`Edits: ${++edits}`;panel.update();return result;},
+  // Deterministic dictation exercises the actual panel and controller lifecycle without recording a human.
+  dictationFactory:async events=>({async load(){},async start(){events.text('add a cut curb');},async stop(){events.line('1','add a cut curb');},close(){}})
+  ,commandFactory:callbacks=>{
+    const real = new CitySpokenCommand(callbacks);
+    let simulated=false,busy=false,listening=false;
+    return {get busy(){return simulated?busy:real.busy;},get listening(){return simulated?listening:real.listening;},async start(tools){
+      simulated=document.querySelector('#simulate').checked;
+      if (!simulated) return real.start(tools);
+      busy=true;listening=true;callbacks.active();callbacks.status('Fixture listening for simulated addRamp');
+    },finish(){if(!simulated)return real.finish();if(listening){busy=false;listening=false;callbacks.active();callbacks.result([{name:'addRamp',arguments:{}}]);}},cancel(){real.cancel();busy=false;listening=false;callbacks.active();}}
+  }
+}); panel.update();
+document.querySelector('#new-context').onclick=()=>{encounter++;panel.update();};
+</script></html>

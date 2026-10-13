@@ -6,6 +6,7 @@ import { cp, copyFile, readFile } from 'node:fs/promises';
 const require = createRequire(import.meta.url);
 const moonshine = dirname(require.resolve('@moonshine-ai/moonshine-wasm/moonshine.wasm'));
 const isolationWorker = require.resolve('coi-serviceworker/coi-serviceworker.js');
+const onnx = dirname(require.resolve('onnxruntime-web'));
 let configBase = '/';
 const headers = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -45,10 +46,19 @@ export default defineConfig({
           res.end(bytes);
         } catch { next(); }
       });
+      server.middlewares.use('/onnxruntime', async (req, res, next) => {
+        const name = (req.url ?? '').split('?')[0]!.slice(1);
+        if (!/^ort-wasm[\w.-]+\.(mjs|wasm)$/.test(name)) { next(); return; }
+        try {
+          res.setHeader('Content-Type', name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
+          res.end(await readFile(join(onnx, name)));
+        } catch { next(); }
+      });
     },
     async writeBundle(options) {
       await cp(moonshine, resolve(options.dir ?? 'dist', 'moonshine'), { recursive: true });
       await copyFile(isolationWorker, resolve(options.dir ?? 'dist', 'coi-serviceworker.js'));
+      await cp(onnx, resolve(options.dir ?? 'dist', 'onnxruntime'), { recursive: true, filter: path => path === onnx || /ort-wasm-simd-threaded\.(mjs|wasm)$/.test(path) });
     },
   }],
 });

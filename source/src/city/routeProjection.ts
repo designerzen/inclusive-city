@@ -34,10 +34,10 @@ export function straightSections(trajectory: Pick<RouteTrajectory, 'points' | 'd
     .filter(section => section.end > section.start);
 }
 
-export function routeProjection(journey: PlannedJourney, preferences: ProjectionSettings = defaultProjectionSettings) {
+export function routeProjection(journey: PlannedJourney, preferences: ProjectionSettings = defaultProjectionSettings, stoppingClearance = 0) {
   const settings = validateProjectionSettings(preferences);
   const trajectory = journey.trajectory;
-  const markers: { code: number; node: string; label: string; distance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
+  const markers: { code: number; node: string; nodeId: string; routeIndex: number; milestone: number; label: string; distance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
   const junctions = journey.route.map((id, index) => {
     const node = journey.world.nodes.find(node => node.id === id)!;
     const street = streetBetween(journey.world, id, journey.route[index + 1]!);
@@ -54,9 +54,9 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
     if (id === journey.world.destination) add(12);
     if (!events.length && index > 0) add(13);
     const milestone = trajectory.milestones[index] ?? 0;
-    return { events, milestone };
+    return { events, milestone, nodeId: id, routeIndex: index };
   }).filter(junction => junction.events.length);
-  const events = junctions.flatMap(junction => junction.events.map(event => ({ ...event, milestone: junction.milestone,
+  const events = junctions.flatMap(junction => junction.events.map(event => ({ ...event, milestone: junction.milestone, nodeId: junction.nodeId, routeIndex: junction.routeIndex,
     length: barcodeWidths(event.code, settings).reduce((a, b) => a + b, 0) + settings.barGap * 5 })));
   const sections = straightSections(trajectory, settings.bendClearance);
   const reversedSections = [...sections].reverse();
@@ -85,8 +85,10 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
       for (const section of sections) {
         const low = Math.max(section.start, previousEnd), high = Math.min(section.end - length, latest[i]!);
         if (high < low) continue;
-        const distance = Math.max(low, Math.min(high, event.milestone - length / 2));
-        const score = Math.abs(distance + length / 2 - event.milestone);
+        const hold = stoppingClearance > 0 && event.code >= 1 && event.code <= 7;
+        const target = event.milestone - (hold ? stoppingClearance + length / 2 : 0);
+        const distance = Math.max(low, Math.min(high, target - length / 2));
+        const score = Math.abs(distance + length / 2 - target);
         if (!best || score < best.score) best = { distance, heading: section.heading, score };
       }
       if (!best) break;
@@ -104,7 +106,7 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
       distance += width + settings.barGap * scale;
       return { x: sample.position.x, z: sample.position.z, angle: -placement.heading * 180 / Math.PI, width };
     });
-    markers.push({ code: event.code, node: event.node, label: event.label, distance: placement.distance, bars });
+    markers.push({ code: event.code, node: event.node, nodeId: event.nodeId, routeIndex: event.routeIndex, milestone: event.milestone, label: event.label, distance: placement.distance, bars });
   });
   const points = trajectory.points;
   const xs = points.map(p => p.x), zs = points.map(p => p.z), padding = Math.max(settings.barcodeWidth, settings.lineWidth) + .5;
