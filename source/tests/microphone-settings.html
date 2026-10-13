@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Microphone settings browser fixture</title>
+<button id="open">Open settings</button><dialog id="settings" class="options-dialog"><h2>Settings</h2><section id="microphones"></section><button id="close">Close settings</button></dialog>
+<p id="tracks">Temporary tracks stopped: 0</p>
+<script type="module">
+import '../src/styles.css'; import '../src/uiDesign.css'; import '../src/accessibility.css'; import '../src/readingPreferences.css';
+import { mountMicrophoneControls } from '../src/ui/microphoneControls';
+const events = new EventTarget(); let stops=0;
+mountMicrophoneControls(document.querySelector('#microphones'),{
+  async enumerateDevices(){return [{kind:'audioinput',deviceId:'built-in',label:'Built-in microphone'},{kind:'audioinput',deviceId:'usb',label:'USB microphone'}]},
+  async getUserMedia(){return {getTracks:()=>[{stop(){document.querySelector('#tracks').textContent=`Temporary tracks stopped: ${++stops}`;}}]}},
+  addEventListener:events.addEventListener.bind(events),removeEventListener:events.removeEventListener.bind(events)
+});
+document.querySelector('#open').onclick=()=>document.querySelector('#settings').showModal();
+document.querySelector('#close').onclick=()=>document.querySelector('#settings').close();
+</script></html>

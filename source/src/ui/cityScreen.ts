@@ -237,9 +237,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     feedback(message); setText('city-hud-status', message);
   });
   const projection = mountRouteProjection(container, () => city?.journey);
-  const physicalRobots = mountPhysicalRobots(plan, () => city?.journey, projection, feedback);
+  const physicalRobots = mountPhysicalRobots(plan, () => city?.journey, projection, feedback, () => creation ?? undefined);
+  const physicalOpen = document.createElement('button'); physicalOpen.type = 'button'; physicalOpen.textContent = 'Physical robots';
+  physicalOpen.title = 'Physical robots';
+  physicalOpen.addEventListener('click', () => { controlsHud.open = true; interactionHud.hidden = false; physicalRobots.open(); });
+  container.querySelector('.city-toolbar')!.append(physicalOpen);
   const physicalStop = document.createElement('button'); physicalStop.type = 'button';
   physicalStop.textContent = 'Stop physical robots'; physicalStop.disabled = true;
+  physicalStop.title = 'Stop physical robots';
   physicalStop.addEventListener('click', () => physicalRobots.halt('Operator stopped the fleet.'));
   container.querySelector('.city-toolbar')!.append(physicalStop);
   const replyHome = container.querySelector<HTMLElement>('.city-reply-options')!;
@@ -560,7 +565,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     voicePanel.stop();
     speech?.stop(); window.clearTimeout(speechTimer); robotSpeech = null; lastAlert = null;
     if (!bot || !engine) return;
-    physicalRobots.halt('City route changed.');
+    physicalRobots.routeChanged();
     const previousSeed = city?.journey.world.seed;
     let seed = reset && previousSeed !== undefined ? previousSeed : crypto.getRandomValues(new Uint32Array(1))[0]!;
     if (!reset && seed === previousSeed) seed = (seed + 1) >>> 0;

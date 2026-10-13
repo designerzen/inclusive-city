@@ -4,6 +4,7 @@
 .city-reply button { min-height: 44px; min-width: 44px; flex-shrink: 0; }
 .city-reply form { display: grid; gap: 8px; }
 .city-reply select { display: block; width: 100%; box-sizing: border-box; font: inherit; margin: 8px 0; }
+.city-command-variations { display: block; font-size: .8125rem; line-height: 1.4; margin-top: 4px; font-weight: normal; }
 .city-reply textarea { width: 100%; min-height: 72px; box-sizing: border-box; font: inherit; padding: 10px; border-radius: 8px; }
 .city-reply[data-listening='true'] [data-reply-status] { font-weight: bold; }
 .city-reply [data-reply-record] { touch-action: none; user-select: none; }

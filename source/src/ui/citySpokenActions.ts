@@ -1,8 +1,9 @@
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { interpretCityReply } from './cityReply';
 import type { CityReply } from './cityReply';
+import { cityCommandVariations } from './cityCommandPhrases';
 
-export interface SpokenChoice { name: string; phrase: string; description: string }
+export interface SpokenChoice { name: string; phrase: string; description: string; variations?: string[] }
 export interface SpokenTool { name: string; description: string; parameters: { type: 'object'; properties: Record<string, never>; additionalProperties: false } }
 
 /** Targets and dimensions are resolved by the city, never supplied by the model. */
@@ -26,10 +27,11 @@ export function citySpokenChoices(journey: PlannedJourney): SpokenChoice[] {
   }).slice(0, 8).concat([
     { name: 'explainCurrentBarrier', phrase: 'Why are you stuck?', description: 'Explain the current barrier without changing the city.' },
     { name: 'noAction', phrase: "Don't change anything", description: 'Make no change for negated, irrelevant or conflicting requests.' },
-  ]);
+  ]).map(choice => ({ ...choice, variations: choice.name === 'addRamp' && journey.world.streets.find(street => street.id === journey.blocked?.id)?.kind === 'curb'
+    ? ['Put a ramp here', 'Add a curb ramp', 'Make the curb accessible'] : cityCommandVariations[choice.name] ?? [] }));
 }
 export function spokenTools(choices: SpokenChoice[]): SpokenTool[] {
-  return choices.map(({ name, description }) => ({ name, description, parameters: { type: 'object', properties: {}, additionalProperties: false } }));
+  return choices.map(({ name, description, variations }) => ({ name, description: `${description}${variations?.length ? ` Also: ${variations.slice(0, 2).join('; ')}.` : ''}`, parameters: { type: 'object', properties: {}, additionalProperties: false } }));
 }
 export function validateSpokenCall(value: unknown, choices: SpokenChoice[]): SpokenChoice | undefined {
   if (!Array.isArray(value) || value.length !== 1) return;

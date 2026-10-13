@@ -1,4 +1,6 @@
 .physical-robots { margin-block: 1rem; }
+/* Keep the robot controls in the first grid row, above the map at narrow widths. */
+#city-screen .city-toolbar { grid-row: 1; }
 .physical-robots fieldset { border: 1px solid currentColor; margin-block: 1rem; padding: .75rem; min-width: 0; }
 .physical-robots label { display: grid; gap: .35rem; margin-block: .6rem; }
 .physical-robots input:not([type='checkbox']) { box-sizing: border-box; width: 100%; min-height: 44px; min-width: 0; padding: .5rem; }
@@ -8,3 +10,4 @@
 .physical-robots button { min-width: 44px; min-height: 44px; padding: .6rem .8rem; white-space: normal; overflow-wrap: anywhere; }
 .physical-robot-card { border-top: 1px solid currentColor; padding-block: 1rem; overflow-wrap: anywhere; }
 .physical-robot-card canvas { display: block; width: 100%; height: auto; margin-top: .75rem; }
+.physical-sensor-log { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 10rem; overflow: auto; }

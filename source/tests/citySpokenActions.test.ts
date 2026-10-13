@@ -7,6 +7,42 @@ import { citySpokenChoices, spokenTools, validateSpokenCall } from '../src/ui/ci
 import { interpretCityReply, applyCityReply } from '../src/ui/cityReply';
 import { NeuTokenizer, serializeTools } from '../src/audio/neudecideTokenizer';
 import { hasCommandSpeech, resampleCommand } from '../src/audio/CitySpokenCommand';
+import { cityCommandVariations } from '../src/ui/cityCommandPhrases';
+
+test('all advertised variations and polite requests resolve to the same contextual action', () => {
+  const { journey } = fixture('curb');
+  const targets = [...journey.world.streets.map(street => street.id), ...(journey.world.bicycles ?? []).map(bike => bike.id), 'studio-entrance'];
+  const tested = new Set<string>();
+  for (const id of targets) {
+    journey.blocked = { id, reason: 'Barrier' };
+    for (const choice of citySpokenChoices(journey)) {
+      if (['noAction', 'explainCurrentBarrier'].includes(choice.name)) continue;
+      tested.add(choice.name);
+      const expected = interpretCityReply(choice.phrase, journey).action;
+      assert.ok(expected, choice.name);
+      for (const phrase of choice.variations ?? []) {
+        for (const request of [phrase, `Could you ${phrase.toLowerCase()} please?`, `Please ${phrase.toLowerCase()}.`])
+          assert.deepEqual(interpretCityReply(request, journey).action, expected, `${choice.name}: ${request}`);
+      }
+    }
+  }
+  assert.ok(tested.has('addRamp')); assert.ok(tested.has('extendCrossingTime')); assert.ok(tested.has('openStudioEntrance'));
+});
+test('expanded vocabulary preserves negation, ambiguity and single-request checks', () => {
+  const { journey } = fixture('curb');
+  for (const phrase of ["Don't flatten the curb", 'Avoid building a ramp', 'Keep the city unchanged and lower the curb', 'Install a ramp and build a lift', 'Undo that then install a ramp', 'Build a ramp and broaden the passage', 'Is a ramp needed?', 'Do you need a ramp?', 'The curb is high'])
+    assert.equal(interpretCityReply(phrase, journey).action, undefined, phrase);
+  for (const phrase of cityCommandVariations.noAction!) {
+    const reply = interpretCityReply(phrase, journey); assert.equal(reply.action, undefined); assert.match(reply.message, /No city change/);
+  }
+  for (const phrase of cityCommandVariations.explainCurrentBarrier!) assert.equal(interpretCityReply(phrase, journey).action, undefined);
+});
+test('new request verbs and extra-time phrasing preserve dimension units', () => {
+  const { journey, street } = fixture('crossing');
+  assert.deepEqual(interpretCityReply('Please give me 15 seconds of extra time to cross', journey).action, { kind: 'dimension', id: `crossing:${street.id}`, value: 15 });
+  assert.deepEqual(interpretCityReply('Could you install audible crossing signals?', journey).action, { kind: 'feature', id: `signals:${street.id}` });
+  assert.equal(interpretCityReply('Please broaden this passage to 2 seconds', journey).action, undefined);
+});
 
 function fixture(kind: string) {
   const history = new BotHistory(['Curie', 'Einstein']); history.selectPreset('monet'); const bot = history.all[0]!;

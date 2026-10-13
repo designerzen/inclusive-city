@@ -33,6 +33,7 @@ import { requireModels } from './ui/musicSetup';
 import { mountButtonIcons } from './ui/buttonIcons';
 import { applyAccessibility, savedAccessibility, reducedMotionPreference } from './app/accessibilityPreferences';
 import { mountAccessibilityControls } from './ui/accessibilityControls';
+import { mountMicrophoneControls } from './ui/microphoneControls';
 import { mountMusicMonitorControls } from './ui/musicMonitorControls';
 import './readingPreferences.css';
 import './performance.css';
@@ -81,6 +82,7 @@ app.innerHTML = `
       <label class="speech-option" for="speech-enabled"><span>Spoken introductions & robot guidance</span><input id="speech-enabled" type="checkbox" role="switch" checked /></label>
       </section>
       <section aria-labelledby="options-monitor-title"><h3 id="options-monitor-title">Music monitor</h3><div id="music-monitor-controls" class="music-monitor-controls"></div></section>
+      <section id="microphone-controls" aria-labelledby="options-microphone-title"></section>
       <details class="midi-disclosure"><summary>Connect a MIDI instrument <span aria-hidden="true">⌄</span></summary><section id="midi-controls" class="midi-controls" aria-label="MIDI output"></section></details>
       <section id="attract-options" aria-labelledby="attract-options-title"><h3 id="attract-options-title">Attract screen</h3></section>
     </dialog>
@@ -125,6 +127,8 @@ app.innerHTML = `
 `;
 
 mountAccessibilityControls(document.querySelector<HTMLElement>('#accessibility-controls')!);
+const microphoneControls = mountMicrophoneControls(document.querySelector<HTMLElement>('#microphone-controls')!);
+import.meta.hot?.dispose(() => microphoneControls.dispose());
 const disposeMusicMonitorControls = mountMusicMonitorControls(document.querySelector<HTMLElement>('#music-monitor-controls')!, 'app-monitor');
 import.meta.hot?.dispose(disposeMusicMonitorControls);
 
@@ -174,6 +178,7 @@ const optionsDialog = document.querySelector<HTMLDialogElement>('#options-dialog
 const optionsButton = document.querySelector<HTMLButtonElement>('#app-options')!;
 optionsButton.addEventListener('click', () => {
   refreshTurnRadiusSettings();
+  void microphoneControls.refresh();
   optionsDialog.showModal(); optionsButton.setAttribute('aria-expanded', 'true');
 });
 document.querySelector('#options-close')!.addEventListener('click', () => optionsDialog.close());

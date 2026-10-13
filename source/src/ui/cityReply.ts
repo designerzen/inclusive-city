@@ -1,6 +1,7 @@
 import { isHumpbackBridge } from '../city/humpbackBridge';
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { robotFootprint, robotButtonReach } from '../city/proceduralCity';
+import { expandCityCommand } from './cityCommandPhrases';
 
 export type CityReplyAction =
   | { kind: 'repair'; id: string }
@@ -13,12 +14,16 @@ export type CityReply = { message: string; action?: CityReplyAction };
 
 /** Local, deliberately bounded interpretation. Unknown/negated requests never edit. */
 export function interpretCityReply(input: string, journey: PlannedJourney): CityReply {
-  const text = input.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'.\s]/g, ' ').trim();
+  let text = input.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'.\s]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\.+$/, '').trim();
   const id = journey.blocked?.id;
   const reason = journey.blocked ? journey.blockedExplanation : 'Your robot is not blocked. You can pause, resume, or undo the last city change.';
   if (!text) return { message: 'I didn’t hear a reply. Try again, type a reply, or use the city choices.' };
   if (input.length > 500) return { message: 'That prompt is too long. Please shorten it to one change under 500 characters. No change made.' };
   if (/\b(don't|dont|do not|never|not|no|cancel|stop listening|without|instead|remove the ramp|raise the bridge|raise the curb|raise the kerb)\b/.test(text)) return { message: 'No city change made. Tell me what you would like to change.' };
+  if (/\b(avoid|refrain|unchanged|do nothing|leave things as they are)\b/.test(text)) return { message: 'No city change made. Tell me what you would like to change.' };
+  if (/\b(then|also)\b|\band\s+(?:please\s+)?(?:add|install|build|create|put|make|move|shift|clear|lower|give|widen|broaden|extend|open|pause|stop|wait|resume|continue|undo)\b/.test(text)) return { message: 'Let’s change one thing at a time. Which change would you like first?' };
+  text = expandCityCommand(text);
+  if (text === 'do not change anything') return { message: 'No city change made. Tell me what you would like to change.' };
   if (/\b(undo|change my mind|put it back)\b/.test(text)) return { message: 'Undo the last city change.', action: { kind: 'undo' } };
   if (/\b(ask|get)\b.*\b(robot|somebody|someone)\b.*\b(press|push)\b.*\bbutton\b/.test(text)) {
     return journey.nearbyHelp ? { message: 'Nearby robot pressed the crossing button.', action: { kind: 'ask-robot' } }

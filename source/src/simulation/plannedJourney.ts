@@ -56,25 +56,6 @@ export class PlannedJourney {
     this.departureRevision = this.dimensionRevision;
     this.physicalControl = true;
   }
-  physicalAccessProblem(routeIndex: number, code: number) {
-    const street = streetBetween(this.world, this.path[routeIndex]!, this.path[routeIndex + 1]!);
-    if (!street) return null;
-    if (code === 6) return this.repaired.has(`physical-train:${street.id}`) ? null : 'Provide a boarding ramp in the city.';
-    if (code === 7) return this.world.bicycles?.some(b => b.street === street.id && !this.repaired.has(b.id)) ? 'Move the bicycles out of the route.' : null;
-    return this.problem(street);
-  }
-  adaptPhysicalStop(routeIndex: number, code: number) {
-    if (!this.physicalControl || !this.paused) return false;
-    const street = streetBetween(this.world, this.path[routeIndex]!, this.path[routeIndex + 1]!);
-    if (!street) return false;
-    if (code === 6) {
-      const id = `physical-train:${street.id}`;
-      if (this.repaired.has(id)) return false;
-      this.history.push({ id, before: false }); this.applyRepair(id, true); return true;
-    }
-    if (code === 7) { const bicycle = this.world.bicycles?.find(b => b.street === street.id && !this.repaired.has(b.id)); return bicycle ? this.repair(bicycle.id) : false; }
-    return this.repair(street.id);
-  }
   beginPhysical() {
     if (!this.physicalControl || !this.ready) return;
     this.machine.depart();

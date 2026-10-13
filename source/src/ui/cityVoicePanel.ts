@@ -7,6 +7,7 @@ import type { SpokenChoice } from './citySpokenActions';
 import type { CityReply } from './cityReply';
 import { readVoiceCommandModel, saveVoiceCommandModel } from '../audio/voiceCommandSettings';
 import type { VoiceCommandModel } from '../audio/voiceCommandSettings';
+import { onMicrophoneChange } from '../audio/microphone';
 
 export function mountCityVoicePanel(container: HTMLElement, options: {
   context(): string; choices(): SpokenChoice[]; submit(text: string): string; capture(active: boolean): void;
@@ -155,6 +156,7 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
   });
   get<HTMLButtonElement>('[data-reply-dismiss]').addEventListener('click', clearProposal);
   get<HTMLFormElement>('form').addEventListener('submit', event => { event.preventDefault(); const text = textarea.value; stop(); submit(text); });
+  const unsubscribeMicrophone = onMicrophoneChange(stop);
   return {
     update() {
       const next = options.context(); if (next === previous && choices.length) return;
@@ -162,8 +164,12 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
       previous = next; choices = options.choices();
       get('[data-reply-choices]').replaceChildren(...choices.map(choice => {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = choice.phrase;
+        if (choice.variations?.length) {
+          const variations = document.createElement('span'); variations.className = 'city-command-variations';
+          variations.textContent = `Also say: ${choice.variations.slice(0, 2).join(' · ')}`; button.append(variations);
+        }
         button.addEventListener('click', () => { stop(); submit(choice.phrase); }); return button;
       }));
-    }, stop, dispose() { stop(); disposed = true; },
+    }, stop, dispose() { stop(); unsubscribeMicrophone(); disposed = true; },
   };
 }

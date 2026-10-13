@@ -1,3 +1,4 @@
+import { openVoiceMicrophone } from './microphone';
 export interface VoiceCapture {
   load(): Promise<unknown>; start(): Promise<void>; stop(): Promise<void>; close(): void;
   cancel?(): void;
@@ -37,7 +38,7 @@ export async function moonshineCapture(events: VoiceEvents): Promise<VoiceCaptur
       await worker.createStream(streamId, streamId, { updateInterval: .25 });
     },
     async start() {
-      const input = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const input = await openVoiceMicrophone();
       if (closed) { input.getTracks().forEach(track => track.stop()); return; }
       media = input; audio = new AudioContext({ sampleRate: 16000 });
       await audio.resume();

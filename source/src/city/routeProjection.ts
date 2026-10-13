@@ -37,7 +37,7 @@ export function straightSections(trajectory: Pick<RouteTrajectory, 'points' | 'd
 export function routeProjection(journey: PlannedJourney, preferences: ProjectionSettings = defaultProjectionSettings, stoppingClearance = 0) {
   const settings = validateProjectionSettings(preferences);
   const trajectory = journey.trajectory;
-  const markers: { code: number; node: string; nodeId: string; routeIndex: number; milestone: number; label: string; distance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
+  const markers: { code: number; node: string; nodeId: string; routeIndex: number; milestone: number; label: string; distance: number; endDistance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
   const junctions = journey.route.map((id, index) => {
     const node = journey.world.nodes.find(node => node.id === id)!;
     const street = streetBetween(journey.world, id, journey.route[index + 1]!);
@@ -106,7 +106,7 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
       distance += width + settings.barGap * scale;
       return { x: sample.position.x, z: sample.position.z, angle: -placement.heading * 180 / Math.PI, width };
     });
-    markers.push({ code: event.code, node: event.node, nodeId: event.nodeId, routeIndex: event.routeIndex, milestone: event.milestone, label: event.label, distance: placement.distance, bars });
+    markers.push({ code: event.code, node: event.node, nodeId: event.nodeId, routeIndex: event.routeIndex, milestone: event.milestone, label: event.label, distance: placement.distance, endDistance: distance - settings.barGap * scale, bars });
   });
   const points = trajectory.points;
   const xs = points.map(p => p.x), zs = points.map(p => p.z), padding = Math.max(settings.barcodeWidth, settings.lineWidth) + .5;

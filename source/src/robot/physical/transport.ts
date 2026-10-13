@@ -1,116 +1,129 @@
-import { encodeControl, encodeFrames, FrameDecoder, parseIdentity, parseReport, ROBOT_SERVICE, ROBOT_IDENTITY, ROBOT_RX, ROBOT_TX } from './protocol';
-import type { RobotCommand, RobotIdentity, RobotReport } from './protocol';
+export interface BleSettings { service: string; write: string; notify: string; namePrefix?: string; }
+export const nordicUart: BleSettings = {
+  service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e', write: '6e400002-b5a3-f393-e0a9-e50e24dcca9e', notify: '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
+};
+export const microbitUart: BleSettings = { service: nordicUart.service, write: nordicUart.notify, notify: nordicUart.write, namePrefix: 'BBC micro:bit' };
+export function validateBleSettings(s: BleSettings) {
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+  if (!uuid.test(s.service) || !uuid.test(s.write) || s.notify && !uuid.test(s.notify)) throw new Error('Enter full service/write UUIDs and an optional notification UUID.');
+  return { ...s };
+}
 export interface RobotTransport {
-  readonly identity: RobotIdentity;
-  onReport: (report: RobotReport) => void;
-  onDisconnect: (reason: string) => void;
-  send(command: RobotCommand): Promise<void>;
-  disconnect(): void;
+  readonly id: string; readonly name: string;
+  onData: (data: Uint8Array) => void; onDisconnect: (reason: string) => void;
+  send(data: Uint8Array, urgent?: boolean): Promise<void>; disconnect(): void;
 }
-interface Characteristic extends EventTarget {
-  value?: DataView; readValue(): Promise<DataView>; startNotifications(): Promise<Characteristic>;
-  writeValueWithResponse(value: Uint8Array<ArrayBuffer>): Promise<void>;
-}
-interface Device extends EventTarget {
-  gatt?: { connected: boolean; connect(): Promise<{ getPrimaryService(uuid: string): Promise<{ getCharacteristic(uuid: string): Promise<Characteristic> }> }>; disconnect(): void };
-}
-export function bluetoothAvailable() { return !!(navigator as Navigator & { bluetooth?: unknown }).bluetooth; }
-export class BleRobotTransport implements RobotTransport {
-  onReport: RobotTransport['onReport'] = () => {};
-  onDisconnect: RobotTransport['onDisconnect'] = () => {};
-  private frameId = 0; private pumping = false;
-  private normal: { frames: Uint8Array<ArrayBuffer>[]; resolve: () => void; reject: (e: unknown) => void }[] = [];
-  private urgent: typeof this.normal = [];
-  private decoder = new FrameDecoder(); private closed = false;
-  private constructor(readonly identity: RobotIdentity, private device: Device, private rx: Characteristic, private tx: Characteristic) {
-    tx.addEventListener('characteristicvaluechanged', this.receive);
-    device.addEventListener('gattserverdisconnected', this.lost);
-  }
-  static async connect() {
-    const bluetooth = (navigator as Navigator & { bluetooth?: { requestDevice(options: unknown): Promise<Device> } }).bluetooth;
-    if (!bluetooth) throw new Error('Use a browser with Web Bluetooth or connect through a gateway.');
-    // Keep the chooser in the click's user activation, before any other await.
-    const device = await bluetooth.requestDevice({ filters: [{ services: [ROBOT_SERVICE] }] });
-    let transport: BleRobotTransport | undefined;
-    try {
-      if (!device.gatt) throw new Error('Robot has no BLE GATT server.');
-      const server = await device.gatt.connect(), service = await server.getPrimaryService(ROBOT_SERVICE);
-      const identityCharacteristic = await service.getCharacteristic(ROBOT_IDENTITY);
-      const data = await identityCharacteristic.readValue();
-      const identity = parseIdentity(JSON.parse(new TextDecoder().decode(data)));
-      const rx = await service.getCharacteristic(ROBOT_RX), tx = await service.getCharacteristic(ROBOT_TX);
-      transport = new BleRobotTransport(identity, device, rx, tx);
-      await tx.startNotifications(); return transport;
-    } catch (error) { transport?.disconnect(); device.gatt?.disconnect(); throw error; }
-  }
-  private receive = () => {
-    try { if (this.tx.value) { const value = this.decoder.accept(this.tx.value); if (value !== undefined) this.onReport(parseReport(value)); } }
-    catch (error) { this.onDisconnect(String(error)); this.disconnect(); }
-  };
-  private lost = () => { if (!this.closed) { this.closed = true; this.onDisconnect('Bluetooth disconnected.'); } };
-  send(command: RobotCommand) {
-    const control = ['heartbeat', 'stop', 'hold'].includes(command.type);
-    const frames = control ? [encodeControl(command)] : encodeFrames(command, ++this.frameId);
+/** Independent bounded queues; Stop cancels unsent commands and goes next. */
+export class RobotWriteQueue {
+  private items: { data: Uint8Array; resolve: () => void; reject: (e: unknown) => void }[] = [];
+  private pumping = false; private closed = false;
+  constructor(private write: (data: Uint8Array) => Promise<void>) {}
+  send(data: Uint8Array, urgent = false) {
+    if (this.closed) return Promise.reject(new Error('Robot disconnected.'));
+    if (!data.length || data.length > 4096 || !urgent && this.items.length >= 16) return Promise.reject(new Error('Empty/oversized command or full robot queue.'));
     return new Promise<void>((resolve, reject) => {
-      (control ? this.urgent : this.normal).push({ frames, resolve, reject });
+      const item = { data: data.slice(), resolve, reject };
+      if (urgent) { for (const old of this.items) old.reject(new Error('Cancelled by Stop.')); this.items = [item]; }
+      else this.items.push(item);
       void this.pump();
     });
   }
   private async pump() {
-    if (this.pumping) return;
-    this.pumping = true;
-    try {
-      while (this.normal.length || this.urgent.length) {
-        const queue = this.urgent.length ? this.urgent : this.normal, item = queue[0]!;
-        try {
-          if (this.closed || !this.device.gatt?.connected) throw new Error('Robot disconnected.');
-          await this.rx.writeValueWithResponse(item.frames.shift()!);
-          if (!item.frames.length) { queue.shift(); item.resolve(); }
-        } catch (error) {
-          for (const pending of [...this.normal, ...this.urgent]) pending.reject(error);
-          this.normal = []; this.urgent = []; this.onDisconnect(String(error)); this.disconnect(); break;
-        }
-      }
-    } finally { this.pumping = false; }
+    if (this.pumping) return; this.pumping = true;
+    try { while (this.items.length && !this.closed) {
+      const item = this.items.shift()!;
+      try { await this.write(item.data); item.resolve(); }
+      catch (error) { item.reject(error); this.close(error); }
+    } } finally { this.pumping = false; }
   }
-  disconnect() {
-    this.closed = true; this.tx.removeEventListener('characteristicvaluechanged', this.receive);
-    this.device.removeEventListener('gattserverdisconnected', this.lost); this.device.gatt?.disconnect();
-  }
+  close(error: unknown = new Error('Robot disconnected.')) { this.closed = true; for (const item of this.items) item.reject(error); this.items = []; }
 }
-
-// The gateway exposes one WebSocket per hardware ID; it routes commands to BLE.
-export class GatewayRobotTransport implements RobotTransport {
-  onReport: RobotTransport['onReport'] = () => {};
-  onDisconnect: RobotTransport['onDisconnect'] = () => {};
-  private constructor(readonly identity: RobotIdentity, private socket: WebSocket) {
-    socket.onmessage = event => {
-      try { if (typeof event.data !== 'string' || event.data.length > 32768) throw new Error('Invalid gateway message.'); this.onReport(parseReport(JSON.parse(event.data))); }
-      catch (error) { this.onDisconnect(String(error)); this.disconnect(); }
-    };
-    socket.onclose = () => this.onDisconnect('Gateway disconnected.');
-    socket.onerror = () => this.onDisconnect('Gateway connection failed.');
-  }
-  static connect(address: string): Promise<GatewayRobotTransport> {
-    const url = new URL(address);
-    if (url.protocol !== 'wss:' && !(url.protocol === 'ws:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new Error('Use wss:// or a localhost ws:// gateway.');
-    if (url.username || url.password) throw new Error('Do not put credentials in the gateway URL.');
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url);
-      const timer = setTimeout(() => { socket.close(); reject(new Error('Gateway identity timed out.')); }, 5000);
-      const fail = () => { clearTimeout(timer); socket.close(); reject(new Error('Gateway connection failed.')); };
-      socket.onerror = fail; socket.onclose = fail;
-      socket.onmessage = event => {
-        try {
-          if (typeof event.data !== 'string' || event.data.length > 4096) throw new Error('Invalid gateway identity.');
-          const identity = parseIdentity(JSON.parse(event.data)); clearTimeout(timer); resolve(new GatewayRobotTransport(identity, socket));
-        } catch (error) { clearTimeout(timer); socket.close(); reject(error); }
-      };
+interface Characteristic extends EventTarget {
+  value?: DataView; properties: { write: boolean; writeWithoutResponse: boolean };
+  startNotifications(): Promise<Characteristic>;
+  writeValueWithResponse(value: Uint8Array<ArrayBuffer>): Promise<void>;
+  writeValueWithoutResponse(value: Uint8Array<ArrayBuffer>): Promise<void>;
+}
+interface Device extends EventTarget {
+  id: string; name?: string;
+  gatt?: { connected: boolean; connect(): Promise<{ getPrimaryService(uuid: string): Promise<{ getCharacteristic(uuid: string): Promise<Characteristic> }> }>; disconnect(): void };
+}
+export function bluetoothAvailable() { return !!(navigator as Navigator & { bluetooth?: unknown }).bluetooth; }
+export function withTimeout<T>(operation: Promise<T>, ms: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Robot operation timed out.')), ms);
+    operation.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
+  });
+}
+export class BleRobotTransport implements RobotTransport {
+  readonly id: string; readonly name: string;
+  onData: RobotTransport['onData'] = () => {}; onDisconnect: RobotTransport['onDisconnect'] = () => {};
+  private queue: RobotWriteQueue; private closed = false;
+  private constructor(private device: Device, write: Characteristic, private notify?: Characteristic) {
+    this.id = device.id; this.name = device.name || 'Bluetooth robot';
+    this.queue = new RobotWriteQueue(async data => {
+      if (this.closed || !device.gatt?.connected) throw new Error('Bluetooth disconnected.');
+      for (let offset = 0; offset < data.length; offset += 20) {
+        if (this.closed) throw new Error('Bluetooth disconnected.');
+        const chunk = new Uint8Array(data.subarray(offset, offset + 20));
+        await withTimeout(write.properties.write ? write.writeValueWithResponse(chunk) : write.writeValueWithoutResponse(chunk), 5000);
+      }
     });
+    notify?.addEventListener('characteristicvaluechanged', this.receive); device.addEventListener('gattserverdisconnected', this.lost);
   }
-  async send(command: RobotCommand) {
-    if (this.socket.readyState !== WebSocket.OPEN || this.socket.bufferedAmount > 32768) throw new Error('Gateway unavailable or congested.');
-    this.socket.send(JSON.stringify(command));
+  static async connect(input: BleSettings, connectedIds: ReadonlySet<string> = new Set()) {
+    const s = validateBleSettings(input);
+    const bluetooth = (navigator as Navigator & { bluetooth?: { requestDevice(options: unknown): Promise<Device> } }).bluetooth;
+    if (!bluetooth) throw new Error('Use a browser with Web Bluetooth or an existing gateway.');
+    const device = await bluetooth.requestDevice(s.namePrefix
+      ? { filters: [{ namePrefix: s.namePrefix }], optionalServices: [s.service] }
+      : { filters: [{ services: [s.service] }] });
+    if (connectedIds.has(device.id)) throw new Error('This robot is already connected.');
+    let transport: BleRobotTransport | undefined;
+    try {
+      if (!device.gatt) throw new Error('Robot has no BLE GATT server.');
+      const server = await withTimeout(device.gatt.connect(), 10000), service = await server.getPrimaryService(s.service);
+      let write = await service.getCharacteristic(s.write);
+      let notify = s.notify ? await service.getCharacteristic(s.notify) : undefined;
+      // micro:bit runtimes have shipped both UART characteristic assignments.
+      if (s.namePrefix && !write.properties.write && !write.properties.writeWithoutResponse && notify && (notify.properties.write || notify.properties.writeWithoutResponse)) [write, notify] = [notify, write];
+      if (!write.properties.write && !write.properties.writeWithoutResponse) throw new Error('Characteristic cannot accept commands.');
+      transport = new BleRobotTransport(device, write, notify); if (notify) await notify.startNotifications(); return transport;
+    } catch (error) { transport?.disconnect(); device.gatt?.disconnect(); throw error; }
+  }
+  private receive = () => { const v = this.notify?.value; if (v) this.onData(new Uint8Array(v.buffer, v.byteOffset, v.byteLength).slice()); };
+  private lost = () => { if (!this.closed) { this.queue.close(); this.onDisconnect('Bluetooth disconnected.'); this.disconnect(); } };
+  async send(data: Uint8Array, urgent = false) {
+    try { await this.queue.send(data, urgent); }
+    catch (error) { if (!(error instanceof Error && error.message === 'Cancelled by Stop.')) { this.onDisconnect(String(error)); this.disconnect(); } throw error; }
+  }
+  disconnect() { this.closed = true; this.queue.close(); this.notify?.removeEventListener('characteristicvaluechanged', this.receive); this.device.removeEventListener('gattserverdisconnected', this.lost); this.device.gatt?.disconnect(); }
+}
+/** Optional adapter for an existing gateway: plain text in, sensor text out. */
+export class GatewayRobotTransport implements RobotTransport {
+  onData: RobotTransport['onData'] = () => {}; onDisconnect: RobotTransport['onDisconnect'] = () => {};
+  readonly name = 'Gateway robot';
+  private constructor(readonly id: string, private socket: WebSocket) {
+    socket.onmessage = event => {
+      if (typeof event.data === 'string' && event.data.length <= 16384) this.onData(new TextEncoder().encode(event.data));
+      else if (event.data instanceof ArrayBuffer && event.data.byteLength <= 16384) this.onData(new Uint8Array(event.data));
+      else { this.onDisconnect('Invalid gateway message.'); this.disconnect(); }
+    };
+    socket.onclose = () => this.onDisconnect('Gateway disconnected.'); socket.onerror = () => this.onDisconnect('Gateway connection failed.');
+  }
+  static async connect(address: string) {
+    const url = new URL(address); url.hash = '';
+    if (url.protocol !== 'wss:' && !(url.protocol === 'ws:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new Error('Use wss:// or a localhost ws:// gateway.');
+    if (url.username || url.password) throw new Error('Do not put credentials in the URL.');
+    const socket = new WebSocket(url); socket.binaryType = 'arraybuffer';
+    try { await withTimeout(new Promise<void>((resolve, reject) => {
+      socket.onopen = () => resolve(); socket.onerror = () => reject(new Error('Gateway connection failed.')); socket.onclose = () => reject(new Error('Gateway closed.'));
+    }), 5000); return new GatewayRobotTransport(url.href, socket); }
+    catch (error) { socket.close(); throw error; }
+  }
+  async send(data: Uint8Array) {
+    if (this.socket.readyState !== WebSocket.OPEN || this.socket.bufferedAmount > 16384) throw new Error('Gateway unavailable or congested.');
+    this.socket.send(new TextDecoder().decode(data));
   }
   disconnect() { this.socket.onclose = null; this.socket.onerror = null; this.socket.close(); }
 }

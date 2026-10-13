@@ -1,4 +1,5 @@
 import type { SpokenTool } from '../ui/citySpokenActions';
+import { openVoiceMicrophone } from './microphone';
 export interface CommandCallbacks { status(text: string): void; active(): void; result(calls: unknown): void }
 export type CommandController = Pick<CitySpokenCommand, 'busy' | 'listening' | 'start' | 'finish' | 'cancel'>;
 
@@ -75,7 +76,7 @@ export class CitySpokenCommand {
       });
       if (!current()) return;
       this.rejectLoad = null; clearTimeout(this.timeout); this.timeout = undefined;
-      const media = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      const media = await openVoiceMicrophone();
       if (!current()) { media.getTracks().forEach(t => t.stop()); return; }
       this.media = media;
       const audio = new AudioContext(); this.audio = audio; await audio.resume();
