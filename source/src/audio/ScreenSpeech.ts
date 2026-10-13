@@ -1,8 +1,12 @@
-export type IntroducedScreen = 'presets' | 'editor' | 'city' | 'art';
+import { cityVoice, savedRoleVoices } from './speechVoices';
+import type { SpeechRole, SpeechVoice } from './speechVoices';
+export type IntroducedScreen = SpeechRole;
 export function screenIntroduction(screen: IntroducedScreen, robotName = 'your robot') {
   return {
-    presets: 'Greet your robot', editor: 'Design your robot',
-    city: `Help ${robotName} navigate the city`, art: 'Enjoy this amazing robot art',
+    presets: 'Hello, robot friends! Let’s choose your adventure buddy.',
+    editor: 'Let’s make a robot together! What will yours look like?',
+    city: `Adventure time! Let’s help ${robotName} explore the city.`,
+    art: 'Look what your robot made! Let’s enjoy the art together.',
   }[screen];
 }
 
@@ -11,7 +15,7 @@ interface SpeechRuntime {
   utterance(text: string): SpeechSynthesisUtterance;
 }
 export interface NeuralSpeech {
-  generate(text: string): Promise<{ audio: Float32Array; sampling_rate: number }>;
+  generate(text: string, voice?: SpeechVoice): Promise<{ audio: Float32Array; sampling_rate: number }>;
   dispose(): void;
 }
 function browserSpeech(): SpeechRuntime | null {
@@ -31,6 +35,13 @@ export class ScreenSpeech {
   private context: AudioContext | null = null;
   private source: AudioBufferSourceNode | null = null;
   private gain: GainNode | null = null;
+  private role: SpeechRole = 'presets';
+  private roleVoices = savedRoleVoices();
+  voiceForRole(role: SpeechRole) { return role === 'city' ? cityVoice : this.roleVoices[role]; }
+  setRoleVoice(role: Exclude<SpeechRole, 'city'>, voice: SpeechVoice) {
+    this.stop(); this.roleVoices[role] = voice;
+    try { localStorage.setItem('inclusive-city-role-voices', JSON.stringify(this.roleVoices)); } catch { /* Session settings still work. */ }
+  }
   private settingsListeners = new Set<() => void>();
   constructor(private runtime: SpeechRuntime | null = browserSpeech(), private neural?: NeuralSpeech) {}
   get supported() { return this.runtime !== null || this.neural !== undefined; }
@@ -55,9 +66,10 @@ export class ScreenSpeech {
     this.settingsChanged();
   }
   introduce(screen: IntroducedScreen, robotName?: string) {
-    this.say(screenIntroduction(screen, robotName));
+    this.role = screen;
+    this.say(screenIntroduction(screen, robotName), undefined, undefined, { role: screen });
   }
-  say(text: string, onStart?: () => void, onFinish?: () => void) {
+  say(text: string, onStart?: () => void, onFinish?: () => void, options?: { role?: SpeechRole; previewVoice?: SpeechVoice }) {
     if (this.disposed) return false;
     this.stop();
     if (!this.canSpeak) return false;
@@ -67,7 +79,8 @@ export class ScreenSpeech {
       try {
         this.context ??= new AudioContext();
         const resumed = this.context.resume();
-        void Promise.all([this.neural.generate(text), resumed]).then(([result]) => {
+        const voice = options?.previewVoice ?? this.voiceForRole(options?.role ?? this.role);
+        void Promise.all([this.neural.generate(text, voice), resumed]).then(([result]) => {
           if (generation !== this.generation || !this.canSpeak) return;
           const context = this.context!;
           const buffer = context.createBuffer(1, result.audio.length, result.sampling_rate);

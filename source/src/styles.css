@@ -156,6 +156,8 @@ button.attract-enter:hover { transform: translateY(-3px); background: #e2ffa7; b
 .options-dialog section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #ffffff20; }
 .options-dialog button { border: 1px solid #ffffff30; background: #26353a; color: #eff5ea; font-size: 0.8125rem; }
 .options-audio, .midi-settings { display: grid; gap: 12px; }
+.speech-voice-controls { display: grid; gap: 8px; min-width: 0; }
+.speech-voice-controls select { width: 100%; }
 .options-audio input { width: 100%; accent-color: #cefa76; }
 .speech-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
 .options-audio #speech-enabled { appearance: none; position: relative; flex: 0 0 44px; width: 44px; height: 44px; margin: 0; border: 0; background: transparent; cursor: pointer; }

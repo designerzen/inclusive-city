@@ -17,10 +17,11 @@ test('screen introductions use the requested phrases and current robot name', ()
   const { speech, spoken, calls } = speechHarness();
   for (const screen of ['presets', 'editor', 'city', 'art'] as const) speech.introduce(screen, 'My Monet');
   assert.deepEqual(spoken.map(utterance => utterance.text), [
-    'Greet your robot', 'Design your robot', 'Help My Monet navigate the city', 'Enjoy this amazing robot art',
+    'Hello, robot friends! Let’s choose your adventure buddy.', 'Let’s make a robot together! What will yours look like?',
+    'Adventure time! Let’s help My Monet explore the city.', 'Look what your robot made! Let’s enjoy the art together.',
   ]);
   assert.deepEqual(calls, ['cancel', 'speak', 'cancel', 'speak', 'cancel', 'speak', 'cancel', 'speak']);
-  assert.equal(screenIntroduction('city'), 'Help your robot navigate the city');
+  assert.equal(screenIntroduction('city'), 'Adventure time! Let’s help your robot explore the city.');
 });
 
 test('muting, zero volume, stopping and disposal prevent stale narration', () => {

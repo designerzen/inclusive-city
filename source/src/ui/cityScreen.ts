@@ -268,13 +268,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!speakingCity) return;
     robotSpeech = message; speakingCity.setSinging(true);
     const finish = () => { robotSpeech = null; speakingCity.setSinging(false); window.clearTimeout(speechTimer); };
-    if (!speech?.say(message, undefined, finish)) {
+    if (!speech?.say(message, undefined, finish, { role: 'city' })) {
       // Keep the same explanation visible when narration is muted or unavailable.
       speechTimer = window.setTimeout(finish, Math.max(4000, message.length * 65));
     }
   }
   function introduceRobot() {
-    if (city) sayRobot(`Hi! I'm ${city.journey.bot.name}. I'm going to the Duet studio to make art and music.`);
+    if (city) sayRobot(`Hello, adventure buddy! I'm ${city.journey.bot.name}. Let's explore the city together! We're heading to the Duet studio to make art and music.`);
   }
   function beginCreation() {
     if (!city) return;
@@ -633,11 +633,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!city) return;
     if (city.journey.physicalControl) { feedback('Use the Physical robots controls to start, hold or stop the hardware.'); return; }
     if (city.journey.ready) {
-      if (city.journey.start()) { mode = 'edit'; controlsHud.open = false; sayRobot("I'm following the route to the Duet studio, making art and music as I go."); }
+      if (city.journey.start()) { mode = 'edit'; controlsHud.open = false; sayRobot("Here we go! I'll follow our route to the Duet studio. Let's make art and music along the way!"); }
     } else {
       city.journey.setPaused(!city.journey.paused);
       if (city.journey.paused) { speech?.stop(); window.clearTimeout(speechTimer); robotSpeech = null; city.setSinging(false); }
-      else { controlsHud.open = false; sayRobot("I'm continuing my journey to the Duet studio."); }
+      else { controlsHud.open = false; sayRobot("Ready, adventure buddy? Let's keep going to the Duet studio!"); }
     }
     refresh();
   });

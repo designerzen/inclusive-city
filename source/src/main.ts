@@ -12,6 +12,7 @@ import { mountCityScreen } from './ui/cityScreen';
 import { CitySounds } from './audio/CitySounds';
 import { ScreenSpeech } from './audio/ScreenSpeech';
 import { KokoroSpeech } from './audio/KokoroSpeech';
+import { mountSpeechVoiceControls } from './ui/speechVoiceControls';
 import { mountMidiControls } from './ui/midiControls';
 import { isButtonSound } from './audio/soundPresets';
 import { createScreenTransition } from './app/screenTransition';
@@ -81,7 +82,8 @@ app.innerHTML = `
       <button id="sound-mute" type="button" aria-pressed="false">Mute sound</button>
       <label for="sound-volume">Volume</label><input id="sound-volume" type="range" min="0" max="100" value="55" />
       <label class="speech-option" for="speech-enabled"><span>Spoken introductions & robot guidance</span><input id="speech-enabled" type="checkbox" role="switch" checked /></label>
-      <p id="speech-status" class="accessibility-hint" role="status">Natural voice: Emma. Loads when narration starts.</p>
+      <div id="speech-voice-controls"></div>
+      <p id="speech-status" class="accessibility-hint" role="status">Natural voices load when narration starts.</p>
       <button id="speech-preview" type="button">Use natural voice</button>
       </section>
       <section aria-labelledby="options-monitor-title"><h3 id="options-monitor-title">Music monitor</h3><div id="music-monitor-controls" class="music-monitor-controls"></div></section>
@@ -157,9 +159,8 @@ const exhibitionContainer = document.querySelector<HTMLElement>('#exhibition-scr
 const screenSpeech = new ScreenSpeech(undefined, new KokoroSpeech(message => {
   document.querySelector<HTMLElement>('#speech-status')!.textContent = message;
 }));
-document.querySelector<HTMLButtonElement>('#speech-preview')!.addEventListener('click', () => {
-  screenSpeech.say('Hello! I am your robot guide. Together, we can make the city welcoming for everyone.');
-});
+const previewVoice = mountSpeechVoiceControls(document.querySelector<HTMLElement>('#speech-voice-controls')!, screenSpeech);
+document.querySelector<HTMLButtonElement>('#speech-preview')!.addEventListener('click', previewVoice);
 const speechEnabled = document.querySelector<HTMLInputElement>('#speech-enabled')!;
 try { speechEnabled.checked = localStorage.getItem('inclusive-city-speech') !== 'disabled'; } catch { /* Settings work when storage is unavailable. */ }
 screenSpeech.setEnabled(speechEnabled.checked);

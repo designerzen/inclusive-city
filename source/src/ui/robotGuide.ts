@@ -54,7 +54,7 @@ export function mountRobotGuide(container: HTMLElement, speech?: ScreenSpeech, p
   function read() {
     stop();
     if (speech?.canSpeak) {
-      ownsSpeech = speech.say(copy.textContent ?? '', () => animate(120_000), () => { ownsSpeech = false; settle(); updateReplay(); });
+      ownsSpeech = speech.say(copy.textContent ?? '', () => animate(120_000), () => { ownsSpeech = false; settle(); updateReplay(); }, { role: 'city' });
       updateReplay();
     } else animate(Math.min(12_000, Math.max(3_000, (copy.textContent?.length ?? 0) * 40)));
   }

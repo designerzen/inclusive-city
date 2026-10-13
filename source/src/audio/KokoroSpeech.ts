@@ -1,4 +1,6 @@
 import type { NeuralSpeech } from './ScreenSpeech';
+import { voiceLabel } from './speechVoices';
+import type { SpeechVoice } from './speechVoices';
 
 /** Lazy worker: no model download until narration is requested. */
 export class KokoroSpeech implements NeuralSpeech {
@@ -6,7 +8,7 @@ export class KokoroSpeech implements NeuralSpeech {
   private id = 0;
   private pending = new Map<number, { resolve: (audio: { audio: Float32Array; sampling_rate: number }) => void; reject: (error: Error) => void }>();
   constructor(private status: (message: string) => void = () => {}) {}
-  generate(text: string) {
+  generate(text: string, voice: SpeechVoice = 'bf_emma') {
     if (!this.worker) {
       this.status('Loading natural voice… The first use downloads about 92 MB.');
       this.worker = new Worker(new URL('./kokoro.worker.ts', import.meta.url), { type: 'module' });
@@ -14,13 +16,13 @@ export class KokoroSpeech implements NeuralSpeech {
         const pending = this.pending.get(data.id); if (!pending) return;
         this.pending.delete(data.id);
         if (data.error) { this.status('Natural voice unavailable. Using the system voice.'); pending.reject(new Error(data.error)); }
-        else { this.status('Natural voice: Emma (British English).'); pending.resolve(data); }
+        else { this.status(`Natural voice: ${voiceLabel(data.voice)}.`); pending.resolve(data); }
       };
       this.worker.onerror = () => { this.status('Natural voice unavailable. Using the system voice.'); this.dispose(); };
     }
     return new Promise<{ audio: Float32Array; sampling_rate: number }>((resolve, reject) => {
       const id = ++this.id; this.pending.set(id, { resolve, reject });
-      this.worker!.postMessage({ id, text });
+      this.worker!.postMessage({ id, text, voice });
     });
   }
   dispose() {
