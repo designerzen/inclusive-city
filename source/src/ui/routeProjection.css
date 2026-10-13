@@ -23,9 +23,3 @@
 .projection-options:not([open]) .projection-options-content { display: none; }
 .route-projection .projection-options input { color: #000; background: #fff; }
 .route-projection .projection-options summary { color: #000; }
-.route-projection .projection-options { position: absolute; top: 12px; left: 12px; width: min(520px, calc(100% - 80px)); background: #fff; color: #000; border: 1px solid #aaa; border-radius: 8px; box-sizing: border-box; }
-.route-projection .projection-options > summary { display: flex; align-items: center; min-height: 44px; padding: 0 12px; cursor: pointer; box-sizing: border-box; }
-.projection-options-content { max-height: calc(100dvh - 88px); overflow-y: auto; padding: 12px; }
-.projection-options:not([open]) .projection-options-content { display: none; }
-.route-projection .projection-options input { color: #000; background: #fff; }
-.route-projection .projection-options summary { color: #000; }

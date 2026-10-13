@@ -11,7 +11,7 @@ export const projectionFields = [
 export type ProjectionDimension = typeof projectionFields[number]['key'];
 export type ProjectionSettings = Record<ProjectionDimension, number> & { autoFit: boolean; mirror: boolean };
 export const defaultProjectionSettings = Object.fromEntries([
-  ...projectionFields.map(field => [field.key, field.value]), ['autoFit', true], ['mirror', false], ['mirror', false],
+  ...projectionFields.map(field => [field.key, field.value]), ['autoFit', true], ['mirror', false],
 ]) as ProjectionSettings;
 
 export function validateProjectionSettings(value: ProjectionSettings): ProjectionSettings {
@@ -23,7 +23,6 @@ export function validateProjectionSettings(value: ProjectionSettings): Projectio
   if (value.markerLength <= value.longLength) throw new Error('Start / stop bars must be longer than data bars.');
   if (value.barcodeWidth <= value.lineWidth) throw new Error('Barcode width must be wider than the line.');
   if (typeof value.autoFit !== 'boolean') throw new Error('Choose whether barcodes can shrink to fit.');
-  if (typeof value.mirror !== 'boolean') throw new Error('Choose whether to mirror the route.');
   if (typeof value.mirror !== 'boolean') throw new Error('Choose whether to mirror the route.');
   return { ...value };
 }
