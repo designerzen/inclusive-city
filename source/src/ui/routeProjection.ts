@@ -16,9 +16,9 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     if (saved) settings = validateProjectionSettings({ ...settings, ...saved });
   } catch { /* Use defaults when storage is unavailable or invalid. */ }
   settingsPanel.innerHTML = `<p>Dimensions use city metres. Bar lengths run along the line; barcode width runs across it.</p>
-    <div class="projection-fields">${projectionFields.map(field => `<label for="projection-${field.key}">${field.label}<input id="projection-${field.key}" name="${field.key}" type="number" min="${field.min}" max="${field.max}" step="0.01" value="${settings[field.key]}" /></label>`).join('')}</div>
-    <label class="projection-fit"><input id="projection-auto-fit" type="checkbox" ${settings.autoFit ? 'checked' : ''} /> Allow barcodes to shrink to fit straight sections</label>
     <label class="projection-fit"><input id="projection-mirror" type="checkbox" ${settings.mirror ? 'checked' : ''} /> Mirror image horizontally</label>
+    <div class="projection-fields">${[...projectionFields].sort((a, b) => Number(b.key === 'codeGap') - Number(a.key === 'codeGap')).map(field => `<label for="projection-${field.key}">${field.label}<input id="projection-${field.key}" name="${field.key}" type="number" min="${field.min}" max="${field.max}" step="0.01" value="${settings[field.key]}" /></label>`).join('')}</div>
+    <label class="projection-fit"><input id="projection-auto-fit" type="checkbox" ${settings.autoFit ? 'checked' : ''} /> Allow barcodes to shrink to fit straight sections</label>
     <p id="projection-setting-status" role="status" aria-live="polite"></p>
     <details><summary>Barcode event legend</summary><ol class="projection-legend"></ol></details>`;
   const status = settingsPanel.querySelector<HTMLElement>('#projection-setting-status')!;
@@ -59,7 +59,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     const journey = getJourney(); if (!journey) return;
     const next = `${journey.world.seed}:${journey.route.join('|')}:${journey.minimumTurnRadius}:${journey.routeGeometryRevision}:${JSON.stringify(settings)}`;
     if (next === key) return;
-    if (render()) key = next;
+    key = next; render();
   }
   function open() {
     if (!changeSettings()) return;
@@ -90,4 +90,6 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     settingsPanel.removeEventListener('change', changeSettings);
   } };
 }
+
+
 

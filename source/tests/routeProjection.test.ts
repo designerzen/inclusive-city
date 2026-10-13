@@ -78,13 +78,13 @@ test('reachable generated routes cover every junction with non-overlapping event
     for (let i = 1; i < projection.markers.length; i++) {
       const previous = projection.markers[i - 1]!;
       const length = (barcodeWidths(previous.code).reduce((a, b) => a + b, 0) + barcodeGap * 5) * projection.scale;
-      assert.ok(previous.distance + length < projection.markers[i]!.distance, 'event codes do not overlap');
+      assert.ok(previous.distance + length + defaultProjectionSettings.codeGap <= projection.markers[i]!.distance + 1e-8, 'minimum barcode spacing survives auto-fit');
     }
   }
 });
 
 test('projection dimensions reject invalid or indistinguishable barcode settings', () => {
-  for (const change of [{ lineWidth: NaN }, { barGap: 0 }, { shortLength: .2 }, { markerLength: .1 }, { barcodeWidth: .1 }])
+  for (const change of [{ lineWidth: NaN }, { barGap: 0 }, { shortLength: .2 }, { markerLength: .1 }, { barcodeWidth: .1 }, { mirror: undefined }])
     assert.throws(() => validateProjectionSettings({ ...defaultProjectionSettings, ...change }));
   const saved = validateProjectionSettings(defaultProjectionSettings);
   saved.lineWidth = .5;
@@ -101,3 +101,4 @@ test('straight sections merge collinear samples but exclude curves and direction
   const curve = Array.from({ length: 61 }, (_, i) => new Vector3(3 * Math.cos(i * Math.PI / 120), 0, 3 * Math.sin(i * Math.PI / 120)));
   assert.deepEqual(straightSections({ points: curve, distances: curve.map((_, i) => i * .08) }), [], 'curve facets cannot masquerade as straight track');
 });
+
