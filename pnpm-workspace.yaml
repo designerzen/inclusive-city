@@ -4,7 +4,9 @@ packages:
 allowBuilds:
   core-js: false
   esbuild: true
+  onnxruntime-node: false
   protobufjs: false
+  sharp: false
 
 minimumReleaseAgeExclude:
   - vite@8.3.2

@@ -89,3 +89,41 @@ test('robot guidance follows speech start and ends on cancellation; stale callba
   assert.equal(finishes, 2); assert.equal(speech.canSpeak, false);
   assert.equal(speech.say('Silent guidance'), false);
 });
+
+test('cancelled neural generation cannot start playback or invoke system fallback', async () => {
+  const previous = globalThis.AudioContext;
+  globalThis.AudioContext = class { resume() { return Promise.resolve(); } close() { return Promise.resolve(); } } as unknown as typeof AudioContext;
+  try {
+    let reject!: (error: Error) => void;
+    let spoken = 0, finished = 0;
+    const speech = new ScreenSpeech({ synthesis: { cancel() {}, getVoices: () => [], speak() { spoken++; } },
+      utterance: text => ({ text } as SpeechSynthesisUtterance) }, {
+      generate: () => new Promise((_resolve, rejectGeneration) => { reject = rejectGeneration; }), dispose() {},
+    });
+    assert.equal(speech.say('Old screen', undefined, () => finished++), true);
+    speech.setMuted(true);
+    reject(new Error('Download failed'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(spoken, 0); assert.equal(finished, 1);
+    speech.dispose();
+  } finally { globalThis.AudioContext = previous; }
+});
+
+test('neural generation failure uses the system voice and preserves guidance callbacks', async () => {
+  const previous = globalThis.AudioContext;
+  globalThis.AudioContext = class { resume() { return Promise.resolve(); } close() { return Promise.resolve(); } } as unknown as typeof AudioContext;
+  try {
+    let utterance: SpeechSynthesisUtterance | undefined;
+    let started = 0, finished = 0;
+    const speech = new ScreenSpeech({ synthesis: { cancel() {}, getVoices: () => [], speak(value) { utterance = value; } },
+      utterance: text => ({ text } as SpeechSynthesisUtterance) }, {
+      generate: async () => { throw new Error('Unavailable'); }, dispose() {},
+    });
+    speech.say('Hello', () => started++, () => finished++);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(utterance?.text, 'Hello');
+    utterance!.onstart?.({} as SpeechSynthesisEvent); utterance!.onend?.({} as SpeechSynthesisEvent);
+    assert.equal(started, 1); assert.equal(finished, 1);
+    speech.dispose();
+  } finally { globalThis.AudioContext = previous; }
+});

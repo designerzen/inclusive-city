@@ -16,6 +16,7 @@ const headers = {
 // Keep Emscripten and its worker URLs together, outside Vite's JS bundling.
 // Static hosts get the same isolation through the bundled service worker.
 export default defineConfig({
+  worker: { format: 'es' },
   server: { headers }, preview: { headers },
   plugins: [{
     name: 'moonshine-assets',

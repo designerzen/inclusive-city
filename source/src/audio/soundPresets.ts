@@ -91,6 +91,7 @@ const buttonSignatures = {
   'city-restart': { root: 55, intervals: [0, 5, 9, 17], pattern: 'up', stepBeats: 0.1 },
   'fix-barrier': { root: 60, intervals: [0, 7, 14], pattern: 'up', waveform: 'sine', stepBeats: 0.08, pitchBend: 0.1 },
   'sound-mute': { root: 72, intervals: [0, 12], pattern: 'down', waveform: 'sine', stepBeats: 0.1, echoGain: 0 },
+  'speech-preview': { root: 67, intervals: [0, 4, 9], pattern: 'up', waveform: 'sine', stepBeats: 0.12, echoGain: 0 },
   'midi-connect': { root: 60, intervals: [0, 7, 16], pattern: 'up', stepBeats: .12, waveform: 'sine' },
   'midi-disconnect': { root: 55, intervals: [0, 5, 12], pattern: 'down', stepBeats: .09, waveform: 'sine' },
   'app-options': { root: 64, intervals: [0, 5, 12], pattern: 'up', stepBeats: .08, gain: .1 },
