@@ -16,6 +16,7 @@ const paths = {
   up: '<path d="m6 14 6-6 6 6"/>',
   down: '<path d="m6 10 6 6 6-6"/>',
   play: '<path d="m8 4 12 8-12 8V4Z"/>',
+  'fast-forward': '<path d="m3 5 8 7-8 7V5Zm10 0 8 7-8 7V5Z"/>',
   pause: '<path d="M8 4v16M16 4v16"/>',
   stop: '<rect x="5" y="5" width="14" height="14" rx="1"/>',
   reset: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',

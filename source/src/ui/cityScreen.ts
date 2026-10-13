@@ -46,7 +46,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <div class="city-tools" role="group" aria-label="City tools">
         <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
         <button id="city-pause" type="button">Start robot</button>
-        <button id="city-fast-forward" type="button" aria-pressed="false" aria-label="Fast forward at 10 times speed">⏩ Fast forward</button>
+        <button id="city-fast-forward" type="button" aria-pressed="false" aria-label="Fast forward at 10 times speed"></button>
       </div>
       <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
       <button id="back-to-designer" type="button" aria-label="Back to robot editor" title="Back to robot editor">Back</button>
@@ -180,7 +180,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   fastForward.addEventListener('click', () => {
     fastForwarding = !fastForwarding;
     fastForward.setAttribute('aria-pressed', String(fastForwarding));
-    fastForward.textContent = fastForwarding ? '⏩ 10× speed' : '⏩ Fast forward';
     fastForward.setAttribute('aria-label', fastForwarding ? 'Return to normal speed' : 'Fast forward at 10 times speed');
     fastForward.title = fastForward.getAttribute('aria-label')!;
   });

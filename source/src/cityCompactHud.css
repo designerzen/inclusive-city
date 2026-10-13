@@ -91,6 +91,8 @@
 }
 
 .city-controls-window-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+#city-screen #city-fast-forward { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
+#city-screen #city-fast-forward::before { display: inline-block; margin: 0; }
 #city-screen #city-controls-window { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
 #city-screen #city-controls-window::before { display: none; }
 .city-interaction-hud[data-controls-detached]:has(#city-issue[hidden]) { display: none; }

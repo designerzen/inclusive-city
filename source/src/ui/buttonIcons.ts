@@ -7,6 +7,7 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
   if (id === 'back-to-designer') return 'left';
   if (id === 'random-name') return 'reset';
   if (id === 'city-fullscreen') return 'fullscreen';
+  if (id === 'city-fast-forward') return 'fast-forward';
   if (id === 'city-project-line') return 'route';
   if (id === 'city-controls-window') return /shrink/i.test(label) ? 'shrink' : 'window';
   if (id === 'city-art-window') return 'window';

@@ -64,7 +64,7 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
   let placements: { distance: number; heading: number }[] | undefined;
   for (let step = 10; step >= (settings.autoFit ? 1 : 10) && !placements; step--) {
     scale = step / 10;
-    const gap = settings.codeGap * scale;
+    const gap = settings.codeGap;
     // Reserve enough room for later events before choosing the nearest straight
     // section. This prevents an early event from consuming the final free space.
     const latest: number[] = [];
@@ -111,3 +111,4 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
   const x = Math.min(...xs) - padding, z = Math.min(...zs) - padding;
   return { points, markers, scale, barcodeWidth: settings.barcodeWidth, lineWidth: settings.lineWidth, viewBox: `${x} ${z} ${Math.max(...xs) - x + padding} ${Math.max(...zs) - z + padding}` };
 }
+
