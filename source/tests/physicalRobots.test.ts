@@ -1,148 +1,122 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BotHistory } from '../src/robot/botHistory';
-import { generateCity, routeToGoal } from '../src/city/proceduralCity';
-import { PlannedJourney } from '../src/simulation/plannedJourney';
-import { RobotFleet, RobotSession } from '../src/robot/physical/session';
-import { encodeControl, encodeFrames, FrameDecoder, parseIdentity, parseReport } from '../src/robot/physical/protocol';
-import type { RobotCommand, RobotIdentity, RobotReport } from '../src/robot/physical/protocol';
+import { BleRobotTransport, RobotWriteQueue, microbitUart, nordicUart, validateBleSettings } from '../src/robot/physical/transport';
 import type { RobotTransport } from '../src/robot/physical/transport';
-import type { PhysicalManifest } from '../src/robot/physical/manifest';
-import { defaultProjectionSettings } from '../src/city/projectionSettings';
-import { makeManifest, validateCalibration } from '../src/robot/physical/manifest';
+import { RobotFleet, RobotSession, SensorDecoder, defaultCommands, parseSensorText } from '../src/robot/physical/session';
+import { PhysicalJourney } from '../src/robot/physical/physicalJourney';
+import { BotHistory } from '../src/robot/botHistory';
+import { PlannedJourney } from '../src/simulation/plannedJourney';
+import { generateCity, routeToGoal } from '../src/city/proceduralCity';
 
 class FakeRobot implements RobotTransport {
-  identity: RobotIdentity;
-  onReport = (_: RobotReport) => {}; onDisconnect = (_: string) => {};
-  commands: RobotCommand[] = []; sequence = 0; time = 0; disconnected = false; reject?: string;
-  constructor(id = 'one', encoders = true) {
-    this.identity = { version: 1, hardwareId: id, bootId: 'boot', name: id, encoders, lease: true, maxSpeedMmS: 1000 };
-  }
-  async send(command: RobotCommand) {
-    this.commands.push(command);
-    if (['heartbeat', 'ack'].includes(command.type)) return;
-    const state = command.type === 'start' || command.type === 'resume' ? 'following' : command.type === 'hold' ? 'held' : command.type === 'stop' ? 'stopped' : 'ready';
-    queueMicrotask(() => this.onReport({ ...command, type: 'result', state, accepted: this.reject !== command.type,
-      sequence: ++this.sequence, timeMs: this.time += 10, reason: this.reject === command.type ? 'Denied' : undefined }));
-  }
-  emit(value: Partial<RobotReport>) {
-    const command = this.commands.at(-1)!;
-    this.onReport({ version: 1, hardwareId: this.identity.hardwareId, bootId: this.identity.bootId,
-      session: command.session, routeHash: command.routeHash, type: 'telemetry', state: 'following',
-      sequence: ++this.sequence, timeMs: this.time += 200, ...value });
-  }
-  disconnect() { this.disconnected = true; }
+  name = 'micro:bit robot'; onData = (_: Uint8Array) => {}; onDisconnect = (_: string) => {};
+  writes: string[] = []; closed = false;
+  constructor(readonly id = 'one') {}
+  async send(data: Uint8Array) { this.writes.push(new TextDecoder().decode(data)); }
+  disconnect() { this.closed = true; }
+  receive(text: string) { this.onData(new TextEncoder().encode(text)); }
 }
-function route() {
-  const bot = new BotHistory(['Curie', 'Einstein'], () => 0).current;
-  const world = generateCity(42, [bot]);
-  const j = new PlannedJourney(bot, world); j.enableLineFollowing();
-  j.setRoute(routeToGoal(world, world.start)!);
-  world.nodes.find(n => n.id === world.start)!.discovery = 'music';
-  return j;
+function journey() {
+  const bot = new BotHistory(['Curie', 'Einstein'], () => 0).current, world = generateCity(42, [bot]);
+  const j = new PlannedJourney(bot, world); j.enableLineFollowing(); j.setRoute(routeToGoal(world, world.start)!);
+  world.nodes.find(n => n.id === world.start)!.discovery = 'music'; return j;
 }
-function manifest(j: PlannedJourney): PhysicalManifest {
-  return { version: 1, worldSeed: j.world.seed, route: [...j.route], points: [], lengthMm: 300,
-    projection: { ...defaultProjectionSettings }, calibration: { mmPerCityUnit: 300 / j.trajectory.length,
-      minLineMm: 1, minBarMm: 1, maxSpeedMmS: 1000, stoppingDistanceMm: 10, markerToleranceMm: 20, leaseMs: 900 },
-    markers: [{ index: 0, code: 8, nodeId: j.world.start, routeIndex: 0, distanceMm: 100, semanticDistanceMm: 100, hold: false },
-      { index: 1, code: 12, nodeId: j.world.destination, routeIndex: j.route.length - 1, distanceMm: 200, semanticDistanceMm: 300, hold: false }] };
-}
-const hash = 'a'.repeat(64);
-async function running(encoders = true, now?: () => number) {
-  const transport = new FakeRobot('one', encoders), j = route(), session = new RobotSession(transport, undefined, now);
-  await session.prepare(manifest(j), hash, j); await session.start(); return { transport, j, session };
-}
-test('framing preserves UTF-8 and bounds broken, reordered and expired transfers', () => {
-  const value = { name: 'Robot 🎨', content: 'x'.repeat(100) }, frames = encodeFrames(value, 7), decoder = new FrameDecoder();
-  let result: unknown;
-  for (const f of frames) result = decoder.accept(new DataView(f.buffer), 100);
-  assert.deepEqual(result, value); assert.ok(frames.every(f => f.length <= 20));
-  assert.throws(() => new FrameDecoder().accept(new DataView(frames[1]!.buffer)), /Incomplete/);
-  const expired = new FrameDecoder(); expired.accept(new DataView(frames[0]!.buffer), 0);
-  assert.throws(() => expired.accept(new DataView(frames[1]!.buffer), 3001), /expired/);
-  assert.throws(() => encodeFrames('x'.repeat(17000), 1), /16 KiB/);
-  const huge = frames[0]!.slice(); new DataView(huge.buffer).setUint16(6, 65535, true);
-  assert.throws(() => new FrameDecoder().accept(new DataView(huge.buffer)), /Incomplete/);
+test('micro:bit and Nordic presets use the correct opposite characteristic assignments', () => {
+  assert.equal(microbitUart.write, '6e400003-b5a3-f393-e0a9-e50e24dcca9e');
+  assert.equal(microbitUart.notify, nordicUart.write); assert.equal(microbitUart.namePrefix, 'BBC micro:bit');
+  assert.deepEqual(validateBleSettings(microbitUart), microbitUart);
+  assert.throws(() => validateBleSettings({ ...microbitUart, service: 'invalid' }), /UUID/);
+  assert.equal(validateBleSettings({ ...microbitUart, notify: '' }).notify, '');
 });
-test('protocol rejects unsupported firmware, malformed sensor values and absent event identity', () => {
-  const robot = new FakeRobot(); assert.equal(parseIdentity(robot.identity).hardwareId, 'one');
-  assert.throws(() => parseIdentity({ ...robot.identity, lease: false }), /lease/);
-  assert.throws(() => parseIdentity({ ...robot.identity, version: 2 }), /protocol/);
-  const report = { version: 1, hardwareId: 'one', bootId: 'boot', session: 'session', routeHash: hash, sequence: 1, timeMs: 1, type: 'telemetry', state: 'following' };
-  assert.throws(() => parseReport({ ...report, battery: 101 }), /range/);
-  assert.throws(() => parseReport({ ...report, distanceMm: NaN }), /distance/);
-  assert.throws(() => parseReport({ ...report, type: 'marker', code: 8, markerIndex: 0 }), /event ID/);
-  assert.throws(() => parseReport({ ...report, type: 'result' }), /result/);
+test('BLE discovery supports micro:bit name advertising and sends raw commands in 20-byte values', async () => {
+  class Char extends EventTarget {
+    properties = { write: true, writeWithoutResponse: false }; value?: DataView;
+    frames: Uint8Array[] = []; subscribed = false;
+    async startNotifications() { this.subscribed = true; return this; }
+    async writeValueWithResponse(data: Uint8Array) { this.frames.push(data.slice()); }
+    async writeValueWithoutResponse(data: Uint8Array) { this.frames.push(data.slice()); }
+  }
+  const write = new Char(), notify = new Char(); let requested: unknown;
+  const device = Object.assign(new EventTarget(), { id: 'microbit', name: 'BBC micro:bit [test]', gatt: {
+    connected: true, disconnect() { this.connected = false; }, async connect() { this.connected = true; return {
+      async getPrimaryService(uuid: string) { assert.equal(uuid, microbitUart.service); return {
+        async getCharacteristic(uuid: string) { return uuid === microbitUart.write ? write : notify; },
+      }; },
+    }; },
+  } });
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { bluetooth: { async requestDevice(options: unknown) { requested = options; return device; } } } });
+  try {
+    const transport = await BleRobotTransport.connect(microbitUart);
+    assert.deepEqual(requested, { filters: [{ namePrefix: 'BBC micro:bit' }], optionalServices: [microbitUart.service] });
+    assert.equal(notify.subscribed, true); assert.equal(write.frames.length, 0); // No handshake or route upload.
+    const command = 'SET SPEED 25;'.repeat(3) + '\n'; await transport.send(new TextEncoder().encode(command));
+    assert.ok(write.frames.every(frame => frame.length <= 20));
+    assert.equal(new TextDecoder().decode(Uint8Array.from(write.frames.flatMap(f => [...f]))), command);
+    let received = ''; transport.onData = bytes => { received = new TextDecoder().decode(bytes); };
+    const buffer = new TextEncoder().encode('xxbattery:75\nxx'); notify.value = new DataView(buffer.buffer, 2, buffer.length - 4);
+    notify.dispatchEvent(new Event('characteristicvaluechanged')); assert.equal(received, 'battery:75\n');
+    await assert.rejects(BleRobotTransport.connect(microbitUart, new Set(['microbit'])), /already connected/);
+    assert.equal(device.gatt.connected, true);
+    transport.disconnect(); assert.equal(device.gatt.connected, false);
+    write.properties.write = false; notify.properties.write = true;
+    const oppositeAssignment = await BleRobotTransport.connect(microbitUart);
+    await oppositeAssignment.send(new TextEncoder().encode('STOP\n'));
+    assert.equal(new TextDecoder().decode(notify.frames.at(-1)), 'STOP\n'); oppositeAssignment.disconnect();
+  } finally { if (original) Object.defineProperty(globalThis, 'navigator', original); else Reflect.deleteProperty(globalThis, 'navigator'); }
 });
-test('compact stop and heartbeat encode session and command identity in one BLE value', () => {
-  const packet = encodeControl({ version: 1, hardwareId: 'one', bootId: 'boot', session: '01234567', routeHash: hash, commandId: 15, type: 'stop' });
-  assert.equal(packet.length, 14); assert.equal(packet[1], 1);
-  assert.equal(new DataView(packet.buffer).getUint32(2, true), 15);
-  assert.equal(new DataView(packet.buffer).getUint32(6, true), 0x01234567);
+test('urgent Stop cancels queued motion and follows the in-flight write, without interleaving UART bytes', async () => {
+  let release!: () => void; const writes: string[] = [];
+  const queue = new RobotWriteQueue(async data => { const text = new TextDecoder().decode(data); writes.push(text); if (text === 'in-flight') await new Promise<void>(resolve => { release = resolve; }); });
+  const first = queue.send(new TextEncoder().encode('in-flight'));
+  const cancelled = Array.from({ length: 16 }, () => assert.rejects(queue.send(new TextEncoder().encode('START')), /Cancelled by Stop/));
+  const stop = queue.send(new TextEncoder().encode('STOP'), true); release(); await Promise.all([first, ...cancelled, stop]);
+  assert.deepEqual(writes, ['in-flight', 'STOP']); queue.close(); await assert.rejects(queue.send(new Uint8Array([1])), /disconnected/);
 });
-test('physical travel is driven by observations; confirmed discoveries are collected once', async () => {
-  const { transport, j, session } = await running();
+test('UART decoder handles fragmented UTF-8, CRLF values and complete JSON without a delimiter', () => {
+  const decoder = new SensorDecoder(), bytes = new TextEncoder().encode('{"name":"🎨","battery":75}\r\n');
+  assert.deepEqual(decoder.accept(bytes.slice(0, 11)), []);
+  assert.deepEqual(decoder.accept(bytes.slice(11)), ['{"name":"🎨","battery":75}']);
+  assert.deepEqual(decoder.accept(new TextEncoder().encode('{"battery":80}')), ['{"battery":80}']);
+  assert.deepEqual(parseSensorText('distance:120'), { distanceMm: 120 }); assert.deepEqual(parseSensorText('status:held'), { status: 'held' });
+  assert.deepEqual(parseSensorText('marker:8'), { event: 'marker', code: 8 }); assert.deepEqual(parseSensorText('ARRIVED'), { event: 'arrived', status: 'stopped' });
+  assert.throws(() => parseSensorText('battery:101'), /battery/); assert.throws(() => parseSensorText('{"distanceMm":-1}'), /distance/);
+  assert.equal(parseSensorText('ordinary robot message'), undefined);
+  assert.throws(() => decoder.accept(new Uint8Array(16385)), /large/);
+});
+test('commands are configurable and do not claim a confirmed motor state', async () => {
+  const robot = new FakeRobot(), session = new RobotSession(robot);
+  await session.command('start', defaultCommands); await session.command('stop', { ...defaultCommands, stop: 'S', ending: 'none' });
+  assert.deepEqual(robot.writes, ['START\n', 'S']); assert.equal(session.report, undefined); assert.match(session.message, /sent/);
+  robot.receive('battery:75\n'); assert.equal(session.report?.battery, 75);
+  session.disconnect(); await assert.rejects(session.command('start', defaultCommands), /disconnected/);
+});
+test('fleet keeps independent sensor data, queues and robot identities; Stop reaches all connected robots', async () => {
+  const fleet = new RobotFleet(), a = new FakeRobot('a'), b = new FakeRobot('b'), sa = fleet.add(a), sb = fleet.add(b);
+  a.receive('battery:75\n'); b.receive('battery:20\n'); assert.equal(sa.report?.battery, 75); assert.equal(sb.report?.battery, 20);
+  await sa.command('start', defaultCommands); assert.equal(b.writes.length, 0);
+  await fleet.stopAll(defaultCommands); assert.deepEqual(a.writes, ['START\n', 'STOP\n']); assert.deepEqual(b.writes, ['STOP\n']);
+  const duplicate = new FakeRobot('a'); assert.throws(() => fleet.add(duplicate), /already/); assert.equal(duplicate.closed, true);
+  fleet.disconnectAll(); assert.equal(fleet.sessions.size, 0);
+});
+test('optional sequence numbers suppress duplicates and malformed sensors do not update game observations', () => {
+  const robot = new FakeRobot(), session = new RobotSession(robot); let count = 0; session.onReport = () => count++;
+  robot.receive('{"battery":75,"sequence":1}\n'); robot.receive('{"battery":20,"sequence":1}\n');
+  robot.receive('battery:500\n'); assert.equal(count, 1); assert.equal(session.report?.battery, 75);
+});
+test('tracking is optional and hardware reports, not frame timing, advance a physical run', () => {
+  const j = journey(), markers = [
+    { code: 8, node: 'start', nodeId: j.world.start, routeIndex: 0, milestone: 0, label: 'music', distance: 1, endDistance: 2, bars: [] },
+    { code: 12, node: 'goal', nodeId: j.world.destination, routeIndex: j.route.length - 1, milestone: j.trajectory.length, label: 'arrival', distance: j.trajectory.length - 3, endDistance: j.trajectory.length - 2, bars: [] },
+  ];
+  const run = new PhysicalJourney(j, 10, markers, 100);
   j.update(1000); assert.equal(j.metrics.distance, 0);
-  transport.emit({ type: 'marker', markerIndex: 0, code: 8, eventId: 0, distanceMm: 100, speedMmS: 100 });
-  assert.equal(j.metrics.pickups, 1); const distance = j.metrics.distance;
-  transport.emit({ type: 'marker', markerIndex: 0, code: 8, eventId: 0, distanceMm: 100 });
-  assert.equal(j.metrics.pickups, 1); assert.equal(j.metrics.distance, distance);
-  transport.emit({ type: 'marker', markerIndex: 1, code: 12, eventId: 1, distanceMm: 200 });
-  assert.equal(j.complete, false);
-  transport.emit({ type: 'arrived', eventId: 2, distanceMm: 300, state: 'stopped' });
-  assert.equal(j.complete, true); assert.equal(session.state, 'complete'); assert.equal(j.metrics.journeysCompleted, 1);
-  j.update(1000); assert.equal(j.metrics.journeysCompleted, 1);
-  session.disconnect();
-});
-test('wrong session and hardware reports cannot move a run; unexpected markers withdraw the lease', async () => {
-  const { transport, j, session } = await running();
-  transport.emit({ distanceMm: 100, session: 'other' }); transport.emit({ distanceMm: 100, hardwareId: 'other' });
-  assert.equal(j.metrics.distance, 0);
-  transport.emit({ type: 'marker', markerIndex: 1, code: 12, eventId: 0, distanceMm: 100 });
-  assert.equal(session.state, 'fault'); assert.equal(j.metrics.distance, 0);
-  assert.equal(transport.commands.at(-1)!.type, 'stop'); session.disconnect();
-});
-test('missing reliable events, skipped markers, early arrival and reboot fail safely', async () => {
-  for (const report of [{ type: 'marker', markerIndex: 0, code: 8, eventId: 1, distanceMm: 100 },
-    { distanceMm: 150 }, { type: 'arrived', eventId: 0, state: 'stopped', distanceMm: 0 }, { bootId: 'new-boot' }]) {
-    const { transport, session } = await running(); transport.emit(report as Partial<RobotReport>);
-    assert.equal(session.state, 'fault'); assert.equal(transport.commands.at(-1)!.type, 'stop'); session.disconnect();
-  }
-});
-test('telemetry timeout freezes physical progress and sends no further heartbeats', async () => {
-  let now = 100; const { transport, j, session } = await running(true, () => now);
-  session.tick(); await Promise.resolve(); assert.equal(transport.commands.at(-1)!.type, 'heartbeat');
-  now += 1000; session.tick(); assert.equal(session.state, 'stale'); const count = transport.commands.length;
-  session.tick(); j.update(100); assert.equal(transport.commands.length, count); assert.equal(j.metrics.distance, 0); session.disconnect();
-});
-test('hold/resume/stop use application confirmations; rejected holds cannot keep authorising movement', async () => {
-  const { transport, session, j } = await running();
-  await session.hold(); assert.equal(session.state, 'held'); assert.equal(j.paused, true);
-  await session.resume(); assert.equal(session.state, 'running');
-  transport.reject = 'hold'; await assert.rejects(session.hold(), /Denied/); assert.equal(session.state, 'fault');
-  const heartbeats = transport.commands.filter(c => c.type === 'heartbeat').length; session.tick();
-  assert.equal(transport.commands.filter(c => c.type === 'heartbeat').length, heartbeats); session.disconnect();
-});
-test('robots without encoders advance in confirmed milestones rather than elapsed time', async () => {
-  const { transport, j, session } = await running(false);
-  transport.emit({ distanceMm: 90, speedMmS: 200 }); j.update(100); assert.equal(j.metrics.distance, 0);
-  transport.emit({ type: 'marker', markerIndex: 0, code: 8, eventId: 0 }); assert.ok(j.metrics.distance > 0);
-  assert.equal(j.metrics.pickups, 1); session.disconnect();
-});
-test('fleet isolates commands, sessions, measurements and stop state for each robot', async () => {
-  const fleet = new RobotFleet(), a = new FakeRobot('a'), b = new FakeRobot('b');
-  const sa = fleet.add(a), sb = fleet.add(b), ja = route(), jb = route();
-  await sa.prepare(manifest(ja), hash, ja); await sb.prepare(manifest(jb), hash, jb); await sa.start(); await sb.start();
-  assert.notEqual(sa.session, sb.session);
-  a.emit({ distanceMm: 50 }); assert.ok(ja.metrics.distance > 0); assert.equal(jb.metrics.distance, 0);
-  await sa.stop(); assert.equal(sa.state, 'stopped'); assert.equal(sb.state, 'running');
-  const duplicate = new FakeRobot('a'); assert.throws(() => fleet.add(duplicate), /already/); assert.equal(duplicate.disconnected, true);
-  await fleet.stopAll('Test stop.'); assert.equal(sb.state, 'stopped'); fleet.disconnectAll(); assert.equal(fleet.sessions.size, 0);
-});
-test('physical mode locks route drawing and turning radius, and calibration rejects guessed invalid dimensions', () => {
-  const j = route(), path = [...j.route]; j.reservePhysical();
-  assert.equal(j.start(), false); assert.equal(j.clearRoute(), false); assert.equal(j.setMinimumTurnRadius(12), false); assert.deepEqual(j.route, path);
-  assert.throws(() => validateCalibration({ ...manifest(j).calibration, mmPerCityUnit: NaN }), /positive/);
-  assert.throws(() => makeManifest(j, defaultProjectionSettings, { ...manifest(j).calibration, minLineMm: 100000 }), /line/);
+  run.observe({ distanceMm: 110, status: 'following' }, 1000); assert.equal(j.metrics.distance, 1);
+  run.observe({ status: 'held' }, 1500); run.observe({ battery: 75 }, 1700); assert.equal(j.paused, true);
+  run.observe({ event: 'marker', markerIndex: 0, code: 8 }, 2000); assert.equal(j.metrics.pickups, 1);
+  run.observe({ event: 'marker', markerIndex: 0, code: 8 }, 2200); assert.equal(j.metrics.pickups, 1);
+  assert.throws(() => run.observe({ event: 'marker', markerIndex: 1, code: 7 }, 2500), /barcode/);
+  run.freeze(); const distance = j.metrics.distance; run.observe({ distanceMm: 150 }, 3000); j.update(1000); assert.equal(j.metrics.distance, distance);
+  run.activate(); run.observe({ event: 'marker', markerIndex: 1, code: 12 }, 3500); assert.equal(j.complete, false);
+  run.observe({ event: 'arrived', status: 'stopped' }, 4000); assert.equal(j.complete, true);
 });
