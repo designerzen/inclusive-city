@@ -22,6 +22,8 @@ These documents describe the wider proposed game, researched on 2 October 2026. 
 
 ## Run the starter
 
+Two standalone line projections are available at `/traffic-light.html` (a straight line with a crossing barcode midway) and `/figure-eight.html` (a loop with junction barcodes before both approaches to the intersection). Both reuse the city's line renderer, barcode format, Settings controls and saved projection preferences. They are included in the production build.
+
 Requires Node.js 20.19+ or 22.12+ and pnpm 12.3.4. From the repository root:
 
 ```sh

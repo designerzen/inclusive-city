@@ -4,6 +4,9 @@
 .city-reply-heading [data-reply-sentence] { flex: 1; min-width: 0; margin: 0; }
 #city-screen .city-reply [data-reply-talk] { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 48px; width: 48px; height: 48px; padding: 0; border-radius: 50%; touch-action: none; user-select: none; }
 .city-reply [data-reply-talk]::before { display: none; }
+#city-screen .city-reply #city-record-voice:is(:enabled, :disabled) { background: #c62828; border-color: #c62828; color: #ffffff; }
+#city-screen .city-reply #city-record-voice:hover:enabled,
+#city-screen .city-reply #city-record-voice[aria-pressed='true'] { background: #a51f1f; border-color: #a51f1f; color: #ffffff; }
 .city-reply[data-listening='true'] [data-reply-talk] { outline: 3px solid currentColor; outline-offset: 2px; }
 .city-reply-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .city-reply button { min-height: 44px; min-width: 44px; flex-shrink: 0; }

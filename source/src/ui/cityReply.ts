@@ -21,7 +21,7 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
   if (input.length > 500) return { message: 'That prompt is too long. Please shorten it to one change under 500 characters. No change made.' };
   if (/\b(don't|dont|do not|never|not|no|cancel|stop listening|without|instead|remove the ramp|raise the bridge|raise the curb|raise the kerb)\b/.test(text)) return { message: 'No city change made. Tell me what you would like to change.' };
   if (/\b(avoid|refrain|unchanged|do nothing|leave things as they are)\b/.test(text)) return { message: 'No city change made. Tell me what you would like to change.' };
-  if (/\b(then|also)\b|\band\s+(?:please\s+)?(?:add|install|build|create|put|make|move|shift|clear|lower|give|widen|broaden|extend|open|pause|stop|wait|resume|continue|undo)\b/.test(text)) return { message: 'Let’s change one thing at a time. Which change would you like first?' };
+  if (/\b(then|also)\b|\band\s+(?:please\s+)?(?:add|install|build|create|put|make|move|shift|clear|lower|give|widen|broaden|extend|open|pause|stop|wait|start|begin|go|resume|continue|undo)\b/.test(text)) return { message: 'Let’s change one thing at a time. Which change would you like first?' };
   text = expandCityCommand(text);
   if (text === 'do not change anything') return { message: 'No city change made. Tell me what you would like to change.' };
   if (/\b(undo|change my mind|put it back)\b/.test(text)) return { message: 'Undo the last city change.', action: { kind: 'undo' } };
@@ -33,7 +33,7 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
   if (/^(do|does|is|are|would|should|what|which|where|how)\b/.test(text)) return { message: reason };
   if (/\b(go around|another route|turn left|turn right)\b/.test(text)) return { message: 'Changing the route during a journey is not available yet. You can change the blocked place or wait.' };
   if (/^(please )?(pause|stop|wait)( the robot| for.*)?$/.test(text)) return { message: 'Pause the journey.', action: { kind: 'pause' } };
-  if (/^(please )?(resume|continue|carry on|go ahead)( the journey| the robot)?$/.test(text)) return { message: 'Resume the journey.', action: { kind: 'resume' } };
+  if (/^(start|begin|resume|continue|carry on|go ahead|go|set off|let's go|lets go)( (the )?(journey|robot)| moving)?$/.test(text)) return { message: journey.ready ? 'Start the journey.' : 'Resume the journey.', action: { kind: 'resume' } };
   if (!id) return { message: reason };
   if (id.startsWith('robot:')) return { message: 'Another robot is in the way. We can wait for it to move; no city change is needed.' };
   const street = journey.world.streets.find(item => item.id === id);
@@ -79,7 +79,12 @@ export function applyCityReply(journey: PlannedJourney, reply: CityReply): strin
     case 'ask-robot': return journey.askNearbyRobot() ? `${reply.message} Wait for a safe green light before crossing.` : 'The helper is no longer available. You can lower the panel or wait for help.';
     case 'undo': changed = journey.undoRepair(); break;
     case 'pause': case 'resume':
-      if (journey.ready) return 'Start the robot with Start robot when you’re ready.';
+      if (journey.physicalControl) return 'Use the Physical robots controls to start, hold or stop the hardware.';
+      if (journey.ready) {
+        if (action.kind === 'pause') return 'The robot has not started yet.';
+        return journey.start() ? 'Journey started. The robot is heading to the studio.' : 'The robot cannot start because there is no route to the studio. Choose another route or change the city.';
+      }
+      if (action.kind === 'resume' && !journey.paused) return journey.blocked ? 'The robot is already started. Change the current barrier so it can continue.' : 'The robot is already moving.';
       journey.setPaused(action.kind === 'pause'); return action.kind === 'pause' ? 'Journey paused.' : 'Journey resumed. The robot will continue when the route is clear.';
     case 'bridge-access': changed = journey.setBridgeAccess(action.id, action.access); break;
     case 'feature': changed = journey.setFeature(action.id, true); break;

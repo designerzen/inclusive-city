@@ -14,6 +14,35 @@ function fixture(kind = 'stairs') {
   return { j, street };
 }
 
+test('Start and natural start phrases depart from a ready journey and resume without restarting', () => {
+  for (const phrase of ['Start', 'start robot', 'Start the robot', 'please start', 'Could you start moving please?', 'Go', "Let's go", 'Begin the journey', 'Set off', 'resume']) {
+    const { j } = fixture(); j.blocked = null;
+    const run = j.machine.run.id;
+    assert.equal(j.ready, true);
+    assert.match(applyCityReply(j, interpretCityReply(phrase, j)), /started/, phrase);
+    assert.equal(j.ready, false); assert.equal(j.machine.run.id, run);
+    const route = [...j.route];
+    assert.match(applyCityReply(j, interpretCityReply('Start', j)), /already/);
+    assert.deepEqual(j.route, route);
+    j.setPaused(true);
+    assert.match(applyCityReply(j, interpretCityReply('Start', j)), /resumed/);
+    assert.equal(j.paused, false); assert.deepEqual(j.route, route);
+  }
+});
+test('negated, compound and diagnostic Start phrases do not depart', () => {
+  for (const phrase of ["Don't start", 'Do you want to start?', 'Undo and start', 'Add a ramp and start', 'Start and lower the curb']) {
+    const { j } = fixture(); assert.equal(interpretCityReply(phrase, j).action, undefined, phrase); assert.equal(j.ready, true);
+  }
+});
+test('Start reports unavailable routes, completed runs and physical control without departing', () => {
+  const { j } = fixture(); j.world.streets.length = 0;
+  assert.match(applyCityReply(j, interpretCityReply('Start', j)), /no route/); assert.equal(j.ready, true);
+  const physical = fixture().j; physical.physicalControl = true;
+  assert.match(applyCityReply(physical, interpretCityReply('Start', physical)), /Physical robots/); assert.equal(physical.ready, true);
+  const complete = fixture().j; complete.machine.run.status = 'completed';
+  assert.match(applyCityReply(complete, interpretCityReply('Start', complete)), /complete/);
+});
+
 test('spoken paraphrases use existing edits and undo history', () => {
   const { j, street } = fixture();
   const reply = interpretCityReply('Could you put a ramp there please?', j);

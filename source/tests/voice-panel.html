@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>City voice panel browser fixture</title>
 <style>body{margin:24px;font:16px system-ui;background:#252525;color:white}main{max-width:340px}button{font:inherit;padding:10px;border-radius:6px}button:disabled{opacity:.6}textarea{color:black}#city-issue{padding:16px}</style>
-<main id="city-screen" style="display:block;position:static;height:auto;overflow:visible"><label><input type="checkbox" id="simulate">Simulate command result</label><section id="reply" class="city-reply"></section><p id="capture-state"></p><p id="edits">Edits: 0</p><button id="new-context">Change encounter</button></main>
+<main id="city-screen" style="display:block;position:static;height:auto;overflow:visible"><label><input type="checkbox" id="simulate">Simulate command result</label><div class="city-interaction-hud" style="position:static;width:auto;max-height:none;overflow:visible"><div class="city-journey-actions"><button id="city-pause">Start robot</button></div><section id="city-reply" class="city-reply"></section></div><p id="capture-state"></p><p id="edits">Edits: 0</p><button id="new-context">Change encounter</button></main>
 <script type="module">
 import '../src/styles.css'; import '../src/cityHud.css'; import '../src/uiDesign.css'; import '../src/accessibility.css'; import '../src/cityVoice.css'; import '../src/cityCompactHud.css';
 import { mountCityVoicePanel } from '../src/ui/cityVoicePanel';
@@ -14,7 +14,7 @@ const history = new BotHistory(['Curie','Einstein']); history.selectPreset('mone
 const journey = new PlannedJourney(bot, generateCity(42, [bot]));
 const curb = journey.world.streets.find(s => s.kind === 'curb'); journey.blocked = {id:curb.id,reason:'The curb is too high'};
 let encounter=0, edits=0;
-const panel=mountCityVoicePanel(document.querySelector('#reply'),{
+const panel=mountCityVoicePanel(document.querySelector('#city-reply'),{
   context:()=>`${encounter}:${journey.dimensionRevision}:${[...journey.repaired]}`,
   choices:()=>citySpokenChoices(journey), capture:active=>document.querySelector('#capture-state').textContent=`Microphone active: ${active}`,
   interpret:text=>interpretCityReply(text,journey),
@@ -32,4 +32,5 @@ const panel=mountCityVoicePanel(document.querySelector('#reply'),{
   }
 }); panel.update(); panel.sentence('The curb is too high. What would you like to change?');
 document.querySelector('#new-context').onclick=()=>{encounter++;panel.update();};
+document.querySelector('#city-pause').onclick=()=>{const message=applyCityReply(journey,interpretCityReply(journey.paused||journey.ready?'Start':'Stop',journey));panel.sentence(message);panel.update();document.querySelector('#city-pause').textContent=journey.paused||journey.ready?'Start robot':'Stop robot';};
 </script></html>

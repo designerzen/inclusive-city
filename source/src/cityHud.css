@@ -29,7 +29,13 @@ body:has(.city-mode) { overflow: hidden; }
 }
 .workshop.city-mode { width: 100%; max-width: none; height: 100dvh; margin: 0; padding: 0; }
 .city-mode > .sound-controls { position: fixed; top: 16px; right: 16px; z-index: 30; margin: 0; filter: grayscale(1); }
-#city-screen { position: fixed; inset: 0; height: 100dvh; filter: grayscale(1); isolation: isolate; color: #eeeeee; background: #171717; }
+#city-screen { position: fixed; inset: 0; height: 100dvh; isolation: isolate; color: #eeeeee; background: #171717; }
+/* Keep the city monochrome while allowing the recording indicator to be red. */
+#city-screen > :not(.city-interaction-hud),
+.city-interaction-hud > :not(#city-reply),
+.city-reply > :not(.city-reply-heading) { filter: grayscale(1); }
+#city-screen .city-journey-actions { padding: 12px 12px 0; }
+#city-screen .city-journey-actions #city-pause { width: 100%; }
 #city-screen .city-toolbar { position: absolute; top: 16px; left: 16px; right: 76px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; margin: 0; padding: 10px 14px; background: #252525; border: 1px solid #555555; border-radius: 16px; z-index: 3; }
 .city-identity { display: grid; gap: 4px; min-width: 0; }
 #city-screen #city-bot-name { font-size: 1.0625rem; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

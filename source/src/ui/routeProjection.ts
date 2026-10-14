@@ -1,7 +1,8 @@
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { routeToGoal } from '../city/proceduralCity';
 import { routeProjection } from '../city/routeProjection';
-import { defaultProjectionSettings, projectionFields, validateProjectionSettings, type ProjectionSettings } from '../city/projectionSettings';
+import { type ProjectionSettings } from '../city/projectionSettings';
+import { loadProjectionSettings, saveProjectionSettings, projectionSettingsMarkup, readProjectionSettings, renderProjection } from './projectionShared';
 import './routeProjection.css';
 
 export function mountRouteProjection(container: HTMLElement, getJourney: () => PlannedJourney | undefined) {
@@ -10,19 +11,8 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   const settingsHome = settingsPanel.parentElement!;
   const settingsAnchor = document.createComment('Projection settings home');
   settingsPanel.before(settingsAnchor);
-  let settings = { ...defaultProjectionSettings };
-  try {
-    const saved = JSON.parse(localStorage.getItem('inclusive-city-projection-settings') ?? 'null');
-    if (saved) settings = validateProjectionSettings({ ...settings, ...saved });
-  } catch { /* Use defaults when storage is unavailable or invalid. */ }
-  settingsPanel.innerHTML = `<p>Dimensions use city metres. Bar lengths run along the line; barcode width runs across it.</p>
-    <label class="projection-fit"><input id="projection-mirror" type="checkbox" ${settings.mirror ? 'checked' : ''} /> Reflect horizontally (left / right)</label>
-    <label class="projection-fit"><input id="projection-mirror-vertical" type="checkbox" ${settings.mirrorVertical ? 'checked' : ''} /> Reflect vertically (top / bottom)</label>
-    <p>Enable both reflections for the combined presentation.</p>
-    <div class="projection-fields">${[...projectionFields].sort((a, b) => Number(b.key === 'codeGap') - Number(a.key === 'codeGap')).map(field => `<label for="projection-${field.key}">${field.label}<input id="projection-${field.key}" name="${field.key}" type="number" min="${field.min}" max="${field.max}" step="0.01" value="${settings[field.key]}" /></label>`).join('')}</div>
-    <label class="projection-fit"><input id="projection-auto-fit" type="checkbox" ${settings.autoFit ? 'checked' : ''} /> Allow barcodes to shrink to fit straight sections</label>
-    <p id="projection-setting-status" role="status" aria-live="polite"></p>
-    <details><summary>Barcode event legend</summary><ol class="projection-legend"></ol></details>`;
+  let settings = loadProjectionSettings();
+  settingsPanel.innerHTML = projectionSettingsMarkup(settings);
   const status = settingsPanel.querySelector<HTMLElement>('#projection-setting-status')!;
   const dialog = document.createElement('dialog');
   dialog.className = 'route-projection'; dialog.setAttribute('aria-label', 'Robot line projection');
@@ -44,10 +34,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     const journey = getJourney(); if (!journey) return false;
     try {
       const projection = routeProjection(journey, settings);
-      svg.setAttribute('viewBox', projection.viewBox);
-      svg.style.transform = `scale(${settings.mirror ? -1 : 1}, ${settings.mirrorVertical ? -1 : 1})`;
-      svg.innerHTML = `<polyline points="${projection.points.map(p => `${p.x},${p.z}`).join(' ')}" fill="none" stroke="#000" stroke-width="${projection.lineWidth}" stroke-linejoin="round" stroke-linecap="round"/>` +
-        projection.markers.map(marker => `<g data-code="${marker.code.toString(2).padStart(4, '0')}">${marker.bars.map(bar => `<rect x="${-projection.barcodeWidth / 2}" y="${-bar.width / 2}" width="${projection.barcodeWidth}" height="${bar.width}" fill="#000" transform="translate(${bar.x} ${bar.z}) rotate(${bar.angle})"/>`).join('')}</g>`).join('');
+      renderProjection(svg, projection, settings);
       settingsPanel.querySelector('.projection-legend')!.replaceChildren(...projection.markers.map(marker => {
         const item = document.createElement('li'); item.textContent = `${marker.code.toString(2).padStart(4, '0')} — ${marker.node}: ${marker.label}`; return item;
       }));
@@ -84,11 +71,9 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   function cancel(event: Event) { event.preventDefault(); close(); }
   function changeSettings() {
     if (physicalLocked) { status.textContent = 'Close the physical projection and reconnect the robots before changing its settings.'; return false; }
-    const next = { ...settings, mirrorVertical: settingsPanel.querySelector<HTMLInputElement>('#projection-mirror-vertical')!.checked, mirror: settingsPanel.querySelector<HTMLInputElement>('#projection-mirror')!.checked, autoFit: settingsPanel.querySelector<HTMLInputElement>('#projection-auto-fit')!.checked };
-    for (const field of projectionFields) next[field.key] = settingsPanel.querySelector<HTMLInputElement>(`#projection-${field.key}`)!.valueAsNumber;
     try {
-      settings = validateProjectionSettings(next);
-      try { localStorage.setItem('inclusive-city-projection-settings', JSON.stringify(settings)); } catch { /* Retain session settings. */ }
+      settings = readProjectionSettings(settingsPanel);
+      saveProjectionSettings(settings);
       status.textContent = ''; refresh(); return true;
     } catch (reason) { status.textContent = reason instanceof Error ? reason.message : 'Check the projection settings.'; return false; }
   }
@@ -111,8 +96,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     physicalWindow.document.head.append(style);
     const data = routeProjection(journey, settings, stoppingClearance);
     const copy = svg.cloneNode(false) as SVGElement;
-    copy.innerHTML = `<polyline points="${data.points.map(p => `${p.x},${p.z}`).join(' ')}" fill="none" stroke="#000" stroke-width="${data.lineWidth}" stroke-linejoin="round" stroke-linecap="round"/>` +
-      data.markers.map(marker => `<g>${marker.bars.map(bar => `<rect x="${-data.barcodeWidth / 2}" y="${-bar.width / 2}" width="${data.barcodeWidth}" height="${bar.width}" fill="#000" transform="translate(${bar.x} ${bar.z}) rotate(${bar.angle})"/>`).join('')}</g>`).join('');
+    renderProjection(copy, data, settings);
     physicalWindow.document.body.append(physicalWindow.document.importNode(copy, true));
     physicalSettings = { ...settings }; physicalLocked = true; physicalViewport = '';
     physicalDocument = physicalWindow.document;
@@ -134,3 +118,4 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     settingsPanel.removeEventListener('change', changeSettings);
   } };
 }
+

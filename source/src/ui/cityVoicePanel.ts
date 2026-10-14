@@ -15,7 +15,7 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
 }) {
   container.innerHTML = `<div class="city-reply-heading">
     <p data-reply-sentence role="status" aria-live="polite">Tell me what you would like to change.</p>
-    <button type="button" data-reply-talk aria-label="Hold to talk" title="Hold to talk; release to finish" aria-pressed="false">
+    <button id="city-record-voice" type="button" data-reply-talk aria-label="Hold to talk" title="Hold to talk; release to finish" aria-pressed="false">
       <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
     </button></div>
     <form class="city-prompt-row"><label class="sr-only" for="city-reply-text">City prompt</label>
@@ -102,6 +102,11 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
   textarea.addEventListener('focus', () => { promptIntent = true; });
   textarea.addEventListener('blur', () => { queueMicrotask(() => { if (!held && textarea.ownerDocument.activeElement !== mic) promptIntent = false; }); });
   textarea.addEventListener('input', () => { if (speech.busy && mode === 'prompt') stop(); });
+  textarea.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault(); get<HTMLFormElement>('form').requestSubmit();
+    }
+  });
   container.addEventListener('keydown', event => { if (event.key === 'Escape') stop(); });
   get<HTMLFormElement>('form').addEventListener('submit', event => { event.preventDefault(); const text = textarea.value; stop(); submit(text); });
   get<HTMLButtonElement>('[data-reply-confirm]').addEventListener('click', () => {

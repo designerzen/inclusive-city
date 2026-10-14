@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Traffic light — Line projection</title>
+  </head>
+  <body data-configuration="traffic-light">
+    <main class="configuration-page">
+      <header class="configuration-header">
+        <h1 id="projection-title">Traffic light</h1>
+        <nav aria-label="Line configurations"><a href="./index.html">City</a><a href="./figure-eight.html">Figure of eight</a></nav>
+        <details id="projection-options"><summary>Settings</summary><div id="configuration-settings"></div></details>
+      </header>
+      <svg id="configuration-line" role="img" aria-label="Straight traffic light line with a crossing barcode midway" preserveAspectRatio="xMidYMid meet"></svg>
+    </main>
+    <script type="module" src="/src/ui/configurationProjection.ts"></script>
+  </body>
+</html>

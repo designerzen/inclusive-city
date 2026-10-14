@@ -48,7 +48,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     <header class="city-toolbar">
       <div class="city-tools" role="group" aria-label="City tools">
         <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
-        <button id="city-pause" type="button">Start robot</button>
         <button id="city-fast-forward" type="button" aria-pressed="false" aria-label="Fast forward at 10 times speed"></button>
       </div>
       <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
@@ -65,6 +64,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
     <div class="city-interaction-hud">
+    <div class="city-journey-actions" role="group" aria-label="City journey controls"><button id="city-pause" type="button">Start robot</button></div>
     <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
     <section id="city-issue" class="city-issue" aria-label="Help your robot" hidden>
       <h2>Your robot is stuck</h2>
@@ -250,13 +250,18 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const voicePanel = mountCityVoicePanel(get('city-reply'), {
     interpret: text => city ? interpretCityReply(text, city.journey) : { message: 'Open the city to reply to your robot.' },
     choices: () => city ? citySpokenChoices(city.journey) : [],
-    context: () => city ? `${city.journey.machine.run.id}:${city.journey.edge}:${city.journey.blocked?.id ?? ''}:${city.journey.dimensionRevision}:${[...city.journey.repaired]}:${city.journey.complete}` : '',
+    context: () => city ? `${city.journey.machine.run.id}:${city.journey.edge}:${city.journey.blocked?.id ?? ''}:${city.journey.dimensionRevision}:${[...city.journey.repaired]}:${city.journey.ready}:${city.journey.paused}:${city.journey.complete}` : '',
     capture: value => { voiceCapturing = value; if (value) speech?.stop(); sounds.setVoiceCapture(value); },
     submit: text => {
       if (!city || !active) return 'Open the city to reply to your robot.';
       city.resizer.finish(false);
-      const message = applyCityReply(city.journey, interpretCityReply(text, city.journey));
-      city.sync(); panelKey = ''; feedback(message); sayRobot(message); refresh(); return message;
+      const reply = interpretCityReply(text, city.journey);
+      const wasReady = city.journey.ready, wasPaused = city.journey.paused;
+      const message = applyCityReply(city.journey, reply);
+      const started = wasReady && !city.journey.ready;
+      const resumed = wasPaused && !city.journey.paused;
+      if (started || resumed) { mode = 'edit'; controlsHud.open = false; }
+      city.sync(); panelKey = ''; feedback(message); sayRobot(started ? cityStartNarration : resumed ? cityResumeNarration : message); refresh(); return message;
     },
   });
   let robotSpeech: string | null = null;
