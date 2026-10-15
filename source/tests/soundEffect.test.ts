@@ -6,6 +6,7 @@ import { CitySounds } from '../src/audio/CitySounds';
 import { buttonSound, buttonSoundNames, isButtonSound } from '../src/audio/soundPresets';
 import { readFileSync } from 'node:fs';
 import { robotFunctions } from '../src/robot/functions';
+import { robotAccessories } from '../src/robot/appearance';
 import { cityPowerups } from '../src/city/cityLayout';
 
 test('every workshop and city button has a registered musical signature', () => {
@@ -14,6 +15,10 @@ test('every workshop and city button has a registered musical signature', () => 
     for (const [tag] of source.matchAll(/<button\b[^>]*>/g)) {
       // Customizable select buttons are inert faces of the select, not separate actions.
       if (tag.includes('data-select-trigger')) continue;
+      if (tag.includes('data-accessory=')) {
+        for (const item of robotAccessories) assert.ok(isButtonSound(`accessory-${item.id}`));
+        continue;
+      }
       if (tag.includes('data-function=')) {
         for (const item of robotFunctions) assert.ok(isButtonSound(`function-${item.id}`));
         continue;
