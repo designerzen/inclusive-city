@@ -12,6 +12,32 @@ import { createRobotProfile, defaultFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
 import { proximityAttention } from '../src/robot/pointerAttention';
 
+test('speed grows grounded wheels and route memory grows the complete head through animation and reset', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene);
+    const head = scene.getTransformNodeByName('head-rig')!;
+    const wheel = scene.getMeshByName('wheel-1-1')!;
+    const hub = scene.getMeshByName('hub-1-1')!;
+    for (const speed of [0, 50, 100, 50]) {
+      bot.setProfile(createRobotProfile({ ...defaultAbilities(), speed }, defaultFunctions()));
+      const wheelScale = .75 + speed / 200, headScale = 1.25 - speed / 200;
+      bot.setAppearance({ ...defaultAppearance(), shape: 'cylinder' });
+      bot.animateTravel(.1, 1, true);
+      assert.equal(wheel.scaling.x, wheelScale);
+      assert.equal(hub.scaling.x, wheelScale);
+      assert.ok(Math.abs(wheel.position.y - .35 * wheelScale - .25) < 1e-6);
+      assert.equal(head.scaling.x, headScale);
+      assert.equal(head.scaling.y, headScale);
+      assert.ok(Math.abs(head.position.y - (2.25 + (headScale - 1) * .5)) < 1e-6);
+      assert.equal(wheel.rotation.x, hub.rotation.x);
+      const angle = wheel.rotation.x;
+      bot.animateTravel(.1, .1, true);
+      assert.ok(Math.abs(wheel.rotation.x - angle + .1 / (.35 * wheelScale)) < 1e-6);
+    }
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('explaining animates the mouth without driving the robot and respects reduced motion', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   try {

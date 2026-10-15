@@ -35,6 +35,7 @@ export function createRobot(scene: Scene) {
   upperBody.position.y = 1.05;
   let appearance = defaultAppearance();
   let visionEnabled = true;
+  let wheelScale = 1, headScale = 1;
   let attention: PointerAttention = { x: 0, y: 0, amount: 0 };
 
   function box(name: string, size: [number, number, number], position: [number, number, number], surface = shell) {
@@ -171,6 +172,18 @@ export function createRobot(scene: Scene) {
   function setProfile(profile: RobotProfile) {
     visionEnabled = profile.enabledFunctions.includes('vision');
     const abilities = profile.effectiveAbilities;
+    // Show the stored tradeoff even when the memory module is switched off.
+    wheelScale = .75 + profile.abilities.speed / 200;
+    headScale = .75 + profile.abilities.routeMemory / 200;
+    headRig.scaling.setAll(headScale);
+    headRig.position.y = 2.25 + (headScale - 1) * .5;
+    const wheelLift = .35 * (wheelScale - 1);
+    upperBody.position.y = 1.05 + wheelLift;
+    chassis.position.y = .9 + wheelLift;
+    for (const part of wheelParts) {
+      part.scaling.set(wheelScale, 1, wheelScale);
+      part.position.y = .6 + wheelLift;
+    }
     // Keep the profile on the robot, ready for navigation and journey data consumers.
     robot.metadata = { ...robot.metadata, abilities: { ...profile.abilities }, effectiveAbilities: { ...abilities }, enabledFunctions: [...profile.enabledFunctions] };
     for (const eye of ['left-eye', 'right-eye']) scene.getMeshByName(eye)!.material = profile.enabledFunctions.includes('vision') ? eyes : dark;
@@ -213,10 +226,11 @@ export function createRobot(scene: Scene) {
     if (paused) return;
     const moving = distance > 1e-8;
     travelPhase = (travelPhase + distance * Math.PI * 2 / 1.5) % (Math.PI * 2);
-    const wheelTurn = distance / (0.35 * Math.max(0.01, Math.abs(robot.scaling.x)));
+    const wheelRadius = .35 * wheelScale;
+    const wheelTurn = distance / (wheelRadius * Math.max(0.01, Math.abs(robot.scaling.x)));
     for (const [index, part] of wheelParts.entries()) {
       // Opposite sides roll in opposite directions during a pivot.
-      const pivotTurn = turnAngle * wheelParts[index - index % 2]!.position.x / .35;
+      const pivotTurn = turnAngle * wheelParts[index - index % 2]!.position.x / wheelRadius;
       part.rotation.x = (part.rotation.x - wheelTurn - pivotTurn) % (Math.PI * 2);
     }
     const blend = 1 - Math.exp(-seconds * 14);
@@ -241,10 +255,10 @@ export function createRobot(scene: Scene) {
     characterRig.scaling.set(width, pose.stretch, width);
     characterRig.position.y = pose.lift;
     characterRig.rotation.set(pose.lean, pose.twist, 0);
-    headRig.position.y += (2.25 + bob + pose.headLift - headRig.position.y) * blend;
+    headRig.position.y += (2.25 + (headScale - 1) * .5 + bob + pose.headLift - headRig.position.y) * blend;
     headRig.rotation.x += (tilt + pose.headTilt - headRig.rotation.x) * blend;
     headRig.rotation.y += (pose.headYaw - headRig.rotation.y) * blend;
-    headRig.scaling.set(1 / Math.sqrt(pose.headStretch), pose.headStretch, 1 / Math.sqrt(pose.headStretch));
+    headRig.scaling.set(headScale / Math.sqrt(pose.headStretch), headScale * pose.headStretch, headScale / Math.sqrt(pose.headStretch));
     shoulders.forEach((shoulder, i) => {
       const side = i ? 1 : -1;
       const swing = moving && !reducedMotion ? Math.sin(travelPhase + i * Math.PI) * .12 * energy : 0;
