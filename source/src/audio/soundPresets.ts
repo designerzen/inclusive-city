@@ -39,6 +39,13 @@ export function interactionSound(name: InteractionSound, overrides: SoundEffectC
 
 /** Each control has its own motif, rather than sharing the generic tap cue. */
 const buttonSignatures = {
+  'designer-accessories': { root: 74, intervals: [0, 5, 9, 16], pattern: 'up', stepBeats: .08 },
+  'accessory-moustache': { root: 55, intervals: [0, 4, 11], pattern: 'up-down', stepBeats: .08 },
+  'accessory-wings': { root: 79, intervals: [0, 5, 12, 19], pattern: 'up', stepBeats: .07 },
+  'accessory-monocle': { root: 81, intervals: [0, 4, 11], pattern: 'chord', waveform: 'sine' },
+  'accessory-topHat': { root: 62, intervals: [0, 4, 7, 16], pattern: 'up', stepBeats: .075 },
+  'accessory-bowTie': { root: 69, intervals: [0, 5, 10], pattern: 'up-down', stepBeats: .075 },
+  'clear-accessories': { root: 58, intervals: [0, 5, 9, 14], pattern: 'down', stepBeats: .075 },
   'exhibition-rewind': { root: 57, intervals: [0, 5, 9, 16], pattern: 'down', stepBeats: .07 },
   'studio-track-play': { root: 65, intervals: [0, 4, 9, 19], pattern: 'up', stepBeats: .1, waveform: 'sine' },
   'studio-track-stop': { root: 53, intervals: [0, 5, 12], pattern: 'down', stepBeats: .08, waveform: 'sine' },

@@ -14,6 +14,7 @@ import { createEyeLens } from './expressiveEyes';
 import type { RobotCondition } from './robotCondition';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { createShapeTransition } from './shapeTransition';
+import { createAccessories } from './accessories';
 
 export function createRobot(scene: Scene) {
   function material(name: string, hex: string, emissive = false) {
@@ -203,8 +204,10 @@ export function createRobot(scene: Scene) {
 
   }
 
+  const setAccessories = createAccessories(scene, headRig, upperBody);
   function setAppearance(value: RobotAppearance, animate = false) {
     appearance = value;
+    setAccessories(value.accessories);
     shell.diffuseColor = Color3.FromHexString(value.colour.hex);
     bodyTransition.set(value.shape, animate);
     headTransition.set(value.headShape ?? value.shape, animate);

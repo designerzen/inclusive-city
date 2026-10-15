@@ -407,7 +407,12 @@ const designer = mountAbilityDesigner(document.querySelector('#ability-designer'
   } else if (previous.painter !== artist.painter) {
     sounds.play(new SoundEffect({ root: 60 + painterStyles.findIndex(style => style.id === artist.painter), intervals: [0, 4, 7], pattern: 'up', waveform: 'sine', gain: .08 }), `artist:painter:${artist.painter}`);
   }
-}, history.current.profile, startCity);
+}, history.current.profile, startCity, accessories => {
+  appearance = { ...history.current.appearance, accessories };
+  history.updateAppearance(appearance);
+  applyAppearance(appearance);
+  describeRobot();
+});
 import.meta.hot?.dispose(() => designer.dispose());
 const nameInput = document.querySelector<HTMLInputElement>('#bot-name-input')!;
 const nameError = document.querySelector('#name-error')!;
@@ -485,6 +490,7 @@ presetsScreen.addEventListener('keydown', event => {
 import.meta.hot?.dispose(() => carouselAnimations.forEach(animation => animation.cancel()));
 function showCurrentBot() {
   appearance = history.current.appearance;
+  designer.setAccessories(appearance.accessories);
   applyAppearance(appearance);
   designer.setProfile(history.current.profile);
   applyIdentity(history.current.name, history.current.id);

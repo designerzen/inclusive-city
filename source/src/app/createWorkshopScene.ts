@@ -74,6 +74,7 @@ export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotSh
     let maxY = 0;
     let radius = 2;
     for (const mesh of bot.robot.getChildMeshes()) {
+      if (!mesh.isEnabled()) continue;
       mesh.computeWorldMatrix(true);
       const bounds = mesh.getBoundingInfo().boundingBox;
       minY = Math.min(minY, bounds.minimumWorld.y);

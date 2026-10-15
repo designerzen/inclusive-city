@@ -22,7 +22,7 @@
 #designer-screen .designer-next button { width: auto; min-height: 48px; padding: 10px 16px; font-size: .875rem; }
 #designer-screen #choose-existing { background: var(--ui-surface); }
 #designer-screen #ability-designer { position: absolute; right: 24px; top: 24px; max-height: calc(100dvh - 48px); width: 320px; box-sizing: border-box; padding: 14px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; overflow-y: auto; overscroll-behavior: contain; }
-#designer-screen .designer-hud-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--ui-border); }
+#designer-screen .designer-hud-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--ui-border); }
 #designer-screen .designer-hud-views button { position: relative; padding: 6px 4px; border: 0; border-radius: 0; background: transparent; color: var(--ui-muted); font-size: .75rem; }
 #designer-screen .designer-hud-views button::before { display: none; }
 #designer-screen .designer-hud-views button:hover:enabled { background: transparent; color: var(--ui-ink); }
@@ -53,6 +53,13 @@
 #designer-screen .artist-designer select { padding: 6px 8px; }
 #designer-screen #artist-preview { height: 90px; width: 100%; object-fit: cover; margin: 8px 0; }
 #designer-screen .artist-designer p { font-size: .75rem; margin: 6px 0; }
+#designer-screen .accessories-hint { font-size: .8125rem; color: var(--ui-muted); }
+#designer-screen .accessories-list { display: grid; gap: 8px; margin: 12px 0; }
+#designer-screen .accessories-list button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 10px 12px; font-size: .875rem; }
+#designer-screen .accessories-list button[aria-pressed='true'] { border-color: var(--ui-primary); color: var(--ui-primary); }
+#designer-screen .accessories-list button::before { display: none; }
+#designer-screen .accessory-state { font-size: .75rem; }
+#designer-screen #clear-accessories { width: 100%; min-height: 44px; padding: 8px; font-size: .8125rem; }
 @media (max-width: 700px) {
   #designer-screen { display: grid; grid-template-rows: minmax(340px, 1fr) auto minmax(calc(110px + 6.6rem), 1.4fr) auto; gap: 12px; padding: 12px; overflow-y: auto; }
   #designer-screen .designer-introduction { top: 12px; left: 12px; }

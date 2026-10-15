@@ -1,6 +1,14 @@
 export const bodyShapes = ['box', 'rounded', 'cylinder', 'hexagon', 'diamond', 'cone'] as const;
 export type RobotShape = typeof bodyShapes[number];
 export type RobotShapePart = 'head' | 'body';
+export const robotAccessories = [
+  { id: 'moustache', label: 'Moustache', description: 'A splendid curly moustache.' },
+  { id: 'wings', label: 'Wings', description: 'A pair of feathery wings.' },
+  { id: 'monocle', label: 'Monocle', description: 'A golden eyepiece and chain.' },
+  { id: 'topHat', label: 'Top hat', description: 'A tall hat with a colourful band.' },
+  { id: 'bowTie', label: 'Bow tie', description: 'A bright little finishing touch.' },
+] as const;
+export type RobotAccessory = typeof robotAccessories[number]['id'];
 export const bodyColours = [
   { name: 'Mint', hex: '#6ed5bc' },
   { name: 'Coral', hex: '#f59482' },
@@ -17,6 +25,7 @@ export interface RobotAppearance {
   width: number;
   height: number;
   depth: number;
+  accessories?: RobotAccessory[];
 }
 
 export function defaultAppearance(): RobotAppearance {
@@ -32,6 +41,7 @@ export function randomiseAppearance(previous: RobotAppearance, random = Math.ran
   }
   // Every press changes all three design properties, even when the RNG repeats.
   return {
+    accessories: [...(previous.accessories ?? [])],
     shape: choose(bodyShapes.filter(shape => shape !== previous.shape)),
     headShape: choose(bodyShapes.filter(shape => shape !== (previous.headShape ?? previous.shape))),
     colour: choose(bodyColours.filter(colour => colour.hex !== previous.colour.hex)),
@@ -42,7 +52,8 @@ export function randomiseAppearance(previous: RobotAppearance, random = Math.ran
 }
 
 export function describeAppearance(appearance: RobotAppearance) {
-  return `${appearance.colour.name} ${appearance.shape} body · ${appearance.headShape ?? appearance.shape} head · width ${Math.round(appearance.width * 100)}% · height ${Math.round(appearance.height * 100)}% · depth ${Math.round(appearance.depth * 100)}%`;
+  const accessories = robotAccessories.filter(item => appearance.accessories?.includes(item.id)).map(item => item.label);
+  return `${appearance.colour.name} ${appearance.shape} body · ${appearance.headShape ?? appearance.shape} head · width ${Math.round(appearance.width * 100)}% · height ${Math.round(appearance.height * 100)}% · depth ${Math.round(appearance.depth * 100)}%${accessories.length ? ` · accessories: ${accessories.join(', ')}` : ''}`;
 }
 
 export function cycleShape(appearance: RobotAppearance, part: RobotShapePart): RobotAppearance {

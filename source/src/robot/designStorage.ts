@@ -1,5 +1,5 @@
 import { abilityPairs } from './abilities';
-import { bodyColours, bodyShapes } from './appearance';
+import { bodyColours, bodyShapes, robotAccessories } from './appearance';
 import { createRobotProfile } from './functions';
 import { robotPresets } from './presets';
 import { musicianStyles, painterStyles } from '../art/artistStyles';
@@ -18,6 +18,8 @@ function validDesign(value: unknown, index: number): value is RobotDesign {
   const { appearance, profile, creative } = value;
   if (!object(appearance) || !bodyShapes.some(shape => shape === appearance.shape) || !object(appearance.colour)) return false;
   if (appearance.headShape !== undefined && !bodyShapes.some(shape => shape === appearance.headShape)) return false;
+  if (appearance.accessories !== undefined && (!Array.isArray(appearance.accessories)
+    || !appearance.accessories.every(id => robotAccessories.some(item => item.id === id)))) return false;
   const colour = appearance.colour;
   if (!bodyColours.some(item => item.hex === colour.hex && item.name === colour.name)
     || !['width', 'height', 'depth'].every(key => boundedNumber(appearance[key], .5, 2))) return false;

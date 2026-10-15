@@ -7,8 +7,11 @@ import { painterStyles, musicianStyles, defaultArtist, normaliseArtist } from '.
 import type { PainterStyle, MusicianStyle, ArtistPreferences } from '../art/artistStyles';
 import { ProceduralPainting } from '../art/ProceduralPainting';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
+import { robotAccessories } from '../robot/appearance';
+import type { RobotAccessory } from '../robot/appearance';
 
-export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void, initialProfile?: RobotProfile, onStart?: () => void) {
+export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void, initialProfile?: RobotProfile, onStart?: () => void, onAccessoriesChange?: (accessories: RobotAccessory[]) => void) {
+  let accessories: RobotAccessory[] = [];
   const allocation = defaultAbilities();
   if (initialProfile) for (const pair of abilityPairs) allocation[pair.id] = initialProfile.abilities[pair.id];
   let enabledFunctions = initialProfile ? [...initialProfile.enabledFunctions] : defaultFunctions();
@@ -20,6 +23,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <button id="designer-capabilities" type="button" data-designer-panel="capabilities" aria-pressed="true" aria-controls="designer-capabilities-panel">Capabilities</button>
       <button id="designer-tuning" type="button" data-designer-panel="tuning" aria-pressed="false" aria-controls="designer-tuning-panel">Tuning</button>
       <button id="designer-creativity" type="button" data-designer-panel="creativity" aria-pressed="false" aria-controls="designer-creativity-panel">Creativity</button>
+      <button id="designer-accessories" type="button" data-designer-panel="accessories" aria-pressed="false" aria-controls="designer-accessories-panel">Accessories</button>
     </div>
     <div class="designer-settings-panels">
     <div id="designer-capabilities-panel" data-settings-panel="capabilities">
@@ -63,6 +67,15 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <canvas id="artist-preview" width="480" height="240" role="img" aria-label="A study of this robot’s selected painting style"></canvas>
       <label for="artist-musician">Musician</label><select id="artist-musician" aria-describedby="artist-musician-description artist-musician-hint">${musicianStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join('')}</select><p id="artist-musician-description"></p><p id="artist-musician-hint">Choose a style to hear a four-bar preview. Your robot will develop its own melody as it explores.</p>
       <p class="artist-note">Each is a generative interpretation. Your choices stay with this robot.</p>
+    </section>
+    <section id="designer-accessories-panel" data-settings-panel="accessories" aria-labelledby="accessories-heading" hidden>
+      <h2 id="accessories-heading" class="designer-panel-heading">Make it your own</h2>
+      <p class="accessories-hint">Mix and match some finishing touches. Tap again to remove.</p>
+      <div class="accessories-list">${robotAccessories.map(item => `
+        <button type="button" id="accessory-${item.id}" data-accessory="${item.id}" aria-pressed="false" aria-describedby="accessory-description-${item.id}">
+          <span>${item.label}</span><small class="accessory-state" aria-hidden="true">Add +</small>
+        </button><p id="accessory-description-${item.id}" class="sr-only">${item.description}</p>`).join('')}</div>
+      <button type="button" id="clear-accessories" disabled>Remove all accessories</button>
     </section>
     </div>
     <div class="designer-step-actions"><button id="enter-city" class="primary-action" type="button" aria-controls="designer-tuning-panel">Next step</button></div>
@@ -166,6 +179,14 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
     else onStart?.();
   };
   const onFunctionClick = (event: Event) => {
+    const accessoryButton = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-accessory], #clear-accessories') : null;
+    if (accessoryButton) {
+      const item = robotAccessories.find(item => item.id === accessoryButton.dataset.accessory);
+      setAccessories(item ? accessories.includes(item.id) ? accessories.filter(id => id !== item.id) : [...accessories, item.id] : []);
+      onAccessoriesChange?.([...accessories]);
+      container.querySelector('#designer-announcement')!.textContent = item ? `${item.label} ${accessories.includes(item.id) ? 'added' : 'removed'}.` : 'All accessories removed.';
+      return;
+    }
     const view = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-designer-panel]') : null;
     if (view) {
       selectStep(views.indexOf(view));
@@ -186,7 +207,17 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   nextStep.addEventListener('click', onNextStep);
   container.querySelector('#reset-abilities')!.addEventListener('click', onReset);
   update();
+  function setAccessories(selected: readonly RobotAccessory[] = []) {
+    accessories = [...selected];
+    for (const button of container.querySelectorAll<HTMLButtonElement>('[data-accessory]')) {
+      const on = accessories.includes(button.dataset.accessory as RobotAccessory);
+      button.setAttribute('aria-pressed', String(on));
+      button.querySelector('.accessory-state')!.textContent = on ? 'Added ✓' : 'Add +';
+    }
+    container.querySelector<HTMLButtonElement>('#clear-accessories')!.disabled = !accessories.length;
+  }
   return {
+    setAccessories,
     setProfile(profile: RobotProfile) {
       for (const pair of abilityPairs) allocation[pair.id] = clampAllocation(profile.abilities[pair.id]);
       enabledFunctions = [...profile.enabledFunctions];
