@@ -96,6 +96,9 @@ button.attract-enter:hover { transform: translateY(-3px); background: #e2ffa7; b
 .attract-grid { position: absolute; inset: 0; z-index: -1; opacity: .15; background-image: radial-gradient(#d2c9e4 1px, transparent 1px); background-size: 36px 36px; mask-image: linear-gradient(90deg, transparent 30%, #000); }
 .attract-footer { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; border-top: 1px solid #ffffff15; }
 .attract-footer-note { color: #949aa9; font-size: 0.6875rem; }
+.attract-projection-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.attract-projection-links a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; color: #a2a8b6; font-size: 0.75rem; text-decoration: none; text-underline-offset: 4px; }
+.attract-projection-links a:hover, .attract-projection-links a:focus-visible { text-decoration: underline; }
 .attract-partner { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; max-width: 100%; }
 .attract-rix { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; border-radius: 4px; }
 .attract-rix img { display: block; width: 132px; height: auto; }

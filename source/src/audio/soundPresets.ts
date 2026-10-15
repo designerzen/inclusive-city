@@ -74,6 +74,8 @@ const buttonSignatures = {
   'attract-motion': { root: 67, intervals: [0, 5], pattern: 'up-down', stepBeats: .08, waveform: 'sine' },
   'city-waiting': { root: 65, intervals: [0, 4, 7], pattern: 'up', stepBeats: 0.13 },
   'randomise-design': { root: 60, intervals: [0, 4, 7], pattern: 'up' },
+  'head-shape': { root: 77, intervals: [0, 5, 9, 14], pattern: 'up', stepBeats: .09 },
+  'body-shape': { root: 53, intervals: [0, 4, 10, 14], pattern: 'up', stepBeats: .09 },
   'previous-bot': { root: 60, intervals: [0, 4, 7], pattern: 'down' },
   'save-name': { root: 72, intervals: [0, 4, 7], pattern: 'chord', waveform: 'sine', durationBeats: 0.4 },
   'random-name': { root: 74, intervals: [0, 3, 7], pattern: 'up', waveform: 'sine', durationBeats: 0.4 },

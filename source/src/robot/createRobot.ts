@@ -12,6 +12,8 @@ import { CharacterAnimation } from './characterAnimation';
 import type { PointerAttention } from './pointerAttention';
 import { createEyeLens } from './expressiveEyes';
 import type { RobotCondition } from './robotCondition';
+import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { createShapeTransition } from './shapeTransition';
 
 export function createRobot(scene: Scene) {
   function material(name: string, hex: string, emissive = false) {
@@ -43,7 +45,13 @@ export function createRobot(scene: Scene) {
     return mesh;
   }
 
-  let body = box('body', [1.5, 1.5, 0.85], [0, 0.85, 0]);
+  function shellMesh(name: string, y: number) {
+    const mesh = MeshBuilder.CreateSphere(name, { diameter: 2, segments: 24, updatable: true }, scene);
+    mesh.parent = upperBody; mesh.position.y = y; mesh.material = shell;
+    return mesh;
+  }
+  const body = shellMesh('body', .85);
+  const bodyTransition = createShapeTransition(body, [...body.getVerticesData(VertexBuffer.PositionKind)!], [1.5, 1.5, .85]);
   const headRig = new TransformNode('head-rig', scene);
   headRig.parent = upperBody;
   headRig.position.y = 2.25;
@@ -52,7 +60,8 @@ export function createRobot(scene: Scene) {
     mesh.position.y -= 2.25;
     return mesh;
   }
-  let head = box('head', [1.7, 1, 1], [0, 2.25, 0]);
+  const head = shellMesh('head', 2.25);
+  const headTransition = createShapeTransition(head, [...head.getVerticesData(VertexBuffer.PositionKind)!], [1.7, 1, 1]);
   headPart(head);
   headPart(box('face', [1.15, 0.62, 0.08], [0, 2.25, -0.53], dark));
   const eyeRigs = [-1, 1].map(side => {
@@ -181,32 +190,21 @@ export function createRobot(scene: Scene) {
 
   }
 
-  function setAppearance(value: RobotAppearance) {
+  function setAppearance(value: RobotAppearance, animate = false) {
     appearance = value;
     shell.diffuseColor = Color3.FromHexString(value.colour.hex);
-    function createShell(name: string, width: number, height: number, depth: number, y: number) {
-      const mesh = value.shape === 'rounded'
-        ? MeshBuilder.CreateSphere(name, { diameterX: width, diameterY: height, diameterZ: depth, segments: 24 }, scene)
-        : value.shape === 'cylinder'
-          ? MeshBuilder.CreateCylinder(name, { diameter: width, height, tessellation: 32 }, scene)
-          : MeshBuilder.CreateBox(name, { width, height, depth }, scene);
-      if (value.shape === 'cylinder') mesh.scaling.z = depth / width;
-      mesh.position.y = y;
-      mesh.parent = upperBody;
-      mesh.material = shell;
-      if (name === 'head') headPart(mesh);
-      return mesh;
-    }
-    body.dispose();
-    head.dispose();
-    body = createShell('body', 1.5, 1.5, 0.85, 0.85);
-    head = createShell('head', 1.7, 1, 1, 2.25);
+    bodyTransition.set(value.shape, animate);
+    headTransition.set(value.headShape ?? value.shape, animate);
     upperBody.scaling.set(value.width, value.height, value.depth);
     robot.metadata = { ...robot.metadata, appearance: { ...value, colour: { ...value.colour } }, locomotion: 'wheels' };
 
   }
 
   setAppearance(appearance);
+  function updateShapeTransition(seconds: number, reducedMotion = false) {
+    bodyTransition.update(seconds, reducedMotion);
+    headTransition.update(seconds, reducedMotion);
+  }
   let travelPhase = 0;
   let speaking = false, speechPhase = 0;
   const characterAnimation = new CharacterAnimation();
@@ -282,7 +280,7 @@ export function createRobot(scene: Scene) {
       star.rotation.z = pose.accent * (i % 2 ? -.6 : .6);
     });
   }
-  return { robot, setName, setProfile, setAppearance, animateTravel, characterAnimation,
+  return { robot, setName, setProfile, setAppearance, updateShapeTransition, animateTravel, characterAnimation,
     setCondition(value: RobotCondition) { characterAnimation.condition = value; characterAnimation.mood = value.mood; robot.metadata = { ...robot.metadata, condition: value }; },
     setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
 }

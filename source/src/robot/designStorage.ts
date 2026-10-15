@@ -17,6 +17,7 @@ function validDesign(value: unknown, index: number): value is RobotDesign {
   if (!object(value) || value.id !== index + 1 || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60) return false;
   const { appearance, profile, creative } = value;
   if (!object(appearance) || !bodyShapes.some(shape => shape === appearance.shape) || !object(appearance.colour)) return false;
+  if (appearance.headShape !== undefined && !bodyShapes.some(shape => shape === appearance.headShape)) return false;
   const colour = appearance.colour;
   if (!bodyColours.some(item => item.hex === colour.hex && item.name === colour.name)
     || !['width', 'height', 'depth'].every(key => boundedNumber(appearance[key], .5, 2))) return false;

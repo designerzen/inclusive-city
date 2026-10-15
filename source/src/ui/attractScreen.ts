@@ -34,6 +34,10 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
           <img src="${import.meta.env.BASE_URL}assets/logos/rix-qr.svg" alt="QR code for the Rix Inclusive Research website" width="120" height="120" />
         </a>
       </div>
+      <nav class="attract-projection-links" aria-label="Line projections">
+        <a href="${import.meta.env.BASE_URL}traffic-light.html">Traffic light</a>
+        <a href="${import.meta.env.BASE_URL}figure-eight.html">Figure of eight</a>
+      </nav>
       <div class="attract-controls">
         <button id="attract-music" type="button" aria-pressed="false"><span class="attract-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="attract-music-label">Play soundtrack</span></button>
         <button id="attract-motion" type="button" aria-pressed="false">Pause animation</button>

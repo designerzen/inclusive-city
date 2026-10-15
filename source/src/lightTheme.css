@@ -14,6 +14,7 @@
 [data-theme='light'] .attract-eyebrow { color: #77528b; }
 [data-theme='light'] .attract-title-star, [data-theme='light'] .attract-sticker-music { color: #ae4476; }
 [data-theme='light'] .attract-footer { border-color: #b5c5ba; }
+[data-theme='light'] .attract-projection-links a { color: #526368; }
 [data-theme='light'] .attract-rix img { filter: brightness(.3); }
 [data-theme='light'] :is(button, .attract-mode > .sound-controls button) { color: #24494a; background: #e1ebe4; border-color: #a5bbb1; }
 [data-theme='light'] button:hover:not(:disabled) { background: #d0e1d6; }

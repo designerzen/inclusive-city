@@ -1,4 +1,6 @@
-export const bodyShapes = ['box', 'rounded', 'cylinder'] as const;
+export const bodyShapes = ['box', 'rounded', 'cylinder', 'hexagon', 'diamond', 'cone'] as const;
+export type RobotShape = typeof bodyShapes[number];
+export type RobotShapePart = 'head' | 'body';
 export const bodyColours = [
   { name: 'Mint', hex: '#6ed5bc' },
   { name: 'Coral', hex: '#f59482' },
@@ -10,6 +12,7 @@ export const bodyColours = [
 
 export interface RobotAppearance {
   shape: typeof bodyShapes[number];
+  headShape?: RobotShape;
   colour: typeof bodyColours[number];
   width: number;
   height: number;
@@ -30,6 +33,7 @@ export function randomiseAppearance(previous: RobotAppearance, random = Math.ran
   // Every press changes all three design properties, even when the RNG repeats.
   return {
     shape: choose(bodyShapes.filter(shape => shape !== previous.shape)),
+    headShape: choose(bodyShapes.filter(shape => shape !== (previous.headShape ?? previous.shape))),
     colour: choose(bodyColours.filter(colour => colour.hex !== previous.colour.hex)),
     width: dimension(previous.width, [0.75, 0.9, 1.05, 1.2, 1.3]),
     height: dimension(previous.height, [0.8, 0.95, 1.1, 1.25]),
@@ -38,5 +42,12 @@ export function randomiseAppearance(previous: RobotAppearance, random = Math.ran
 }
 
 export function describeAppearance(appearance: RobotAppearance) {
-  return `${appearance.colour.name} ${appearance.shape} body · width ${Math.round(appearance.width * 100)}% · height ${Math.round(appearance.height * 100)}% · depth ${Math.round(appearance.depth * 100)}%`;
+  return `${appearance.colour.name} ${appearance.shape} body · ${appearance.headShape ?? appearance.shape} head · width ${Math.round(appearance.width * 100)}% · height ${Math.round(appearance.height * 100)}% · depth ${Math.round(appearance.depth * 100)}%`;
+}
+
+export function cycleShape(appearance: RobotAppearance, part: RobotShapePart): RobotAppearance {
+  const current = part === 'head' ? appearance.headShape ?? appearance.shape : appearance.shape;
+  const next = bodyShapes[(bodyShapes.indexOf(current) + 1) % bodyShapes.length]!;
+  return part === 'head' ? { ...appearance, headShape: next }
+    : { ...appearance, headShape: appearance.headShape ?? appearance.shape, shape: next };
 }

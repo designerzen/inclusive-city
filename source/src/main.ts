@@ -2,8 +2,8 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { createWorkshopScene } from './app/createWorkshopScene';
 import { mountAbilityDesigner } from './ui/abilityDesigner';
 import type { RobotProfile } from './robot/functions';
-import { describeAppearance } from './robot/appearance';
-import type { RobotAppearance } from './robot/appearance';
+import { cycleShape, describeAppearance } from './robot/appearance';
+import type { RobotAppearance, RobotShapePart } from './robot/appearance';
 import { BotHistory } from './robot/botHistory';
 import { robotPresets } from './robot/presets';
 import scientistSurnamesText from './data/scientist-surnames.txt?raw';
@@ -96,6 +96,9 @@ app.innerHTML = `
     <div id="designer-screen" hidden>
     <header class="designer-introduction">
         <h1 id="designer-title">Personalise your new robot friend!</h1>
+        <p class="shape-hint">Click a robot part to change its shape.</p>
+        <div class="shape-controls" aria-label="Robot shapes"><button id="head-shape" type="button">Head: box</button><button id="body-shape" type="button">Body: box</button></div>
+        <span id="shape-status" class="function-announcement" role="status" aria-live="polite"></span>
     </header>
     <div class="designer-layout"><div class="preview-column">
     <div class="bot-identity">
@@ -491,7 +494,24 @@ function showCurrentBot() {
   const previousBot = document.querySelector<HTMLButtonElement>('#previous-bot')!;
   previousBot.disabled = !history.canGoBack;
   describeRobot();
+  updateShapeLabels();
 }
+
+let applyShapeChange: (appearance: RobotAppearance) => void = () => {};
+function updateShapeLabels() {
+  document.querySelector('#head-shape')!.textContent = `Head: ${appearance.headShape ?? appearance.shape}`;
+  document.querySelector('#body-shape')!.textContent = `Body: ${appearance.shape}`;
+}
+function changeShape(part: RobotShapePart) {
+  if (designerScreen.hidden || workshop.inert) return;
+  appearance = cycleShape(history.current.appearance, part);
+  history.updateAppearance(appearance);
+  applyShapeChange(appearance);
+  updateShapeLabels(); describeRobot();
+  document.querySelector('#shape-status')!.textContent = `${part === 'head' ? 'Head' : 'Body'} shape changed to ${part === 'head' ? appearance.headShape : appearance.shape}.`;
+}
+document.querySelector('#head-shape')!.addEventListener('click', () => changeShape('head'));
+document.querySelector('#body-shape')!.addEventListener('click', () => changeShape('body'));
 document.querySelector('#randomise-design')!.addEventListener('click', () => {
   history.next();
   showCurrentBot();
@@ -541,11 +561,12 @@ if (!sharedEngine) {
 } else {
   try {
     const engine = sharedEngine;
-    const { scene, setName, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine);
+    const { scene, setName, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine, changeShape);
     updateWorkshopTheme = setTheme; setTheme(theme);
     applyProfile = setProfile;
     feelSettings = reactToSettings;
     applyAppearance = setAppearance;
+    applyShapeChange = value => setAppearance(value, true);
     applyIdentity = (name, id) => {
       setName(name);
       const robot = scene.getTransformNodeByName('artbot')!;

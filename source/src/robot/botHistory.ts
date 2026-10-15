@@ -121,6 +121,12 @@ export class BotHistory {
     this.current.record.metadata = robotMetadata(this.current);
   }
 
+  updateAppearance(appearance: ArtBot['appearance']) {
+    this.current.appearance = structuredClone(appearance);
+    this.current.record.metadata = robotMetadata(this.current);
+    this.save();
+  }
+
   updateProfile(profile: RobotProfile) {
     const artStyle = this.current.creative && this.current.profile.artist.painter === profile.artist.painter
       ? this.current.creative.artStyle : profile.artist.painter;

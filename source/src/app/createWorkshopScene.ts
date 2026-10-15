@@ -14,8 +14,10 @@ import type { RobotProfile } from '../robot/functions';
 import type { RobotAppearance } from '../robot/appearance';
 import type { EditorFeedback } from '../robot/editorFeedback';
 import { createPointerAttention } from '../robot/pointerAttention';
+import { PointerEventTypes } from '@babylonjs/core/Events/pointerEvents';
+import type { RobotShapePart } from '../robot/appearance';
 
-export function createWorkshopScene(engine: Engine) {
+export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotShapePart) => void) {
   const scene = new Scene(engine);
   scene.clearColor = Color4.FromHexString('#102a2bff');
   const camera = new UniversalCamera('workshop-camera', new Vector3(0, 2.4, -10), scene);
@@ -41,9 +43,19 @@ export function createWorkshopScene(engine: Engine) {
   let rotating = true;
   let feedbackSeconds = 0;
   const reducedMotion = reducedMotionPreference();
+  scene.onPointerObservable.add(info => {
+    if (info.type !== PointerEventTypes.POINTERTAP || !changeShape) return;
+    const editor = document.querySelector<HTMLElement>('#designer-screen');
+    if (!editor || editor.hidden || editor.closest('[inert]')) return;
+    const mesh = info.pickInfo?.pickedMesh;
+    if (!mesh?.isDescendantOf(bot.robot)) return;
+    const head = scene.getTransformNodeByName('head-rig')!;
+    changeShape(mesh.isDescendantOf(head) ? 'head' : 'body');
+  });
   scene.onBeforeRenderObservable.add(() => {
     if (!document.hidden) {
       const seconds = Math.min(engine.getDeltaTime(), 50) / 1000;
+      bot.updateShapeTransition(seconds, reducedMotion.matches);
       const attention = pointerAttention.update(seconds);
       bot.setAttention(attention);
       const notice = bot.robot.metadata?.enabledFunctions?.includes('vision') === false ? 0 : attention.amount;
@@ -102,7 +114,7 @@ export function createWorkshopScene(engine: Engine) {
     scene, resize, setTheme, setName: bot.setName,
     setProfile(profile: RobotProfile) { bot.setProfile(profile); resize(); },
     feelSettings(change: EditorFeedback) { bot.characterAnimation.feel(change); feedbackSeconds = 2; bot.animateTravel(0, 1 / 60, reducedMotion.matches); },
-    setAppearance(appearance: RobotAppearance) { bot.setAppearance(appearance); bot.characterAnimation.react('pickup'); resize(); },
+    setAppearance(appearance: RobotAppearance, animate = false) { bot.setAppearance(appearance, animate && !reducedMotion.matches); if (!animate) bot.characterAnimation.react('pickup'); resize(); },
     setRotating(value: boolean) { rotating = value; },
   };
 }
