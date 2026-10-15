@@ -1,12 +1,27 @@
-html, body { margin: 0; min-height: 100%; background: white; color: black; font-family: system-ui, sans-serif; }
-.configuration-page { display: grid; grid-template-rows: auto minmax(280px, 1fr); height: 100dvh; }
-.configuration-header { padding: 12px 16px; border-bottom: 1px solid #aaa; max-height: calc(100dvh - 280px); overflow-y: auto; box-sizing: border-box; }
-.configuration-header h1 { font-size: 1.25rem; margin: 0 0 8px; }
-.configuration-header nav { display: flex; flex-wrap: wrap; gap: 8px; }
-.configuration-header a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding-inline: 12px; color: #163d6a; }
-.configuration-header summary { display: flex; align-items: center; cursor: pointer; padding: 0 12px; border: 1px solid #aaa; border-radius: 6px; box-sizing: border-box; }
-#configuration-settings { padding: 12px; max-width: 720px; }
-#configuration-line { width: 100%; height: 100%; min-height: 280px; display: block; }
+html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-family: system-ui, sans-serif; }
+.configuration-page { height: 100dvh; }
+#configuration-line { width: 100%; height: 100%; display: block; }
 #configuration-line[hidden] { display: none; }
-.configuration-page :is(a, button, input, summary):focus-visible { outline: 3px solid #163d6a; outline-offset: 3px; }
-.configuration-page .projection-fit input { width: 44px; height: 44px; flex-basis: 44px; }
+.configuration-header { position: fixed; z-index: 2; top: 12px; left: 12px; display: flex; align-items: center; gap: 20px; padding: 4px 4px 4px 16px; border: 1px solid #e3e6e8; border-radius: 12px; background: #fffffff5; box-shadow: 0 2px 12px #17212b08; }
+.configuration-header h1 { font-size: 13px; line-height: 1.4; font-weight: 600; margin: 0; }
+.configuration-header summary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 8px; cursor: pointer; box-sizing: border-box; font-size: 13px; font-weight: 500; list-style: none; }
+.configuration-header summary::-webkit-details-marker { display: none; }
+#projection-options > summary::before { content: '☷'; font-size: 18px; color: #59636c; }
+.configuration-header summary:hover, #projection-options[open] > summary { background: #f0f2f4; }
+.configuration-panel { position: absolute; top: calc(100% + 8px); left: 0; width: min(360px, calc(100vw - 24px)); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 8px 16px 16px; border: 1px solid #e3e6e8; border-radius: 12px; background: #fff; box-shadow: 0 8px 32px #17212b14; font-size: 13px; line-height: 1.5; }
+#projection-options:not([open]) .configuration-panel { display: none; }
+.configuration-panel nav { display: flex; flex-wrap: wrap; gap: 4px 16px; border-bottom: 1px solid #eceef0; margin-bottom: 12px; }
+.configuration-panel a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; color: #52616c; text-decoration: none; }
+.configuration-panel a:hover { text-decoration: underline; text-underline-offset: 3px; }
+#configuration-settings > p { color: #66717a; margin: 8px 0 12px; font-size: 12px; }
+#configuration-settings .projection-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-block: 12px; }
+#configuration-settings .projection-fields label { font-size: 12px; justify-content: space-between; gap: 6px; }
+#configuration-settings input[type='number'] { border: 1px solid #d6dce0; border-radius: 7px; padding: 8px 10px; font: inherit; color: #252b30; background: #fafbfc; }
+#configuration-settings .projection-fit { margin-block: 4px; min-height: 44px; cursor: pointer; }
+#configuration-settings .projection-fit input { appearance: none; width: 44px; height: 44px; flex: 0 0 44px; margin: 0; display: grid; place-content: center; cursor: pointer; }
+#configuration-settings .projection-fit input::before { content: ''; width: 18px; height: 18px; border: 1px solid #aab4bc; border-radius: 5px; background: #fff; }
+#configuration-settings .projection-fit input:checked::before { border-color: #354d5c; background: #354d5c; box-shadow: inset 0 0 0 4px #fff; }
+#configuration-settings > details { border-top: 1px solid #eceef0; margin-top: 12px; }
+#configuration-settings > details > summary { justify-content: flex-start; padding-inline: 0; color: #52616c; }
+#projection-setting-status:empty { display: none; }
+.configuration-page :is(a, button, input, summary):focus-visible { outline: 3px solid #526b7c; outline-offset: 2px; }

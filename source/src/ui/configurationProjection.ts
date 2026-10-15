@@ -9,6 +9,16 @@ const title = configuration === 'traffic-light' ? 'Traffic light' : 'Figure of e
 document.querySelector<HTMLElement>('#projection-title')!.textContent = title;
 const svg = document.querySelector<SVGElement>('#configuration-line')!;
 const panel = document.querySelector<HTMLElement>('#configuration-settings')!;
+const options = document.querySelector<HTMLDetailsElement>('#projection-options')!;
+document.addEventListener('pointerdown', event => {
+  if (event.target instanceof Node && !options.contains(event.target)) options.open = false;
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && options.open) {
+    options.open = false;
+    options.querySelector('summary')!.focus();
+  }
+});
 let settings = loadProjectionSettings();
 panel.innerHTML = projectionSettingsMarkup(settings);
 const status = panel.querySelector<HTMLElement>('#projection-setting-status')!;
