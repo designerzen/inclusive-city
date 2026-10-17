@@ -7,6 +7,7 @@ import type { ButtonSound, InteractionSound, RobotMood } from './soundPresets';
 
 export interface MusicPlayback { elapsed(): number; stop(): void }
 import { CityMidiOutput } from './MidiOutput';
+import { audioSpectrum } from './AudioSpectrum';
 
 /** Live controls affect only output; recorded scores stay complete even while muted. */
 export class CitySounds {
@@ -52,7 +53,7 @@ export class CitySounds {
       if (!this.context) {
         this.context = new AudioContext();
         this.master = this.context.createGain(); this.master.gain.value = this.muted || this.capturingVoice ? 0 : this.volume;
-        this.master.connect(this.context.destination);
+        this.master.connect(audioSpectrum.output(this.context));
         this.mix = new AudioMix(this.context, this.master);
       }
       if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
@@ -224,5 +225,5 @@ export class CitySounds {
     this.play(interactionSound('tune', { root: 60 + scale[index]! }), 'interaction:tune');
   }
   stop() { this.musicClock = null; this.active.forEach(handle => handle.stop()); this.active.clear(); this.midi.stop(); if (this.disposed) this.mix?.dispose(); else this.mix?.reset(); }
-  dispose() { this.disposed = true; this.stop(); this.mix?.dispose(); this.mix = null; this.midi.dispose(); void this.context?.close().catch(() => {}); }
+  dispose() { this.disposed = true; this.stop(); this.mix?.dispose(); this.mix = null; this.midi.dispose(); if (this.context) audioSpectrum.release(this.context); void this.context?.close().catch(() => {}); }
 }

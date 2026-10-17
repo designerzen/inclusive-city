@@ -1,4 +1,5 @@
 import { cityVoice, savedRoleVoices } from './speechVoices';
+import { audioSpectrum } from './AudioSpectrum';
 import type { SpeechRole, SpeechVoice } from './speechVoices';
 export type IntroducedScreen = SpeechRole;
 export function screenIntroduction(screen: IntroducedScreen, robotName = 'your robot') {
@@ -95,7 +96,7 @@ export class ScreenSpeech {
           buffer.copyToChannel(new Float32Array(result.audio), 0);
           const source = context.createBufferSource();
           this.gain ??= context.createGain(); this.gain.gain.value = this.volume;
-          this.gain.disconnect(); this.gain.connect(context.destination);
+          this.gain.disconnect(); this.gain.connect(audioSpectrum.output(context));
           source.buffer = buffer; source.connect(this.gain); this.source = source;
           source.onended = () => {
             if (generation !== this.generation) return;
@@ -136,5 +137,5 @@ export class ScreenSpeech {
       return true;
     } catch { this.current = null; const finish = this.finish; this.finish = null; finish?.(); return false; }
   }
-  dispose() { this.disposed = true; this.stop(); this.neural?.dispose(); void this.context?.close(); }
+  dispose() { this.disposed = true; this.stop(); this.neural?.dispose(); if (this.context) audioSpectrum.release(this.context); void this.context?.close(); }
 }

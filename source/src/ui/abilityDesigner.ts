@@ -9,6 +9,7 @@ import { ProceduralPainting } from '../art/ProceduralPainting';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 import { robotAccessories } from '../robot/appearance';
 import type { RobotAccessory } from '../robot/appearance';
+import { mapIcon } from './mapIcons';
 
 export function mountAbilityDesigner(container: HTMLElement, onChange: (profile: RobotProfile, feedback?: EditorFeedback) => void, onArtistChange?: (artist: ArtistPreferences, previous: ArtistPreferences) => void, initialProfile?: RobotProfile, onStart?: () => void, onAccessoriesChange?: (accessories: RobotAccessory[]) => void) {
   let accessories: RobotAccessory[] = [];
@@ -20,10 +21,10 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `
     <div class="designer-hud-views" role="group" aria-label="Robot settings">
-      <button id="designer-capabilities" type="button" data-designer-panel="capabilities" aria-pressed="true" aria-controls="designer-capabilities-panel">Capabilities</button>
-      <button id="designer-tuning" type="button" data-designer-panel="tuning" aria-pressed="false" aria-controls="designer-tuning-panel">Tuning</button>
-      <button id="designer-creativity" type="button" data-designer-panel="creativity" aria-pressed="false" aria-controls="designer-creativity-panel">Creativity</button>
-      <button id="designer-accessories" type="button" data-designer-panel="accessories" aria-pressed="false" aria-controls="designer-accessories-panel">Accessories</button>
+      <button id="designer-capabilities" type="button" data-designer-panel="capabilities" aria-label="Capabilities" title="Capabilities" aria-pressed="true" aria-controls="designer-capabilities-panel">${mapIcon('robot')}<span class="designer-tab-label">Capabilities</span></button>
+      <button id="designer-tuning" type="button" data-designer-panel="tuning" aria-label="Tuning" title="Tuning" aria-pressed="false" aria-controls="designer-tuning-panel">${mapIcon('settings')}<span class="designer-tab-label">Tuning</span></button>
+      <button id="designer-creativity" type="button" data-designer-panel="creativity" aria-label="Creativity" title="Creativity" aria-pressed="false" aria-controls="designer-creativity-panel">${mapIcon('art')}<span class="designer-tab-label">Creativity</span></button>
+      <button id="designer-accessories" type="button" data-designer-panel="accessories" aria-label="Accessories" title="Accessories" aria-pressed="false" aria-controls="designer-accessories-panel">${mapIcon('accessories')}<span class="designer-tab-label">Accessories</span></button>
     </div>
     <div class="designer-settings-panels">
     <div id="designer-capabilities-panel" data-settings-panel="capabilities">

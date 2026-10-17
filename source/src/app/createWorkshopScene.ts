@@ -43,14 +43,54 @@ export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotSh
   let rotating = true;
   let feedbackSeconds = 0;
   const reducedMotion = reducedMotionPreference();
-  scene.onPointerObservable.add(info => {
-    if (info.type !== PointerEventTypes.POINTERTAP || !changeShape) return;
+  const canvas = engine.getRenderingCanvas();
+  const head = scene.getTransformNodeByName('head-rig')!;
+  const editing = () => {
     const editor = document.querySelector<HTMLElement>('#designer-screen');
-    if (!editor || editor.hidden || editor.closest('[inert]')) return;
-    const mesh = info.pickInfo?.pickedMesh;
-    if (!mesh?.isDescendantOf(bot.robot)) return;
-    const head = scene.getTransformNodeByName('head-rig')!;
-    changeShape(mesh.isDescendantOf(head) ? 'head' : 'body');
+    return !!changeShape && !!editor && !editor.hidden && !editor.closest('[inert]');
+  };
+  const partForMesh = (mesh: import('@babylonjs/core/Meshes/abstractMesh').AbstractMesh | null | undefined): RobotShapePart | null => {
+    if (!mesh?.isDescendantOf(bot.robot)) return null;
+    if (mesh.isDescendantOf(head)) return 'head';
+    return ['body', 'art-bot-badge', 'tummy-spectrum-frame', 'chest-light'].includes(mesh.name) ? 'body' : null;
+  };
+  let hoverPointer: { x: number; y: number } | null = null;
+  const trackHover = (event: PointerEvent) => {
+    hoverPointer = event.pointerType === 'touch' ? null : { x: event.clientX, y: event.clientY };
+  };
+  const clearHover = () => {
+    hoverPointer = null;
+    bot.robot.metadata = { ...bot.robot.metadata, shapeHover: null };
+    if (canvas) canvas.style.cursor = '';
+  };
+  scene.hoverCursor = 'default';
+  scene.constantlyUpdateMeshUnderPointer = true;
+  canvas?.addEventListener('pointerleave', clearHover);
+  canvas?.addEventListener('pointermove', trackHover);
+  window.addEventListener('blur', clearHover);
+  window.addEventListener('resize', clearHover);
+  // Keep direct shape editing available without the removed buttons.
+  if (canvas) {
+    canvas.tabIndex = 0;
+    canvas.setAttribute('aria-keyshortcuts', 'H B');
+    canvas.setAttribute('aria-describedby', 'shape-keyboard-hint');
+  }
+  const onKey = (event: KeyboardEvent) => {
+    if (!editing() || event.ctrlKey || event.altKey || event.metaKey) return;
+    const key = event.key.toLowerCase();
+    if (key !== 'h' && key !== 'b') return;
+    event.preventDefault(); changeShape?.(key === 'h' ? 'head' : 'body');
+  };
+  canvas?.addEventListener('keydown', onKey);
+  scene.onDisposeObservable.add(() => {
+    canvas?.removeEventListener('pointerleave', clearHover); canvas?.removeEventListener('keydown', onKey);
+    canvas?.removeEventListener('pointermove', trackHover);
+    window.removeEventListener('blur', clearHover); window.removeEventListener('resize', clearHover);
+  });
+  scene.onPointerObservable.add(info => {
+    if (!editing()) { clearHover(); return; }
+    const part = partForMesh(info.pickInfo?.pickedMesh);
+    if (info.type === PointerEventTypes.POINTERTAP && part) changeShape?.(part);
   });
   scene.onBeforeRenderObservable.add(() => {
     if (!document.hidden) {
@@ -67,6 +107,20 @@ export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotSh
       if (rotating || feedbackSeconds > 0 || notice > .001 || reducedMotion.matches) bot.animateTravel(0, seconds, reducedMotion.matches);
       feedbackSeconds = Math.max(0, feedbackSeconds - seconds);
     }
+    // Re-pick the current geometry each frame, so a click, rotation or layout
+    // change cannot leave an old action hint visible after the pointer moves off.
+    let hovered: RobotShapePart | null = null;
+    if (editing() && hoverPointer && canvas && !document.hidden) {
+      const bounds = canvas.getBoundingClientRect();
+      const x = hoverPointer.x - bounds.left, y = hoverPointer.y - bounds.top;
+      if (x >= 0 && y >= 0 && x <= bounds.width && y <= bounds.height) {
+        const scale = engine.getHardwareScalingLevel();
+        hovered = partForMesh(scene.pick(x * engine.getRenderWidth() * scale / bounds.width,
+          y * engine.getRenderHeight() * scale / bounds.height)?.pickedMesh);
+      }
+    }
+    bot.robot.metadata = { ...bot.robot.metadata, shapeHover: hovered };
+    if (canvas && editing()) canvas.style.cursor = hovered ? 'pointer' : '';
   });
   function resize() {
     const aspect = engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());

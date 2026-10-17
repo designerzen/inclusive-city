@@ -18,6 +18,8 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
   const bots = Array.from({ length: Math.min(6, starts.length) }, (_, i) => {
     const node = starts[Math.floor(i * starts.length / Math.min(6, starts.length))]!;
     const model = createRobot(scene);
+    model.setName(`City robot ${i + 1}`);
+    model.robot.metadata = { ...model.robot.metadata, autonomous: true };
     model.setAppearance({ ...defaultAppearance(), colour: bodyColours[(i + 1) % bodyColours.length]!, shape: bodyShapes[i % bodyShapes.length]!, width: .75, height: .8 });
     model.robot.name = `city-bot-${i + 1}`;
     model.robot.scaling.setAll(.5);

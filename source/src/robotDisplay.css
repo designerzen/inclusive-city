@@ -1,0 +1,28 @@
+.robot-name-tooltip {
+  position: fixed;
+  z-index: 40;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 16px);
+  padding: 8px 14px;
+  border: 1px solid #81d9c5;
+  border-radius: 12px;
+  background: #173e45;
+  color: #fff4cc;
+  box-shadow: 0 5px 18px #0005;
+  font: 600 14px/1.4 system-ui, sans-serif;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.robot-name-tooltip::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 4px);
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  background: #173e45;
+  border-right: 1px solid #81d9c5;
+  border-bottom: 1px solid #81d9c5;
+  transform: rotate(45deg);
+}

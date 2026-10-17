@@ -15,6 +15,10 @@ import type { RobotCondition } from './robotCondition';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { createShapeTransition } from './shapeTransition';
 import { createAccessories } from './accessories';
+import { audioSpectrum } from '../audio/AudioSpectrum';
+import { robotInitials } from './robotIdentity';
+import { robotNameTooltip } from './robotNameTooltip';
+import { reducedMotionPreference } from '../app/accessibilityPreferences';
 
 export function createRobot(scene: Scene) {
   function material(name: string, hex: string, emissive = false) {
@@ -36,6 +40,7 @@ export function createRobot(scene: Scene) {
   upperBody.position.y = 1.05;
   let appearance = defaultAppearance();
   let visionEnabled = true;
+  let hearingEnabled = false;
   let wheelScale = 1, headScale = 1;
   let attention: PointerAttention = { x: 0, y: 0, amount: 0 };
 
@@ -97,33 +102,65 @@ export function createRobot(scene: Scene) {
     star.color = Color3.FromHexString('#ffe6a5'); star.isPickable = false; star.setEnabled(false);
     return star;
   });
-  box('chest-light', [0.4, 0.25, 0.08], [0, 0.85, -0.47], eyes);
-  box('art-bot-badge', [1.2, 0.34, 0.08], [0, 1.28, -0.47], dark);
+  box('chest-light', [0.12, 0.12, 0.08], [.52, 1.28, -0.47], eyes);
+  box('art-bot-badge', [.72, .34, .08], [0, 1.28, -0.47], dark);
+  box('tummy-spectrum-frame', [1.2, .66, .10], [0, .68, -.47], dark);
+  const spectrumInk = material('tummy-spectrum-light', '#81f5d2', true);
+  spectrumInk.disableLighting = true;
+  spectrumInk.emissiveColor = Color3.FromHexString('#81f5d2');
+  const spectrumBars = Array.from({ length: 16 }, (_, index) => {
+    const bar = box(`tummy-spectrum-${index}`, [.046, 1, .012], [(index - 7.5) * .067, .43, -.53], spectrumInk);
+    bar.scaling.y = .025;
+    bar.isPickable = false;
+    bar.setEnabled(hearingEnabled);
+    return bar;
+  });
+  const tooltip = robotNameTooltip(scene, robot);
   let nameTexture: DynamicTexture | null = null;
   function setName(value: string) {
     const name = value.trim() || 'ART BOT';
     if (robot.metadata?.name === name) return;
-    robot.metadata = { ...robot.metadata, name };
+    const initials = robotInitials(name);
+    robot.metadata = { ...robot.metadata, name, initials };
+    tooltip.setName(name);
     if (!nameTexture) return;
     const context = nameTexture.getContext();
     context.font = 'bold 88px sans-serif';
-    const size = Math.min(88, 88 * 480 / Math.max(1, context.measureText(name).width));
-    nameTexture.drawText(name, null, 64 + size * .34, `bold ${size}px sans-serif`, '#ffe6a5', '#173e45', true);
+    const size = Math.min(88, 88 * 480 / Math.max(1, context.measureText(initials).width));
+    nameTexture.drawText(initials, null, 64 + size * .34, `bold ${size}px sans-serif`, '#ffe6a5', '#173e45', true);
   }
   // Canvas textures are available in rendered scenes; NullEngine has no canvas.
   if (scene.getEngine().getRenderingCanvas()) {
     const texture = new DynamicTexture('art-bot-lettering', { width: 512, height: 128 }, scene, false);
     nameTexture = texture;
-    setName('ART BOT');
     const lettering = material('art-bot-lettering', '#ffffff');
     lettering.diffuseTexture = texture;
     lettering.emissiveTexture = texture;
     lettering.disableLighting = true;
-    const label = MeshBuilder.CreatePlane('art-bot-label', { width: 1.12, height: 0.28 }, scene);
+    const label = MeshBuilder.CreatePlane('art-bot-label', { width: .64, height: 0.28 }, scene);
     label.parent = upperBody;
     label.position.set(0, 1.28, -0.515);
     label.material = lettering;
     label.isPickable = false;
+  }
+  setName('ART BOT');
+  // One FFT read is shared across all robots; only rendered scenes animate bars.
+  if (scene.getEngine().getRenderingCanvas()) {
+    const motion = reducedMotionPreference();
+    let previous = -Infinity;
+    const observer = scene.onBeforeRenderObservable.add(() => {
+      if (document.hidden || !robot.isEnabled() || !hearingEnabled) return;
+      const now = performance.now();
+      if (now - previous < (motion.matches ? 500 : 1000 / 30)) return;
+      previous = now;
+      const bands = audioSpectrum.read(now);
+      spectrumBars.forEach((bar, index) => {
+        const height = .025 + bands[index]! * .47;
+        bar.scaling.y = height;
+        bar.position.y = .425 + height / 2;
+      });
+    });
+    scene.onDisposeObservable.add(() => { scene.onBeforeRenderObservable.remove(observer); });
   }
   box('neck', [0.4, 0.3, 0.4], [0, 1.65, 0], dark);
   const shoulders = [-1, 1].map(side => {
@@ -140,7 +177,7 @@ export function createRobot(scene: Scene) {
   const tip = MeshBuilder.CreateSphere('antenna-tip', { diameter: 0.22, segments: 12 }, scene);
   tip.position.y = 3.16;
   tip.parent = upperBody;
-  tip.material = eyes;
+  tip.material = dark;
   headPart(tip);
   tip.parent = antennaRig; tip.position.y = .415;
 
@@ -172,6 +209,8 @@ export function createRobot(scene: Scene) {
 
   function setProfile(profile: RobotProfile) {
     visionEnabled = profile.enabledFunctions.includes('vision');
+    hearingEnabled = profile.enabledFunctions.includes('hearing');
+    spectrumBars.forEach(bar => bar.setEnabled(hearingEnabled));
     const abilities = profile.effectiveAbilities;
     // Show the stored tradeoff even when the memory module is switched off.
     wheelScale = .75 + profile.abilities.speed / 200;
@@ -188,7 +227,7 @@ export function createRobot(scene: Scene) {
     // Keep the profile on the robot, ready for navigation and journey data consumers.
     robot.metadata = { ...robot.metadata, abilities: { ...profile.abilities }, effectiveAbilities: { ...abilities }, enabledFunctions: [...profile.enabledFunctions] };
     for (const eye of ['left-eye', 'right-eye']) scene.getMeshByName(eye)!.material = profile.enabledFunctions.includes('vision') ? eyes : dark;
-    tip.material = profile.enabledFunctions.includes('hearing') ? eyes : dark;
+    tip.material = hearingEnabled ? eyes : dark;
     scene.getMeshByName('chest-light')!.material = profile.enabledFunctions.includes('memory') ? eyes : dark;
     for (const side of [-1, 1]) {
       const arm = scene.getMeshByName(`arm-${side}`)!;

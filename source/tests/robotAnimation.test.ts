@@ -131,6 +131,21 @@ test('mouse interest is local to the robot silhouette and gaze respects vision a
   } finally { scene.dispose(); engine.dispose(); }
 });
 
+test('tummy spectrum follows robot hearing independently of vision and survives profile changes', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene);
+    const bars = Array.from({ length: 16 }, (_, index) => scene.getMeshByName(`tummy-spectrum-${index}`)!);
+    bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'vision', 'memory']));
+    assert.ok(bars.every(bar => !bar.isEnabled()));
+    bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'hearing', 'memory']));
+    assert.ok(bars.every(bar => bar.isEnabled()));
+    assert.equal(scene.getMeshByName('left-eye')!.material!.name, 'dark-joints');
+    bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'vision', 'memory']));
+    assert.ok(bars.every(bar => !bar.isEnabled()));
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('editor feedback responds to both directions of every tradeoff and distinguishes each module', () => {
   const poses: string[] = [];
   for (const pair of abilityPairs) {

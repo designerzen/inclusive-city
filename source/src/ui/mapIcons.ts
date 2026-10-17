@@ -1,4 +1,5 @@
 const paths = {
+  accessories: '<path d="m10 10-7-4v12l7-4m4-4 7-4v12l-7-4"/><rect x="10" y="9" width="4" height="6" rx="1"/>',
   fullscreen: '<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/>',
   shrink: '<path d="M3 9h6V3M21 15h-6v6M9 9 3 3m12 12 6 6"/>',
   window: '<path d="M14 3h7v7m0-7-9 9M10 3H3v18h18v-7"/>',

@@ -11,6 +11,7 @@ import { parseScientistSurnames } from './robot/scientistNames';
 import { mountCityScreen } from './ui/cityScreen';
 import { CitySounds } from './audio/CitySounds';
 import { ScreenSpeech, screenIntroduction } from './audio/ScreenSpeech';
+import { StartVoice } from './audio/StartVoice';
 import { cityAlertNarration, cityStartNarration, cityResumeNarration } from './ui/cityNarration';
 import { KokoroSpeech } from './audio/KokoroSpeech';
 import { mountSpeechVoiceControls } from './ui/speechVoiceControls';
@@ -42,6 +43,7 @@ import './readingPreferences.css';
 import './performance.css';
 import './cityCompactHud.css';
 import './designerHud.css';
+import './robotDisplay.css';
 
 let theme = savedTheme();
 applyTheme(theme);
@@ -97,7 +99,7 @@ app.innerHTML = `
     <header class="designer-introduction">
         <h1 id="designer-title">Personalise your new robot friend!</h1>
         <p class="shape-hint">Click a robot part to change its shape.</p>
-        <div class="shape-controls" aria-label="Robot shapes"><button id="head-shape" type="button">Head: box</button><button id="body-shape" type="button">Body: box</button></div>
+        <p id="shape-keyboard-hint" class="sr-only">With the robot preview focused, press H to change its head shape or B to change its body shape.</p>
         <span id="shape-status" class="function-announcement" role="status" aria-live="polite"></span>
     </header>
     <div class="designer-layout"><div class="preview-column">
@@ -163,6 +165,8 @@ const exhibitionContainer = document.querySelector<HTMLElement>('#exhibition-scr
 const screenSpeech = new ScreenSpeech(undefined, new KokoroSpeech(message => {
   document.querySelector<HTMLElement>('#speech-status')!.textContent = message;
 }));
+const startVoice = new StartVoice();
+import.meta.hot?.dispose(() => startVoice.dispose());
 const previewVoice = mountSpeechVoiceControls(document.querySelector<HTMLElement>('#speech-voice-controls')!, screenSpeech);
 document.querySelector<HTMLButtonElement>('#speech-preview')!.addEventListener('click', previewVoice);
 const speechEnabled = document.querySelector<HTMLInputElement>('#speech-enabled')!;
@@ -176,6 +180,7 @@ warmNarration();
 speechEnabled.disabled = !screenSpeech.supported;
 speechEnabled.addEventListener('change', () => {
   screenSpeech.setEnabled(speechEnabled.checked);
+  if (!speechEnabled.checked) startVoice.stop();
   if (speechEnabled.checked) warmNarration();
   try { localStorage.setItem('inclusive-city-speech', speechEnabled.checked ? 'enabled' : 'disabled'); } catch { /* Keep this session's preference. */ }
 });
@@ -212,8 +217,17 @@ optionsDialog.addEventListener('click', event => {
 });
 import.meta.hot?.dispose(() => optionsDialog.close());
 const attractContainer = document.querySelector<HTMLElement>('#attract-screen')!;
+let starting = false;
 const attract = mountAttractScreen(attractContainer, sounds, sharedEngine, canvas, () => {
-  void screenTransition.run(attractContainer, designerScreen, () => {
+  if (starting) return;
+  starting = true;
+  const startButton = attractContainer.querySelector<HTMLButtonElement>('#attract-enter')!;
+  startButton.disabled = true;
+  screenSpeech.stop();
+  sounds.stop();
+  const recording = speechEnabled.checked && !sounds.isMuted && volumeInput.valueAsNumber > 0
+    ? startVoice.play(import.meta.env.BASE_URL, volumeInput.valueAsNumber / 100) : Promise.resolve();
+  void recording.then(() => screenTransition.run(attractContainer, designerScreen, () => {
     inAttract = false;
     optionsDialog.close();
     attract.leave();
@@ -222,7 +236,10 @@ const attract = mountAttractScreen(attractContainer, sounds, sharedEngine, canva
     workshop.classList.remove('attract-mode');
     window.scrollTo({ top: 0, behavior: 'instant' });
     resizeWorkshop();
-  }, document.querySelector<HTMLElement>('#designer-title')!);
+  }, document.querySelector<HTMLElement>('#designer-title')!)).finally(() => {
+    starting = false;
+    startButton.disabled = false;
+  });
 });
 import.meta.hot?.dispose(() => attract.dispose());
 const muteButton = document.querySelector<HTMLButtonElement>('#sound-mute')!;
@@ -240,6 +257,7 @@ const onInteraction = (event: Event) => {
   if (button.id === 'sound-mute') {
     sounds.setMuted(!sounds.isMuted);
     screenSpeech.setMuted(sounds.isMuted);
+    if (sounds.isMuted) startVoice.stop();
     muteButton.setAttribute('aria-pressed', String(sounds.isMuted));
     muteButton.textContent = sounds.isMuted ? 'Unmute sound' : 'Mute sound';
     sounds.button('sound-mute', !sounds.isMuted);
@@ -262,12 +280,13 @@ const onSoundInput = (event: Event) => {
   if (event.target === volumeInput) {
     sounds.setVolume(volumeInput.valueAsNumber / 100);
     screenSpeech.setVolume(volumeInput.valueAsNumber / 100);
+    startVoice.setVolume(volumeInput.valueAsNumber / 100);
   }
   else if (event.target.dataset.ability && !event.target.disabled) sounds.tune(event.target.valueAsNumber);
 };
 app.addEventListener('click', onInteraction);
 app.addEventListener('input', onSoundInput);
-const onVisibility = () => { if (document.hidden) { sounds.stop(); screenSpeech.stop(); } };
+const onVisibility = () => { if (document.hidden) { sounds.stop(); screenSpeech.stop(); startVoice.stop(); } };
 document.addEventListener('visibilitychange', onVisibility);
 import.meta.hot?.dispose(() => {
   app.removeEventListener('pointerdown', unlockSound, true);
@@ -500,24 +519,17 @@ function showCurrentBot() {
   const previousBot = document.querySelector<HTMLButtonElement>('#previous-bot')!;
   previousBot.disabled = !history.canGoBack;
   describeRobot();
-  updateShapeLabels();
 }
 
 let applyShapeChange: (appearance: RobotAppearance) => void = () => {};
-function updateShapeLabels() {
-  document.querySelector('#head-shape')!.textContent = `Head: ${appearance.headShape ?? appearance.shape}`;
-  document.querySelector('#body-shape')!.textContent = `Body: ${appearance.shape}`;
-}
 function changeShape(part: RobotShapePart) {
   if (designerScreen.hidden || workshop.inert) return;
   appearance = cycleShape(history.current.appearance, part);
   history.updateAppearance(appearance);
   applyShapeChange(appearance);
-  updateShapeLabels(); describeRobot();
+  describeRobot();
   document.querySelector('#shape-status')!.textContent = `${part === 'head' ? 'Head' : 'Body'} shape changed to ${part === 'head' ? appearance.headShape : appearance.shape}.`;
 }
-document.querySelector('#head-shape')!.addEventListener('click', () => changeShape('head'));
-document.querySelector('#body-shape')!.addEventListener('click', () => changeShape('body'));
 document.querySelector('#randomise-design')!.addEventListener('click', () => {
   history.next();
   showCurrentBot();
