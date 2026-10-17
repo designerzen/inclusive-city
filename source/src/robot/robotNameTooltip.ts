@@ -1,10 +1,12 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 
 const canvasLabels = new WeakMap<HTMLCanvasElement, Set<{ scene: Scene; label: HTMLDivElement }>>();
+const canvasHover = new WeakMap<HTMLCanvasElement, { scene: Scene; frame: number; mesh: AbstractMesh | null }>();
 
-/** Persistent name labels stay horizontal above their robot as it turns. */
+/** Name labels stay horizontal; autonomous robots only show theirs on hover. */
 export function robotNameTooltip(scene: Scene, robot: TransformNode) {
   const engine = scene.getEngine(), canvas = engine.getRenderingCanvas();
   if (!canvas) return { setName(_name: string) {} };
@@ -18,15 +20,37 @@ export function robotNameTooltip(scene: Scene, robot: TransformNode) {
   const entry = { scene, label: tooltip };
   labels.add(entry);
   const hide = () => { tooltip.hidden = true; };
+  let pointer: { x: number; y: number } | null = null;
+  const onPointerMove = (event: PointerEvent) => {
+    pointer = event.pointerType === 'touch' || event.buttons ? null : { x: event.clientX, y: event.clientY };
+    canvasHover.delete(canvas);
+  };
+  const onPointerLeave = () => { pointer = null; canvasHover.delete(canvas); if (robot.metadata?.autonomous) hide(); };
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerdown', onPointerLeave);
+  canvas.addEventListener('pointerleave', onPointerLeave);
+  canvas.addEventListener('pointercancel', onPointerLeave);
   const onVisibility = () => { if (document.hidden) hide(); };
   document.addEventListener('visibilitychange', onVisibility);
   const observer = scene.onAfterRenderObservable.add(() => {
     // The canvas is shared: labels from a previous screen must leave with it.
     for (const other of labels) if (other.scene !== scene) other.label.hidden = true;
     hide();
-    if (document.hidden || !robot.isEnabled() || !scene.activeCamera) return;
+    if (document.hidden || robot.metadata?.hideNameTooltip || !robot.isEnabled() || !scene.activeCamera) return;
     const bounds = canvas.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
+    if (robot.metadata?.autonomous) {
+      if (!pointer) return;
+      let hover = canvasHover.get(canvas);
+      if (!hover || hover.scene !== scene || hover.frame !== scene.getFrameId()) {
+        // Include non-interactive city robots without making them clickable.
+        const mesh = scene.pick(pointer.x - bounds.left, pointer.y - bounds.top,
+          mesh => mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0 && (mesh.isPickable || !!mesh.metadata?.autonomousBot))?.pickedMesh ?? null;
+        hover = { scene, frame: scene.getFrameId(), mesh };
+        canvasHover.set(canvas, hover);
+      }
+      if (!hover.mesh?.isDescendantOf(robot)) return;
+    }
     const viewport = scene.activeCamera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
     robot.computeWorldMatrix(true);
     const point = Vector3.Project(Vector3.TransformCoordinates(new Vector3(0, 4.2, 0), robot.getWorldMatrix()), Matrix.Identity(), scene.getTransformMatrix(), viewport);
@@ -45,6 +69,10 @@ export function robotNameTooltip(scene: Scene, robot: TransformNode) {
     scene.onAfterRenderObservable.remove(observer);
     labels.delete(entry); tooltip.remove();
     document.removeEventListener('visibilitychange', onVisibility);
+    canvas.removeEventListener('pointermove', onPointerMove);
+    canvas.removeEventListener('pointerdown', onPointerLeave);
+    canvas.removeEventListener('pointerleave', onPointerLeave);
+    canvas.removeEventListener('pointercancel', onPointerLeave);
   });
   return { setName(value: string) { name = value; tooltip.textContent = name; } };
 }

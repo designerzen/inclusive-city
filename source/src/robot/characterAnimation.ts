@@ -22,6 +22,8 @@ export class CharacterAnimation {
   private reaction: { type: CharacterReaction; time: number; direction: number } | null = null;
   private feedback: { change: EditorFeedback; time: number } | null = null;
   feel(change: EditorFeedback) {
+    // Hearing is represented solely by showing or hiding the spectrum bars.
+    if (change.type === 'function' && change.id === 'hearing') return;
     const old = this.feedback;
     const same = old && old.change.type === change.type && 'id' in old.change && 'id' in change && old.change.id === change.id;
     this.feedback = { change: { ...change }, time: same ? Math.min(old.time, .35) : 0 };
@@ -108,8 +110,7 @@ export class CharacterAnimation {
         switch (change.id) {
           case 'communication': p.lean = -.12 * envelope * strength; p.arms = .6 * envelope; break;
           case 'vision': p.eyeWidth = change.enabled ? 1.3 : .85; p.headYaw = spring * .25; break;
-          case 'hearing': p.antenna = spring * .55 * strength; p.headTilt = .18 * envelope; break;
-          case 'memory': p.headTilt = -.16 * envelope; p.brow = -.15; p.eyeHeight = .75; break;
+          case 'memory': p.antenna = spring * .55 * strength; p.headTilt = .18 * envelope; break;
           case 'balance': p.arms = .8 * envelope; p.twist = spring * .12 * strength; break;
         }
       }

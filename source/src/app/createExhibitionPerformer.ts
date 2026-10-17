@@ -31,7 +31,8 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const head = scene.getTransformNodeByName('head-rig')!;
   const antenna = scene.getTransformNodeByName('antenna-rig')!;
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
-  const wheels = [-1, 1].flatMap(side => [-1, 1].map(end => scene.getMeshByName(`wheel-${side}-${end}`)!));
+  const wheels = [-1, 1].map(side => scene.getMeshByName(`wheel-${side}-1`)!);
+  const frontWheel = scene.getMeshByName('front-wheel')!;
   const motion = reducedMotionPreference();
   let clock: (() => number) | null = null, active = false, dirty = true;
   const resize = () => {
@@ -52,6 +53,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
     instruments.update(elapsed, !!clock, motion.matches);
     bot.robot.position.x = pose.x; bot.robot.rotation.y = pose.yaw;
     wheels.forEach(wheel => { wheel.rotation.x = -pose.x / .35; });
+    frontWheel.rotation.x = -pose.x / .13;
     rig.position.y = pose.lift; rig.rotation.set(0, 0, pose.sway);
     rig.scaling.set(1 / Math.sqrt(pose.stretch), pose.stretch, 1 / Math.sqrt(pose.stretch));
     head.rotation.set(pose.headNod, pose.headYaw, pose.headTilt);

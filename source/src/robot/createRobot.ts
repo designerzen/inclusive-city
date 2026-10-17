@@ -33,15 +33,18 @@ export function createRobot(scene: Scene) {
   const dark = material('dark-joints', '#173e45');
   const eyes = material('warm-light', '#ffe6a5', true);
   const robot = new TransformNode('artbot', scene);
+  const modelRig = new TransformNode('model-rig', scene);
+  modelRig.parent = robot;
   const characterRig = new TransformNode('character-rig', scene);
-  characterRig.parent = robot;
+  characterRig.parent = modelRig;
   const upperBody = new TransformNode('upper-body', scene);
   upperBody.parent = characterRig;
   upperBody.position.y = 1.05;
   let appearance = defaultAppearance();
   let visionEnabled = true;
   let hearingEnabled = false;
-  let wheelScale = 1, headScale = 1;
+  let balanceEnabled = true, balancePhase = 0;
+  let wheelScale = 1, headScale = 1, compactScale = 1;
   let attention: PointerAttention = { x: 0, y: 0, amount: 0 };
 
   function box(name: string, size: [number, number, number], position: [number, number, number], surface = shell) {
@@ -182,20 +185,21 @@ export function createRobot(scene: Scene) {
   tip.parent = antennaRig; tip.position.y = .415;
 
   const chassis = box('wheel-chassis', [1.5, 0.28, 1.25], [0, 0.9, 0], dark);
-  chassis.parent = robot;
+  chassis.parent = modelRig;
   const tyres = material('rubber-tyres', '#263b42');
   const hubs = material('wheel-hubs', '#b4cac3');
   const wheelParts: ReturnType<typeof box>[] = [];
-  for (const side of [-1, 1]) for (const end of [-1, 1]) {
+  for (const side of [-1, 1]) {
+    const end = 1;
     const wheel = MeshBuilder.CreateCylinder(`wheel-${side}-${end}`, { diameter: 0.7, height: 0.3, tessellation: 32 }, scene);
     wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(side * 0.8, 0.6, end * 0.45);
-    wheel.parent = robot;
+    wheel.position.set(side * 0.8, 0.6, 0);
+    wheel.parent = modelRig;
     wheel.material = tyres;
     const hub = MeshBuilder.CreateCylinder(`hub-${side}-${end}`, { diameter: 0.3, height: 0.04, tessellation: 24 }, scene);
     hub.rotation.z = Math.PI / 2;
-    hub.position.set(side * 0.97, 0.6, end * 0.45);
-    hub.parent = robot;
+    hub.position.set(side * 0.97, 0.6, 0);
+    hub.parent = modelRig;
     hub.material = hubs;
     wheelParts.push(wheel, hub);
     // Contrasting spokes make the rotation readable on otherwise uniform cylinders.
@@ -206,12 +210,25 @@ export function createRobot(scene: Scene) {
       mesh.material = tyres;
     }
   }
+  const frontWheel = MeshBuilder.CreateCylinder('front-wheel', { diameter: .26, height: .16, tessellation: 24 }, scene);
+  frontWheel.parent = modelRig;
+  frontWheel.rotation.z = Math.PI / 2;
+  frontWheel.position.set(0, .38, -.65);
+  frontWheel.material = tyres;
+  const frontFork = box('front-wheel-fork', [.10, .34, .12], [0, .65, -.65], dark);
+  frontFork.parent = modelRig;
 
   function setProfile(profile: RobotProfile) {
     visionEnabled = profile.enabledFunctions.includes('vision');
     hearingEnabled = profile.enabledFunctions.includes('hearing');
+    balanceEnabled = profile.enabledFunctions.includes('balance');
+    if (balanceEnabled) characterRig.rotation.z = 0;
     spectrumBars.forEach(bar => bar.setEnabled(hearingEnabled));
     const abilities = profile.effectiveAbilities;
+    compactScale = .7 + abilities.reach * .006;
+    modelRig.scaling.setAll(compactScale);
+    // Scale around the tyre contact plane, keeping the robot on its pedestal.
+    modelRig.position.y = .25 * (1 - compactScale);
     // Show the stored tradeoff even when the memory module is switched off.
     wheelScale = .75 + profile.abilities.speed / 200;
     headScale = .75 + profile.abilities.routeMemory / 200;
@@ -220,6 +237,8 @@ export function createRobot(scene: Scene) {
     const wheelLift = .35 * (wheelScale - 1);
     upperBody.position.y = 1.05 + wheelLift;
     chassis.position.y = .9 + wheelLift;
+    frontFork.position.y = .65 + wheelLift / 2;
+    frontFork.scaling.y = 1 + wheelLift / .34;
     for (const part of wheelParts) {
       part.scaling.set(wheelScale, 1, wheelScale);
       part.position.y = .6 + wheelLift;
@@ -227,18 +246,15 @@ export function createRobot(scene: Scene) {
     // Keep the profile on the robot, ready for navigation and journey data consumers.
     robot.metadata = { ...robot.metadata, abilities: { ...profile.abilities }, effectiveAbilities: { ...abilities }, enabledFunctions: [...profile.enabledFunctions] };
     for (const eye of ['left-eye', 'right-eye']) scene.getMeshByName(eye)!.material = profile.enabledFunctions.includes('vision') ? eyes : dark;
-    tip.material = hearingEnabled ? eyes : dark;
-    scene.getMeshByName('chest-light')!.material = profile.enabledFunctions.includes('memory') ? eyes : dark;
+    tip.material = profile.enabledFunctions.includes('memory') ? eyes : dark;
     for (const side of [-1, 1]) {
       const arm = scene.getMeshByName(`arm-${side}`)!;
       arm.scaling.y = 0.7 + abilities.reach / 100 * 0.6;
       arm.position.y = -.55 * arm.scaling.y;
       shoulders[side < 0 ? 0 : 1]!.position.x = side * (0.95 + abilities.reach / 100 * 0.4);
       const track = 0.75 + abilities.balance / 100 * 0.25;
-      for (const end of [-1, 1]) {
-        scene.getMeshByName(`wheel-${side}-${end}`)!.position.x = side * track;
-        scene.getMeshByName(`hub-${side}-${end}`)!.position.x = side * (track + 0.17);
-      }
+      scene.getMeshByName(`wheel-${side}-1`)!.position.x = side * track;
+      scene.getMeshByName(`hub-${side}-1`)!.position.x = side * (track + 0.17);
     }
 
   }
@@ -266,13 +282,15 @@ export function createRobot(scene: Scene) {
   function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false, turnAngle = 0) {
     if (!Number.isFinite(distance) || !Number.isFinite(seconds) || distance < 0 || seconds <= 0) return;
     if (paused) return;
+    balancePhase += seconds;
     const moving = distance > 1e-8;
     travelPhase = (travelPhase + distance * Math.PI * 2 / 1.5) % (Math.PI * 2);
-    const wheelRadius = .35 * wheelScale;
+    const wheelRadius = .35 * wheelScale * compactScale;
     const wheelTurn = distance / (wheelRadius * Math.max(0.01, Math.abs(robot.scaling.x)));
+    frontWheel.rotation.x = (frontWheel.rotation.x - distance / (.13 * compactScale * Math.max(.01, Math.abs(robot.scaling.x)))) % (Math.PI * 2);
     for (const [index, part] of wheelParts.entries()) {
       // Opposite sides roll in opposite directions during a pivot.
-      const pivotTurn = turnAngle * wheelParts[index - index % 2]!.position.x / wheelRadius;
+      const pivotTurn = turnAngle * wheelParts[index - index % 2]!.position.x * compactScale / wheelRadius;
       part.rotation.x = (part.rotation.x - wheelTurn - pivotTurn) % (Math.PI * 2);
     }
     const blend = 1 - Math.exp(-seconds * 14);
@@ -296,7 +314,9 @@ export function createRobot(scene: Scene) {
     const width = 1 / Math.sqrt(pose.stretch);
     characterRig.scaling.set(width, pose.stretch, width);
     characterRig.position.y = pose.lift;
-    characterRig.rotation.set(pose.lean, pose.twist, 0);
+    const wobble = !balanceEnabled && !reducedMotion
+      ? (Math.sin(balancePhase * 5.2) + .3 * Math.sin(balancePhase * 8.7)) * (moving ? .09 : .055) : 0;
+    characterRig.rotation.set(pose.lean, pose.twist, wobble);
     headRig.position.y += (2.25 + (headScale - 1) * .5 + bob + pose.headLift - headRig.position.y) * blend;
     headRig.rotation.x += (tilt + pose.headTilt - headRig.rotation.x) * blend;
     headRig.rotation.y += (pose.headYaw - headRig.rotation.y) * blend;

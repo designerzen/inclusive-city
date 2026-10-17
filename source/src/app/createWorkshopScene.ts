@@ -124,6 +124,8 @@ export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotSh
   });
   function resize() {
     const aspect = engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
+    const compactScale = scene.getTransformNodeByName('model-rig')!.scaling.x;
+    const framingScale = 1.3 / compactScale;
     let minY = 0;
     let maxY = 0;
     let radius = 2;
@@ -131,9 +133,10 @@ export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotSh
       if (!mesh.isEnabled()) continue;
       mesh.computeWorldMatrix(true);
       const bounds = mesh.getBoundingInfo().boundingBox;
-      minY = Math.min(minY, bounds.minimumWorld.y);
-      maxY = Math.max(maxY, bounds.maximumWorld.y);
-      for (const corner of bounds.vectorsWorld) radius = Math.max(radius, Math.hypot(corner.x, corner.z));
+      // Reserve room for the largest model so shrinking never zooms the pedestal.
+      minY = Math.min(minY, .25 + (bounds.minimumWorld.y - .25) * framingScale);
+      maxY = Math.max(maxY, .25 + (bounds.maximumWorld.y - .25) * framingScale);
+      for (const corner of bounds.vectorsWorld) radius = Math.max(radius, Math.hypot(corner.x, corner.z) * framingScale);
     }
     const centre = (minY + maxY) / 2;
     camera.position.y = centre;

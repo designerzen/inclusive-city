@@ -356,9 +356,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
     const alert = cityRobotAlert(j);
     voicePanel.sentence(robotSpeech ?? alert ?? `Tell me what you would like to change, or hold the mic to speak.`);
-    setText('city-robot-name', robotSpeech ?? alert ?? j.bot.name);
+    setText('city-robot-name', alert ?? j.bot.name);
     nameTag.classList.toggle('is-alert', !!alert);
-    nameTag.classList.toggle('is-speaking', !!robotSpeech);
     const alertKey = alert ? `${j.blocked!.id}:${alert}` : null;
     if (alertKey !== lastAlert && !voiceCapturing) {
       lastAlert = alertKey;
@@ -379,8 +378,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       nameTag.hidden = bottom < nameTag.offsetHeight + 8;
     }
     // Keep the alert readable when the robot is offscreen or in robot-eye view.
-    nameTag.classList.toggle('is-detached', !!(robotSpeech || alert) && nameTag.hidden);
-    if ((robotSpeech || alert) && nameTag.hidden) {
+    nameTag.classList.toggle('is-detached', !!alert && nameTag.hidden);
+    if (alert && nameTag.hidden) {
       nameTag.hidden = false;
       nameTag.style.left = `${canvas.clientWidth / 2}px`;
       nameTag.style.top = `${Math.min(canvas.clientHeight - 8, nameTag.offsetHeight + 136)}px`;

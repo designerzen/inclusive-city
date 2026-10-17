@@ -55,6 +55,71 @@ test('explaining animates the mouth without driving the robot and respects reduc
   } finally { scene.dispose(); engine.dispose(); }
 });
 
+test('compactness scales the entire robot around its contact plane and survives animation and appearance edits', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene);
+    const model = scene.getTransformNodeByName('model-rig')!;
+    const front = scene.getMeshByName('front-wheel')!;
+    const head = scene.getMeshByName('head')!;
+    let previousHeight = 0;
+    for (const reach of [0, 50, 100]) {
+      bot.setProfile(createRobotProfile({ ...defaultAbilities(), reach }, defaultFunctions()));
+      bot.setAppearance(defaultAppearance());
+      bot.animateTravel(0, 1, true);
+      const scale = .7 + reach * .006;
+      assert.ok(model.scaling.equalsWithEpsilon(new Vector3(scale, scale, scale)));
+      for (const mesh of bot.robot.getChildMeshes()) assert.equal(mesh.isDescendantOf(model), true, mesh.name);
+      front.computeWorldMatrix(true); head.computeWorldMatrix(true);
+      assert.ok(Math.abs(front.getBoundingInfo().boundingBox.minimumWorld.y - .25) < 1e-6);
+      const height = head.getBoundingInfo().boundingBox.maximumWorld.y;
+      assert.ok(height > previousHeight);
+      previousHeight = height;
+      const angle = front.rotation.x;
+      bot.animateTravel(.1, .1, true);
+      assert.ok(Math.abs(front.rotation.x - angle + .1 / (.13 * scale)) < 1e-6);
+      front.rotation.x = 0;
+    }
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test('three-wheel chassis rolls and unbalanced sway respects stabilisation, pause and reduced motion', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene);
+    bot.setProfile(createRobotProfile(defaultAbilities(), defaultFunctions()));
+    const mainWheels = [-1, 1].map(side => scene.getMeshByName(`wheel-${side}-1`)!);
+    const front = scene.getMeshByName('front-wheel')!;
+    const rig = scene.getTransformNodeByName('character-rig')!;
+    assert.equal(scene.getMeshByName('wheel-1--1'), null);
+    assert.ok(mainWheels.every(wheel => wheel.position.z === 0));
+    assert.ok(front.position.z < 0);
+    front.computeWorldMatrix(true);
+    assert.ok(front.getBoundingInfo().boundingBox.extendSizeWorld.y < .14);
+    bot.animateTravel(.1, .2);
+    assert.notEqual(rig.rotation.z, 0);
+    assert.notEqual(front.rotation.x, 0);
+    const roll = front.rotation.x, sway = rig.rotation.z;
+    bot.animateTravel(.1, .2, false, true);
+    assert.equal(front.rotation.x, roll);
+    assert.equal(rig.rotation.z, sway);
+    bot.animateTravel(0, .2, true);
+    assert.equal(rig.rotation.z, 0);
+    bot.animateTravel(0, .2);
+    assert.notEqual(rig.rotation.z, 0);
+    bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'vision', 'balance']));
+    assert.equal(rig.rotation.z, 0);
+    bot.animateTravel(.1, .2);
+    assert.equal(rig.rotation.z, 0);
+    for (const speed of [0, 100]) {
+      bot.setProfile(createRobotProfile({ ...defaultAbilities(), speed }, defaultFunctions()));
+      front.rotation.x = 0;
+      front.computeWorldMatrix(true);
+      assert.ok(Math.abs(front.getBoundingInfo().boundingBox.minimumWorld.y - .25) < 1e-6);
+    }
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('pivot rolls opposite wheels in opposite directions and pauses with the journey', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   try {
@@ -163,6 +228,25 @@ test('editor feedback responds to both directions of every tradeoff and distingu
     return JSON.stringify(animation.tick(.25, false));
   });
   assert.equal(new Set(modulePoses).size, robotFunctions.length);
+});
+
+test('ears only toggle the spectrum while memory lights and animates the antenna', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene);
+    for (const enabled of [false, true]) {
+      bot.setProfile(createRobotProfile(defaultAbilities(), enabled
+        ? ['communication', 'hearing', 'memory'] : ['communication', 'vision', 'hearing']));
+      assert.equal(scene.getMeshByName('antenna-tip')!.material!.name, enabled ? 'warm-light' : 'dark-joints');
+      assert.equal(scene.getMeshByName('chest-light')!.material!.name, 'warm-light');
+
+      const ears = new CharacterAnimation(), idle = new CharacterAnimation(), memory = new CharacterAnimation();
+      ears.feel({ type: 'function', id: 'hearing', enabled, swapEnabled: 'hearing', swapDisabled: 'vision' });
+      assert.deepEqual(ears.tick(.25, false), idle.tick(.25, false));
+      memory.feel({ type: 'function', id: 'memory', enabled, swapEnabled: 'memory', swapDisabled: 'vision' });
+      assert.notEqual(memory.tick(.25, false).antenna, 0);
+    }
+  } finally { scene.dispose(); engine.dispose(); }
 });
 
 test('editor feedback settles, resets with navigation, and uses still expressions for reduced motion', () => {
