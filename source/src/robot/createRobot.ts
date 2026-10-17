@@ -189,16 +189,15 @@ export function createRobot(scene: Scene) {
   const tyres = material('rubber-tyres', '#263b42');
   const hubs = material('wheel-hubs', '#b4cac3');
   const wheelParts: ReturnType<typeof box>[] = [];
-  for (const side of [-1, 1]) {
-    const end = 1;
+  for (const side of [-1, 1]) for (const end of [-1, 1]) {
     const wheel = MeshBuilder.CreateCylinder(`wheel-${side}-${end}`, { diameter: 0.7, height: 0.3, tessellation: 32 }, scene);
     wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(side * 0.8, 0.6, 0);
+    wheel.position.set(side * 0.8, 0.6, end * .45);
     wheel.parent = modelRig;
     wheel.material = tyres;
     const hub = MeshBuilder.CreateCylinder(`hub-${side}-${end}`, { diameter: 0.3, height: 0.04, tessellation: 24 }, scene);
     hub.rotation.z = Math.PI / 2;
-    hub.position.set(side * 0.97, 0.6, 0);
+    hub.position.set(side * 0.97, 0.6, end * .45);
     hub.parent = modelRig;
     hub.material = hubs;
     wheelParts.push(wheel, hub);
@@ -217,11 +216,15 @@ export function createRobot(scene: Scene) {
   frontWheel.material = tyres;
   const frontFork = box('front-wheel-fork', [.10, .34, .12], [0, .65, -.65], dark);
   frontFork.parent = modelRig;
+  frontWheel.setEnabled(false);
+  frontFork.setEnabled(false);
 
   function setProfile(profile: RobotProfile) {
     visionEnabled = profile.enabledFunctions.includes('vision');
     hearingEnabled = profile.enabledFunctions.includes('hearing');
     balanceEnabled = profile.enabledFunctions.includes('balance');
+    frontWheel.setEnabled(!balanceEnabled);
+    frontFork.setEnabled(!balanceEnabled);
     if (balanceEnabled) characterRig.rotation.z = 0;
     spectrumBars.forEach(bar => bar.setEnabled(hearingEnabled));
     const abilities = profile.effectiveAbilities;
@@ -253,8 +256,15 @@ export function createRobot(scene: Scene) {
       arm.position.y = -.55 * arm.scaling.y;
       shoulders[side < 0 ? 0 : 1]!.position.x = side * (0.95 + abilities.reach / 100 * 0.4);
       const track = 0.75 + abilities.balance / 100 * 0.25;
-      scene.getMeshByName(`wheel-${side}-1`)!.position.x = side * track;
-      scene.getMeshByName(`hub-${side}-1`)!.position.x = side * (track + 0.17);
+      for (const end of [-1, 1]) {
+        const wheel = scene.getMeshByName(`wheel-${side}-${end}`)!;
+        const hub = scene.getMeshByName(`hub-${side}-${end}`)!;
+        wheel.setEnabled(balanceEnabled || end === 1);
+        hub.setEnabled(balanceEnabled || end === 1);
+        wheel.position.x = side * track;
+        hub.position.x = side * (track + .17);
+        wheel.position.z = hub.position.z = balanceEnabled ? end * .45 : 0;
+      }
     }
 
   }

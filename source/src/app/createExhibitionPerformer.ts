@@ -31,7 +31,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const head = scene.getTransformNodeByName('head-rig')!;
   const antenna = scene.getTransformNodeByName('antenna-rig')!;
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
-  const wheels = [-1, 1].map(side => scene.getMeshByName(`wheel-${side}-1`)!);
+  const wheels = [-1, 1].flatMap(side => [-1, 1].map(end => scene.getMeshByName(`wheel-${side}-${end}`)!));
   const frontWheel = scene.getMeshByName('front-wheel')!;
   const motion = reducedMotionPreference();
   let clock: (() => number) | null = null, active = false, dirty = true;

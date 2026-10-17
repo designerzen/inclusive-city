@@ -83,7 +83,7 @@ test('compactness scales the entire robot around its contact plane and survives 
   } finally { scene.dispose(); engine.dispose(); }
 });
 
-test('three-wheel chassis rolls and unbalanced sway respects stabilisation, pause and reduced motion', () => {
+test('balance switches between four steady wheels and three wheels with sway, respecting pause and reduced motion', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   try {
     const bot = createRobot(scene);
@@ -91,7 +91,10 @@ test('three-wheel chassis rolls and unbalanced sway respects stabilisation, paus
     const mainWheels = [-1, 1].map(side => scene.getMeshByName(`wheel-${side}-1`)!);
     const front = scene.getMeshByName('front-wheel')!;
     const rig = scene.getTransformNodeByName('character-rig')!;
-    assert.equal(scene.getMeshByName('wheel-1--1'), null);
+    const visibleWheels = () => scene.meshes.filter(mesh => /^(wheel-[-\d]+-[-\d]+|front-wheel)$/.test(mesh.name) && mesh.isEnabled());
+    assert.equal(visibleWheels().length, 3);
+    assert.equal(scene.getMeshByName('wheel-1--1')!.isEnabled(), false);
+    assert.equal(scene.getMeshByName('front-wheel-fork')!.isEnabled(), true);
     assert.ok(mainWheels.every(wheel => wheel.position.z === 0));
     assert.ok(front.position.z < 0);
     front.computeWorldMatrix(true);
@@ -108,11 +111,20 @@ test('three-wheel chassis rolls and unbalanced sway respects stabilisation, paus
     bot.animateTravel(0, .2);
     assert.notEqual(rig.rotation.z, 0);
     bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'vision', 'balance']));
+    assert.equal(visibleWheels().length, 4);
+    assert.equal(front.isEnabled(), false);
+    assert.equal(scene.getMeshByName('front-wheel-fork')!.isEnabled(), false);
+    for (const side of [-1, 1]) for (const end of [-1, 1]) {
+      assert.equal(scene.getMeshByName(`wheel-${side}-${end}`)!.position.z, end * .45);
+      assert.equal(scene.getMeshByName(`hub-${side}-${end}`)!.isEnabled(), true);
+    }
     assert.equal(rig.rotation.z, 0);
     bot.animateTravel(.1, .2);
     assert.equal(rig.rotation.z, 0);
     for (const speed of [0, 100]) {
       bot.setProfile(createRobotProfile({ ...defaultAbilities(), speed }, defaultFunctions()));
+      assert.equal(visibleWheels().length, 3);
+      assert.ok(mainWheels.every(wheel => wheel.position.z === 0));
       front.rotation.x = 0;
       front.computeWorldMatrix(true);
       assert.ok(Math.abs(front.getBoundingInfo().boundingBox.minimumWorld.y - .25) < 1e-6);
