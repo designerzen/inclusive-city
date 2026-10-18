@@ -1,4 +1,10 @@
 /* Compact city HUD: retain the global 44px target floor. */
+.city-object-music { padding: 8px 16px; border-bottom: 1px solid var(--ui-border); }
+.city-object-music p { margin: 4px 0; font-size: .8125rem; line-height: 1.45; overflow-wrap: anywhere; }
+#city-encounter-status { color: #a9e2e9; }
+[data-theme='light'] #city-encounter-status { color: #24606a; }
+#city-instruments { margin-bottom: 12px; }
+#city-instruments select, #city-play-object { width: 100%; margin-block: 4px; }
 #city-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 8px; padding: 12px; overflow: hidden; }
 #city-screen .city-toolbar { position: static; display: flex; flex-wrap: wrap; justify-self: start; max-width: calc(100% - 60px); gap: 6px; padding: 0; border: 0; background: transparent; }
 #city-screen .city-tools { display: flex; flex-wrap: wrap; gap: 6px; width: auto; }

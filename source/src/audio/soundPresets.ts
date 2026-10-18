@@ -69,6 +69,7 @@ const buttonSignatures = {
   'preset-previous': { root: 69, intervals: [0, 5, 12], pattern: 'down', stepBeats: .1 },
   'preset-next': { root: 69, intervals: [0, 5, 12], pattern: 'up', stepBeats: .1 },
   'city-exhibition': { root: 62, intervals: [0, 5, 9, 16], pattern: 'up', stepBeats: .16, waveform: 'sine' },
+  'city-play-object': { root: 68, intervals: [0, 7, 12, 19], pattern: 'up-down', stepBeats: .125, waveform: 'triangle' },
   'exhibition-play': { root: 64, intervals: [0, 7, 11, 19], pattern: 'up', stepBeats: .11, waveform: 'sine' },
   'exhibition-stop': { root: 59, intervals: [0, 5, 12], pattern: 'down', stepBeats: .07, waveform: 'sine' },
   'exhibition-download': { root: 74, intervals: [0, 3, 7, 14], pattern: 'down', stepBeats: .09, waveform: 'sine' },

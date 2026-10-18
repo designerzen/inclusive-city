@@ -69,6 +69,7 @@ export class JourneyMusicComposer {
   galleryInfluence = false;
   recordLayers = 0;
   museumInfluence = false;
+  encounterVariation = 0;
   readonly bpm: number;
   readonly beats: number;
   private readonly identity;
@@ -346,6 +347,18 @@ export class JourneyMusicComposer {
       swing: ['jazz', 'blues', 'lofi', 'ethiojazz', 'hiphop'].includes(style),
     });
     melody.notes = developed.lead;
+    // Apply after procedural/AI development so every lead can retain the exchanged motif.
+    if (this.encounterVariation && !data.cadence) {
+      const contour = this.encounterVariation === 1 ? [0, 1, 2, 1]
+        : this.encounterVariation === 2 ? [0, -1, -2, -1] : [0, 2, -1, 1];
+      melody.notes = melody.notes.map((note, i) => {
+        if (i % 4 === 0) return note;
+        const target = note.midi + contour[i % 4]! * 2;
+        const candidates = Array.from({ length: 5 }, (_, octave) => scale.map(n => root + n + (octave - 2) * 12)).flat();
+        const midi = candidates.reduce((best, n) => Math.abs(n - target) < Math.abs(best - target) ? n : best);
+        return { ...note, midi: Math.max(24, Math.min(108, midi)) };
+      });
+    }
     if (developed.counter.length) add('evolution-countermelody', {
       ...this.identity.voice(recipes[style].voice), gain: .055, pan: .25,
       echoTime: beat / 2, echoGain: .08,
@@ -394,7 +407,7 @@ export class JourneyMusicComposer {
       climb: [0, 1, 2, 3], descend: [3, 2, 1, 0], blocked: [2, 1, 1], collision: [2, 0, 1, 0],
       intervention: [0, 2, 3, 4], pickup: [0, 1, 2, 4], achievement: [0, 2, 4, 5],
       arrived: [0, 1, 2, 3, 4, 5], segment: [2, 0], exploration: [0, 2, 1],
-      city_edit: [1, 2], journey_started: [0, 1, 2], journey_ended: [2, 1, 0],
+      city_edit: [1, 2], robot_encounter: [0, 1, 2, 1, 0], journey_started: [0, 1, 2], journey_ended: [2, 1, 0],
       state_changed: data.expression?.paused ? [2, 1, 0] : [0, 2, 3],
     };
     const beat = 60 / this.bpm;

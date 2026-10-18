@@ -9,6 +9,7 @@ import type { RobotMood } from '../audio/robotHarmony';
 import { PaintingRenderer, ProceduralPainting } from './ProceduralPainting';
 import type { PaintStroke } from './ProceduralPainting';
 import { cityMusicKey } from '../audio/cityMusicKeys';
+import { voiceCityObject, type CityInstrument } from '../audio/cityInstruments';
 
 export type ArtMark = PaintStroke;
 
@@ -68,6 +69,8 @@ export class JourneyCreativity {
   consume(event: RobotEvent) {
     if (event.sequence <= this.lastSequence) return;
     this.lastSequence = event.sequence;
+    if (event.type === 'city_sound') return;
+    if (event.type === 'robot_encounter') this.composer.encounterVariation = Number(event.data.variation);
     if (event.type === 'building_encounter') {
       if (event.data.kind === 'gallery') this.composer.galleryInfluence = true;
       if (event.data.kind === 'record-store') this.composer.recordLayers = Math.min(3, this.composer.recordLayers + 1);
@@ -110,6 +113,20 @@ export class JourneyCreativity {
     if (event.type === 'step') {
       this.steps = Number(event.data.step);
     }
+  }
+
+  /** Object notes share the audible bar's harmony and are saved exactly as heard. */
+  playObject(id: string, kind: CityInstrument, time: number, automatic = false): SoundSequenceEntry {
+    const beat = 60 / this.bpm;
+    const at = Math.ceil((time + .05) / (beat / 2)) * beat / 2;
+    const bar = [...this.scheduledHarmony].reverse().find(b => b.at <= at + 1e-8);
+    const answer = this.composer.react('city-object', { at, phrase: bar?.phrase ?? 0,
+      steps: this.steps, edge: this.edge, blocked: bar?.blocked ?? this.blocked, harmony: this.harmony,
+      mood: bar?.mood, keyMood: bar ? bar.keyMood : this.keyMood });
+    answer.score = voiceCityObject(answer.score, kind, id, beat, automatic);
+    answer.label = `journey:object:${id}`;
+    this.score.push(structuredClone(answer)); this.score.sort((a, b) => a.at - b.at);
+    return answer;
   }
 
   /** Actual rendered travel includes turning in place and the physics body's ramp height. */

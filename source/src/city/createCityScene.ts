@@ -39,6 +39,7 @@ import { creativeBuildingModel } from './creativeBuildingModel';
 import { createCityEditTransitions } from './cityEditTransitions';
 import { createZebraCrossing, foregroundCrossingPosition, zebraRoadSites } from './zebraCrossing';
 import { normalizeZebraPairs } from '../app/zebraPreferences';
+import { createMusicalObjects } from './musicalObjects';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -342,6 +343,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
   const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }), () => ({ width: groundMesh.scaling.x, depth: groundMesh.scaling.z }));
   let dance: JourneyDance | null = null, musicClock: (() => number) | null = null;
+  const musicalObjects = createMusicalObjects(scene, world);
   const rig = scene.getTransformNodeByName('character-rig')!;
   const head = scene.getTransformNodeByName('head-rig')!;
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
@@ -377,11 +379,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   function update(seconds: number) {
     const musicTime = tempoClock?.() ?? -1;
-    frontZebra.update(musicTime, tempoBpm);
-    extraZebras.forEach(zebra => zebra.update(musicTime, tempoBpm));
+    musicalObjects.update(musicTime, reducedMotionPreference().matches);
+    frontZebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches);
+    extraZebras.forEach(zebra => zebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches));
     for (const { zebra, street, x, z, horizontal } of cityZebras) {
       zebra.place(x, z, street.width, horizontal);
-      zebra.update(musicTime, tempoBpm);
+      zebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches);
     }
     river.update(seconds, reducedMotionPreference().matches);
     const before = journey.position, heading = journey.heading;
@@ -492,6 +495,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (scene.isDisposed) return;
     physics = createCityPhysics(scene, journey, solids, instance);
     autonomousBots = createAutonomousBots(scene, world, physics);
+    musicalObjects.rebuild();
     journey.nearbyRobots = () => autonomousBots?.bots.map(bot => {
       const p = bot.character.controller.getPosition();
       return { id: bot.id, name: bot.name, buttonReach: bot.buttonReach,
@@ -506,7 +510,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     physicsStatus = 'unavailable';
     console.warn('City physics could not be loaded; using route movement.', error);
   });
-  return { scene, journey, update, sync, setTheme, setZebraPairs,
+  return { scene, journey, update, sync, setTheme, setZebraPairs, musicalObjects,
     get robotConditions() { return [{ name: journey.bot.name, state: journey.machine.state, condition: journey.machine.record.condition }, ...(autonomousBots?.bots.map((bot, i) => ({ name: `City robot ${i + 1}`, state: bot.stuck > 0 ? 'blocked' : bot.condition.speed > .01 ? 'following' : 'waiting', condition: bot.condition })) ?? [])]; }, nodeAt, streetAt, projectNode, projectRobotBounds, highlight,
     get musicPosition() { const p = physics?.position ?? journey.position; return { x: p.x, y: p.y, z: p.z }; },
     physicsReady, get physicsStatus() { return physicsStatus; },

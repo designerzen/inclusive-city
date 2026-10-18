@@ -13,9 +13,12 @@ import { reserveRoadSpace } from '../city/reserveRoadSpace';
 import { fitCurveLayout } from '../city/curveLayout';
 import { cityRouteClearance } from '../city/routeClearance';
 import { buildingFrontage, passedFrontage } from '../city/creativeBuildings';
+import { encounterVariation } from '../audio/cityInstruments';
 
 /** Follow a street route; drawing one is optional, while barriers still need help. */
 export class PlannedJourney {
+  private musicalEncounterRun = -1;
+  private metRobots = new Set<string>();
   /** Live positions and capabilities supplied by the city's wandering robots. */
   nearbyRobots: () => readonly { id: string; name: string; position: RoutePoint; buttonReach: number }[] = () => [];
   get nearbyHelp() {
@@ -486,13 +489,27 @@ export class PlannedJourney {
     this.machine.emit('pickup', { id, kind: node.discovery, value: 1 }); this.machine.transition('following');
   }
   update(seconds: number) {
-    if (this.physicalControl) return;
+    if (this.physicalControl) { this.encounterRobots(); return; }
     const before = this.position;
-    try { this.updateJourney(seconds); } finally {
+    try { this.updateJourney(seconds); this.encounterRobots(); } finally {
       const condition = this.machine.record.condition;
       condition.direction = this.heading;
       condition.speed = Number.isFinite(seconds) && seconds > 0 ? Math.hypot(this.position.x - before.x, this.position.y - before.y, this.position.z - before.z) / seconds : 0;
       if (this.complete) condition.mood = 'happy';
+    }
+  }
+
+  private encounterRobots() {
+    if (this.musicalEncounterRun !== this.machine.run.id) {
+      this.musicalEncounterRun = this.machine.run.id; this.metRobots.clear();
+    }
+    if (this.ready || this.paused || this.complete) return;
+    const p = this.position;
+    for (const robot of this.nearbyRobots()) {
+      if (this.metRobots.has(robot.id) || Math.abs(p.y - robot.position.y) > .7
+        || Math.hypot(p.x - robot.position.x, p.z - robot.position.z) > 3.5) continue;
+      this.metRobots.add(robot.id);
+      this.machine.emit('robot_encounter', { id: robot.id, name: robot.name, variation: encounterVariation(robot.id) });
     }
   }
 

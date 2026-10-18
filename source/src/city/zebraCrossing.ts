@@ -6,6 +6,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { ProceduralCity } from './proceduralCity';
 import type { cityRoadNetwork } from './cityRoadNetwork';
 import { normalizeZebraPairs } from '../app/zebraPreferences';
+import { objectSeed } from '../audio/cityInstruments';
 
 /** Ordinary straight road sections only: never overlay a signalised crossing. */
 export function zebraRoadSites(world: ProceduralCity, network: ReturnType<typeof cityRoadNetwork>, pairs = 4) {
@@ -74,8 +75,10 @@ export function createZebraCrossing(scene: Scene, id: string, white: StandardMat
       });
       poles.forEach(({ pole, side }) => { pole.position.z = side * (width / 2 + .45); });
     },
-    update(seconds: number, bpm: number) {
-      const on = zebraBeaconOn(seconds, bpm);
+    update(seconds: number, bpm: number, stagger = false, reducedMotion = false) {
+      // Each pair stays together; neighbouring crossings answer on different eighth notes.
+      const phase = stagger ? (objectSeed(id) % 8) / 2 : 0;
+      const on = !reducedMotion && zebraBeaconOn(seconds < 0 ? seconds : seconds + phase * 60 / bpm, bpm);
       amber.diffuseColor.copyFrom(on ? lit : dim);
       amber.emissiveColor.copyFrom(amber.diffuseColor);
     },
