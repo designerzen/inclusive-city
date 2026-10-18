@@ -13,6 +13,10 @@ export interface SoundScore {
     vibratoRate: number; vibratoDepth: number; cutoff: number; resonance: number;
     pan: number; echoTime: number; echoGain: number;
     fm?: FmPatch;
+    /** Harmonic amplitudes, starting at the fundamental. Omitted for legacy waveforms. */
+    partials?: number[];
+    /** Per-note low-pass sweep from cutoff * 2^octaves back to cutoff. */
+    filterEnvelope?: { octaves: number; decay: number };
   };
 }
 
@@ -69,6 +73,8 @@ export class SoundEffect {
       if (config[key] !== undefined) Object.assign(voice, { [key]: config[key] });
     }
     if (config.fm !== undefined) voice.fm = { ...config.fm };
+    if (config.partials !== undefined) voice.partials = [...config.partials];
+    if (config.filterEnvelope !== undefined) voice.filterEnvelope = { ...config.filterEnvelope };
     const notes = Array.from({ length: repeats }, (_, repeat) => pitches.map((pitch, i) => ({
       midi: root + pitch,
       start: repeat * (pattern === 'chord' ? duration : pitches.length * step) + (pattern === 'chord' ? 0 : i * step),
@@ -91,7 +97,7 @@ export class SoundEffect {
     }
     const v = score.voice;
     if (!['sine', 'triangle', 'square', 'sawtooth'].includes(v.waveform)) throw new RangeError('Unknown waveform.');
-    const bounds: Record<Exclude<keyof typeof v, 'waveform' | 'fm'>, [number, number]> = {
+    const bounds: Record<Exclude<keyof typeof v, 'waveform' | 'fm' | 'partials' | 'filterEnvelope'>, [number, number]> = {
       gain: [0, 0.5], attack: [0.001, 4], decay: [0.001, 4], sustain: [0, 1], release: [0.005, 8],
       detune: [-1200, 1200], layers: [1, 4], spread: [0, 100], pitchBend: [-24, 24],
       vibratoRate: [0.1, 20], vibratoDepth: [0, 100], cutoff: [40, 20000], resonance: [0, 12],
@@ -99,6 +105,17 @@ export class SoundEffect {
     };
     for (const [key, bound] of Object.entries(bounds)) range(v[key as keyof typeof bounds], ...bound, key);
     if (!Number.isInteger(v.layers)) throw new RangeError('layers must be an integer.');
+    if (v.partials !== undefined) {
+      if (!Array.isArray(v.partials)) throw new RangeError('Invalid partials.');
+      range(v.partials.length, 1, 32, 'partials length');
+      for (const amplitude of v.partials) range(amplitude, 0, 1, 'partial amplitude');
+      if (!v.partials.some(amplitude => amplitude > 0)) throw new RangeError('partials must contain an audible harmonic.');
+    }
+    if (v.filterEnvelope !== undefined) {
+      if (!v.filterEnvelope || typeof v.filterEnvelope !== 'object') throw new RangeError('Invalid filter envelope.');
+      range(v.filterEnvelope.octaves, -4, 4, 'filterEnvelope.octaves');
+      range(v.filterEnvelope.decay, .005, 4, 'filterEnvelope.decay');
+    }
     if (v.fm !== undefined) {
       const fmBounds: Record<keyof FmPatch, [number, number]> = {
         ratio: [.125, 16], index: [0, 8], attack: [.001, 4], decay: [.001, 4], sustain: [0, 1], release: [.005, 8],
@@ -117,10 +134,13 @@ export class SoundEffect {
     // Past onsets must be skipped rather than played immediately off the music clock.
     range(when, 0, Number.MAX_VALUE, 'when');
     const { notes, voice: v } = this.data;
+    // One band-limited wave per score; Web Audio removes harmonics above Nyquist.
+    const wave = v.partials ? context.createPeriodicWave(new Float32Array(v.partials.length + 1),
+      Float32Array.from([0, ...v.partials])) : undefined;
     const output = context.createGain();
     output.gain.value = instrumentGain(this.data);
     const filter = context.createBiquadFilter();
-    filter.type = 'lowpass'; filter.frequency.value = Math.min(v.cutoff, context.sampleRate / 2); filter.Q.value = v.resonance;
+    filter.type = 'lowpass'; filter.frequency.value = Math.min(v.filterEnvelope ? 20000 : v.cutoff, context.sampleRate / 2); filter.Q.value = v.filterEnvelope ? .7 : v.resonance;
     const pan = context.createStereoPanner(); pan.pan.value = v.pan;
     output.connect(filter); filter.connect(pan); pan.connect(destination);
     const echo = context.createDelay(2); echo.delayTime.value = v.echoTime;
@@ -137,8 +157,19 @@ export class SoundEffect {
     for (const note of notes) {
       const start = when + note.start, end = start + note.duration;
       if (start < context.currentTime) continue;
+      // A separate filter per note prevents overlapping notes from resetting each other's sweep.
+      const noteFilter = v.filterEnvelope ? context.createBiquadFilter() : undefined;
+      if (noteFilter) {
+        noteFilter.type = 'lowpass'; noteFilter.Q.value = v.resonance;
+        noteFilter.frequency.setValueAtTime(Math.min(context.sampleRate * .45,
+          Math.max(40, v.cutoff * 2 ** v.filterEnvelope!.octaves)), start);
+        noteFilter.frequency.exponentialRampToValueAtTime(Math.min(v.cutoff, context.sampleRate * .45),
+          start + Math.min(v.filterEnvelope!.decay, note.duration + v.release));
+        noteFilter.connect(output); nodes.push(noteFilter);
+      }
       for (let layer = 0; layer < v.layers; layer++) {
         const oscillator = context.createOscillator(); oscillator.type = v.waveform;
+        if (wave) oscillator.setPeriodicWave(wave);
         const hz = midiFrequency(note.midi);
         oscillator.frequency.setValueAtTime(hz, start);
         oscillator.frequency.exponentialRampToValueAtTime(hz * 2 ** (v.pitchBend / 12), end);
@@ -154,7 +185,7 @@ export class SoundEffect {
         envelope.gain.linearRampToValueAtTime(v.sustain, start + attack + decay);
         envelope.gain.setValueAtTime(v.sustain, end);
         envelope.gain.linearRampToValueAtTime(0, end + v.release);
-        oscillator.connect(envelope); envelope.connect(output); nodes.push(oscillator, envelope);
+        oscillator.connect(envelope); envelope.connect(noteFilter ?? output); nodes.push(oscillator, envelope);
         if (v.vibratoDepth > 0) {
           const lfo = context.createOscillator(); lfo.frequency.value = v.vibratoRate;
           const depth = context.createGain(); depth.gain.value = v.vibratoDepth;

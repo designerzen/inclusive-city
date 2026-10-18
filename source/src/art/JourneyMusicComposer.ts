@@ -12,6 +12,8 @@ import type { WorldMusicStyle } from './worldMusicStyles';
 import { MusicDevelopment } from './MusicDevelopment';
 import { cityMusicKey } from '../audio/cityMusicKeys';
 import { fmPatches } from '../audio/fmSynth';
+import { journeyTimbre } from '../audio/journeyTimbres';
+import { timbres } from '../audio/timbres';
 
 export interface JourneyExpression { moving: boolean; turning: number; slope: number; paused: boolean; speed: number }
 interface Phrase { at: number; phrase: number; steps: number; edge: number; blocked: boolean; harmony: boolean; mood?: RobotMood; keyMood?: RobotMood | null; expression?: JourneyExpression; cadence?: boolean }
@@ -221,8 +223,8 @@ export class JourneyMusicComposer {
       : style === 'chimes' ? regular([0, 4, 2, 6, 4, 2], 4, .75)
       : style === 'chiptune' ? regular([0, 2, 4, 7, 4, 2, 0, 4, 2, 4, 7, 9, 7, 4, 2, 0], 4, .12)
       : style === 'synthwave' ? regular([0, 4, 7, 4, 0, 4, 7, 6]) : regular([0, 0, 4, 0, 2, 0, 4, 2]));
-    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoGain: .1, ...this.identity.voice(recipes[style].voice),
-      ...(this.galleryInfluence ? { waveform: 'sine' as const, fm: fmPatches.bell, attack: .012, release: .45 } : {}), echoTime: beat / 2 }).toScore();
+    const melody = new SoundEffect({ gain: style === 'chiptune' ? .09 : .18, echoGain: .1, ...this.identity.voice({ ...recipes[style].voice, ...journeyTimbre(style, 'lead') }),
+      ...(this.galleryInfluence ? { waveform: 'sine' as const, partials: undefined, filterEnvelope: undefined, fm: fmPatches.bell, attack: .012, release: .45 } : {}), echoTime: beat / 2 }).toScore();
     melody.notes = figure.map(([degree, start, duration], i) => {
       const identityNote = (slot * figure.length + i) % 16;
       let resolved = degree + this.identity.contour[identityNote]!;
@@ -282,7 +284,7 @@ export class JourneyMusicComposer {
           .sort((a, b) => Math.abs(a - (offset - octave)) - Math.abs(b - (offset - octave)))[0]!;
         note.midi = root - 24 + octave + nearest;
       }
-      add(style === 'techno' ? 'donk-bass' : 'bass', { waveform: ['techno', 'chiptune', 'funk', 'synthwave'].includes(style) ? 'square' : 'triangle', gain: .16, cutoff: 650, attack: .006, release: .1, echoGain: 0 }, bassNotes);
+      add(style === 'techno' ? 'donk-bass' : 'bass', { waveform: ['techno', 'chiptune', 'funk', 'synthwave'].includes(style) ? 'square' : 'triangle', gain: .16, cutoff: 650, attack: .006, release: .1, echoGain: 0, ...journeyTimbre(style, 'bass') }, bassNotes);
     }
     if (style === 'baroque') {
       add('counterpoint', { waveform: 'triangle', gain: .11, attack: .002, release: .08, pan: -.25, echoGain: .02 },
@@ -290,11 +292,11 @@ export class JourneyMusicComposer {
     }
     if (style === 'argentineTango') {
       // Orchestral contrast: marked piano attacks against a longer bowed answer.
-      add('tango-piano', { waveform: 'triangle', gain: .1, attack: .003, decay: .12,
+      add('tango-piano', { ...timbres.piano, waveform: 'triangle', gain: .1, attack: .003, decay: .12,
         sustain: .08, release: .16, cutoff: 3200, echoGain: .02 },
       notes([[0,0,.18],[third,.5,.14],[7,.5,.14],[0,1,.18],[third,1.75,.12],
         [7,1.75,.12],[0,2,.18],[third,2.5,.14],[7,2.5,.14],[0,3,.18]], root - 12));
-      add('tango-strings', { waveform: 'sawtooth', gain: .055, attack: .07, decay: .12,
+      add('tango-strings', { ...timbres.strings, waveform: 'sawtooth', gain: .055, attack: .07, decay: .12,
         sustain: .35, release: .24, cutoff: 1800, vibratoDepth: 3, echoGain: .03, pan: -.25 },
       notes([[7,.5,.85],[third,1.5,.85],[0,2.5,1.1]], root));
     }
@@ -310,7 +312,7 @@ export class JourneyMusicComposer {
       if (style === 'disco' || style === 'electronic') { offsets = [.5, 1.5, 2.5, 3.5]; length = .3; }
       if (['ambient', 'cinematic', 'synthwave'].includes(style)) length = 3.5;
       if (world) { offsets = [...world.chords]; length = world.chordLength; }
-      add('harmony', { ...this.identity.voice({ waveform: 'sine', fm: style === 'synthwave' ? fmPatches.bright : fmPatches.warm, attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300 }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
+      add('harmony', { ...this.identity.voice({ waveform: 'sine', fm: style === 'synthwave' ? fmPatches.bright : fmPatches.warm, attack: length > 2 ? .2 : .004, decay: .08, sustain: length > 2 ? .45 : .15, release: length > 2 ? .8 : .16, cutoff: 1300, ...journeyTimbre(style, 'harmony') }), gain: .12, echoTime: style === 'reggae' ? beat * .75 : beat / 2, echoGain: style === 'reggae' ? .25 : .08 },
         offsets.flatMap(at => notes(intervals.map(interval => [interval, at, length]), root - 12)));
     }
     if (enhance) {
@@ -334,7 +336,7 @@ export class JourneyMusicComposer {
         if (data.harmony) {
           const backing = magentaBackingNotes(section.notes, root, intervals, this.bpm, options);
           if (backing.length) add('magenta-countermelody', { ...this.identity.voice({ waveform: 'triangle',
-            cutoff: 1500, attack: .025, release: .2 }), gain: .075, pan: -.3 }, backing);
+            cutoff: 1500, attack: .025, release: .2, ...journeyTimbre(style, 'counter') }), gain: .075, pan: -.3 }, backing);
         }
       }
     }
@@ -360,7 +362,7 @@ export class JourneyMusicComposer {
       });
     }
     if (developed.counter.length) add('evolution-countermelody', {
-      ...this.identity.voice(recipes[style].voice), gain: .055, pan: .25,
+      ...this.identity.voice({ ...recipes[style].voice, ...journeyTimbre(style, 'counter') }), gain: .055, pan: .25,
       echoTime: beat / 2, echoGain: .08,
     }, developed.counter);
     if (data.expression) {
@@ -411,7 +413,7 @@ export class JourneyMusicComposer {
       state_changed: data.expression?.paused ? [2, 1, 0] : [0, 2, 3],
     };
     const beat = 60 / this.bpm;
-    const score = new SoundEffect({ ...this.identity.voice(recipes[this.style].voice), gain: kind === 'step' ? .055 : .12,
+    const score = new SoundEffect({ ...this.identity.voice({ ...recipes[this.style].voice, ...journeyTimbre(this.style, 'lead') }), gain: kind === 'step' ? .055 : .12,
       attack: .008, release: kind === 'blocked' ? .4 : .2, pan: Math.max(-.6, Math.min(.6, direction * .6)),
       echoTime: beat / 2, echoGain: .16, vibratoDepth: kind === 'blocked' ? 9 : 2 }).toScore();
     score.notes = (figures[kind] ?? [0, 2]).map((degree, i) => ({

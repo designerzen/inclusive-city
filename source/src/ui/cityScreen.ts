@@ -40,6 +40,8 @@ import { musicNotation, type MonitorNote } from './musicNotation';
 import './cityMusicCues.css';
 import { instrumentNames, encounterMelodies } from '../audio/cityInstruments';
 import type { MusicalObject } from '../city/musicalObjects';
+import { mountCityMusicVisuals } from './cityMusicVisuals';
+import './cityMusicVisuals.css';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney, continuationClock?: () => number) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
@@ -87,6 +89,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <label for="city-instrument">Object to hear</label>
         <select id="city-instrument"></select>
         <button id="city-play-object" type="button">Hear object</button>
+        <p id="city-instrument-feedback" aria-hidden="true" hidden></p>
         <p>Objects join the music in their own rhythm. Meeting another robot changes your melody.</p>
       </details>
       <div class="city-controls-window-actions"><button id="city-controls-window" type="button" aria-label="Move controls to new window" title="Move controls to new window" aria-pressed="false"></button></div>
@@ -173,6 +176,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const controlsHud = get<HTMLDetailsElement>('city-controls-hud');
   const interactionHud = controlsHud.parentElement!;
   const map = container.querySelector<HTMLElement>('.city-map')!;
+  const musicVisuals = mountCityMusicVisuals(map, container.querySelector<HTMLElement>('.city-object-music')!);
   map.append(container.querySelector('.city-view-tools')!);
   const cityActions = container.querySelector<HTMLElement>('.city-new-actions')!;
   cityActions.setAttribute('role', 'group');
@@ -297,8 +301,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   function beginCreation() {
     if (!city) return;
     city.musicalObjects.reset();
+    musicVisuals.clear();
     setText('city-object-status', 'Tap any city object to hear it.');
     get('city-encounter-status').hidden = true;
+    get('city-instrument-feedback').hidden = true;
     get('creative-building-discoveries').replaceChildren();
     get('creative-building-discoveries').setAttribute('aria-label', 'No creative buildings discovered yet');
     setText('creative-building-status', '');
@@ -351,17 +357,23 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       if (musicMonitorPreferences().mode === 'notation') get('city-music-notation').innerHTML = musicNotation(monitorNotes, creation.bpm);
     }
   }
-  function playCityObject(object: MusicalObject, automatic = false) {
+  function playCityObject(object: MusicalObject, automatic = false, point?: { x: number; y?: number; z: number }) {
     if (!city || !creation || finished || !active || document.hidden) return;
     if (!automatic) sounds.unlock();
     const time = sounds.musicTime(creation.bpm, cityMusicTime);
     const note = creation.playObject(object.id, object.kind, time, automatic);
     sounds.performLive([note]);
     if (musicMonitorPreferences().enabled) musicCues.add([note]);
-    city.musicalObjects.pulse(object, note.at, city.musicPosition);
+    const sourcePoint = point && (object.id === 'river' || object.kind === 'drum') ? point
+      : object.id === 'river' ? { x: city.journey.world.riverX, y: .25, z: city.musicPosition.z } : undefined;
+    city.musicalObjects.pulse(object, note.at, sourcePoint);
+    musicVisuals.show({ name: object.name, kind: object.kind, at: note.at, automatic,
+      onsets: note.score.notes.map(n => n.start), source: () => city?.musicalObjects.project(object.id, sourcePoint) ?? null });
     if (!automatic) {
       city.journey.machine.emit('city_sound', { id: object.id, name: object.name, instrument: object.kind });
       setText('city-object-status', `${object.name} · ${instrumentNames[object.kind]}${sounds.isMuted ? ' · sound muted' : ''}`);
+      const feedback = get('city-instrument-feedback'); feedback.hidden = false;
+      feedback.textContent = `♪ You played ${object.name} · ${instrumentNames[object.kind]}${sounds.isMuted ? ' · sound muted' : ''}`;
     }
   }
   const instrumentSelect = get<HTMLSelectElement>('city-instrument');
@@ -586,6 +598,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         status.textContent = `Met ${event.data.name} · shared a ${melody}. Your next phrase carries it. ${count} robot${count === 1 ? '' : 's'} met.`;
         const object = city.musicalObjects.objects.find(o => o.id === event.data.id);
         if (object && creation) city.musicalObjects.pulse(object, cityMusicTime + 60 / creation.bpm / 2);
+        if (creation) {
+          const halfBeat = 30 / creation.bpm;
+          const at = Math.ceil((cityMusicTime + .05) / halfBeat) * halfBeat;
+          musicVisuals.show({ name: `${event.data.name} → ${j.bot.name}`, kind: 'robot', at,
+            detail: `Sharing a ${melody}`, onsets: [0, halfBeat / 2, halfBeat, halfBeat * 1.5],
+            source: () => city?.musicalObjects.project(String(event.data.id)) ?? null,
+            target: () => city?.musicalObjects.project('your-robot') ?? null });
+        }
       }
       if (event.type === 'building_encounter') {
         const role = event.data.kind as CreativeBuilding;
@@ -843,7 +863,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!pointers.has(event.pointerId)) return;
     if (event.type === 'pointerup' && !moved && pointers.size === 1 && city) {
       const p = local(event.clientX, event.clientY), object = city.musicalObjects.at(p.x, p.y);
-      if (object) playCityObject(object);
+      if (object) playCityObject(object, false, city.musicalObjects.pointAt(p.x, p.y));
     }
     if (city?.resizer.active) { city.resizer.finish(event.type === 'pointerup'); panelKey = ''; refresh(); }
     else if (event.type !== 'pointerup' && drawing) { city?.journey.setRoute(savedRoute); city?.sync(); refresh(); }
@@ -884,6 +904,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     // advancing the entire city ten times further per rendered frame.
     for (let step = 0; step < (fastForwarding ? 10 : 1); step++) city.update(seconds);
     refresh();
+    musicVisuals.update(cityMusicTime, reducedMotion.matches, sounds.isMuted);
     physicalStop.disabled = !physicalRobots.reserved;
     if (city.journey.physicalControl) {
       pause.disabled = true; get<HTMLButtonElement>('city-fast-forward').disabled = true;
@@ -917,6 +938,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { physicalRobots.dispose(); projection.dispose(); controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
+    dispose() { musicVisuals.dispose(); physicalRobots.dispose(); projection.dispose(); controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }

@@ -25,7 +25,7 @@ export function instrumentGain(score: SoundScore) {
   for (const edge of edges) { active += edge.change; peak = Math.max(peak, active); }
   // Match oscillator RMS to a sine. Unison layers are correlated, so average them.
   const waveform = { sine: 1, triangle: Math.sqrt(1.5), sawtooth: Math.sqrt(1.5), square: Math.SQRT1_2 };
-  return score.voice.gain * waveform[score.voice.waveform] / (Math.sqrt(peak) * score.voice.layers);
+  return score.voice.gain * (score.voice.partials ? 1 : waveform[score.voice.waveform]) / (Math.sqrt(peak) * score.voice.layers);
 }
 
 const parts: Record<MixPart, { level: number; room: number }> = {

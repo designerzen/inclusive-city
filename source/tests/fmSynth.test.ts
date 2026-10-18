@@ -28,11 +28,11 @@ test('unsafe or incomplete FM patches are rejected before audio node creation', 
   assert.throws(() => SoundEffect.fromScore(score), /fm.ratio/);
 });
 
-test('generated arrangements include FM, with distinct lead patches and deterministic saved voices', () => {
+test('generated arrangements include rich synthesis, with distinct FM leads and deterministic saved voices', () => {
   const noAI = { get: () => undefined };
   for (const style of ['melodic', 'classical', 'chiptune', 'jazz', 'lofi', 'electronic', 'chimes', 'synthwave', ...worldMusicStyles.map(s => s.id)] as const) {
     const preview = new JourneyMusicComposer(style, 42, 50, noAI).preview();
-    assert.ok(preview.some(entry => entry.score.voice.fm), style);
+    assert.ok(preview.some(entry => entry.score.voice.fm || entry.score.voice.partials), style);
     assert.deepEqual(preview, new JourneyMusicComposer(style, 42, 50, noAI).preview());
     for (const entry of preview) assert.deepEqual(SoundEffect.fromScore(entry.score).toScore(), entry.score);
   }

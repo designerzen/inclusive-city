@@ -85,11 +85,39 @@ export function createMusicalObjects(scene: Scene, world: ProceduralCity) {
     }
     return nearest ?? exact;
   }
+  function pointAt(x: number, y: number) {
+    const point = scene.pick(x, y, mesh => byMesh.has(mesh) && visible(mesh))?.pickedPoint;
+    return point ? { x: point.x, y: point.y, z: point.z } : undefined;
+  }
+  /** CSS-pixel bounds for an overlay that stays attached through camera moves and zoom. */
+  function project(id: string, point?: { x: number; y?: number; z: number }) {
+    const object = objects.get(id), camera = scene.activeCamera;
+    if (!object || !camera) return null;
+    scene.updateTransformMatrix();
+    const engine = scene.getEngine(), scale = engine.getHardwareScalingLevel();
+    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    let meshes = object.meshes.filter(visible);
+    if (id === 'steam-train') meshes = meshes.filter(m => /steam-boiler|steam-engine|train-carriage/.test(m.name));
+    const anchor = point ? new Vector3(point.x, point.y ?? .25, point.z) : position(object);
+    if (!anchor) return null;
+    const centre = Vector3.Project(anchor, Matrix.Identity(), scene.getTransformMatrix(), viewport);
+    if (centre.z < 0 || centre.z > 1) return null;
+    const corners = point || id === 'river' || id === 'city-ground' ? [] : meshes.flatMap(mesh => {
+      mesh.computeWorldMatrix(true);
+      return mesh.getBoundingInfo().boundingBox.vectorsWorld.map(v => Vector3.Project(v, Matrix.Identity(), scene.getTransformMatrix(), viewport));
+    }).filter(v => v.z >= 0 && v.z <= 1);
+    const xs = corners.map(p => p.x * scale), ys = corners.map(p => p.y * scale);
+    const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : centre.x * scale;
+    const y = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : centre.y * scale;
+    return { x, y, width: Math.max(48, xs.length ? Math.max(...xs) - Math.min(...xs) + 14 : 64),
+      height: Math.max(48, ys.length ? Math.max(...ys) - Math.min(...ys) + 14 : 64) };
+  }
   function pulse(object: MusicalObject, at: number, point?: { x: number; z: number }) {
     if (pulses.length >= 12) pulses.shift()!.ring.dispose();
-    const ring = MeshBuilder.CreateTorus('musical-response', { diameter: 1.8, thickness: .065, tessellation: 24 }, scene);
+    const ring = MeshBuilder.CreateTorus('musical-response', { diameter: 2.4, thickness: .12, tessellation: 24 }, scene);
     ring.material = glow; ring.isPickable = false; ring.setEnabled(false);
-    if (point && object.id === 'river') ring.metadata = { riverZ: point.z };
+    ring.renderingGroupId = 3;
+    if (point) ring.metadata = { anchor: { x: point.x, z: point.z } };
     pulses.push({ ring, object, at });
   }
   function update(time: number, reducedMotion: boolean) {
@@ -99,7 +127,7 @@ export function createMusicalObjects(scene: Scene, world: ProceduralCity) {
       const centre = position(p.object);
       p.ring.setEnabled(age >= 0 && !!centre);
       if (!centre) continue;
-      p.ring.position.set(centre.x, Math.max(.23, centre.y), p.ring.metadata?.riverZ ?? centre.z);
+      p.ring.position.set(p.ring.metadata?.anchor?.x ?? centre.x, Math.max(.23, centre.y), p.ring.metadata?.anchor?.z ?? centre.z);
       p.ring.scaling.setAll(reducedMotion ? 1 : 1 + Math.max(0, age) * 1.8);
       p.ring.visibility = reducedMotion ? .65 : .8 * (1 - Math.max(0, age) / .9);
     }
@@ -116,6 +144,6 @@ export function createMusicalObjects(scene: Scene, world: ProceduralCity) {
     }).slice(0, 1);
   }
   rebuild();
-  return { rebuild, at, pulse, update, nearby, get objects() { return [...objects.values()].filter(o => o.meshes.some(visible)); },
+  return { rebuild, at, pointAt, project, pulse, update, nearby, get objects() { return [...objects.values()].filter(o => o.meshes.some(visible)); },
     reset() { pulses.splice(0).forEach(p => p.ring.dispose()); lastSlot = -1; } };
 }

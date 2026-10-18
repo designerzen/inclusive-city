@@ -22,11 +22,11 @@ export function robotMusicalIdentity(seed: number) {
     sustain: Math.min(.8, (base.sustain ?? .35) * (.5 + colour)),
     release: Math.max(.005, (base.release ?? .16) * (.7 + colour)),
     cutoff: (base.cutoff ?? 4200) * (.55 + colour * .8),
-    resonance: .4 + colour * 3,
-    layers: colour > .55 ? 2 : 1,
-    spread: 3 + colour * 21,
-    vibratoDepth: colour * 7,
-    vibratoRate: 3 + colour * 4,
+    resonance: Math.min(12, (base.resonance ?? .7) * (.8 + colour * .4)),
+    layers: base.layers ?? (colour > .55 ? 2 : 1),
+    spread: base.spread ?? 3 + colour * 21,
+    vibratoDepth: base.vibratoDepth ?? colour * 7,
+    vibratoRate: base.vibratoRate ?? 3 + colour * 4,
   });
   return { contour, articulation, voice };
 }

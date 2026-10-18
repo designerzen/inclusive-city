@@ -9,11 +9,15 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { mountCityScreen } from '../../src/ui/cityScreen';
 import { CitySounds } from '../../src/audio/CitySounds';
 import { BotHistory } from '../../src/robot/botHistory';
+import { reducedMotionPreference } from '../../src/app/accessibilityPreferences';
 
 // Exercise the actual city HUD and Web Audio with procedural fallback, without model downloads.
 const canvas = document.createElement('canvas');
 const engine = new Engine(canvas, true);
 const sounds = new CitySounds();
+const options = new URLSearchParams(location.search);
+if (options.has('reduced-motion')) reducedMotionPreference().setReduced(true);
+if (options.has('muted')) sounds.setMuted(true);
 const screen = mountCityScreen(document.querySelector('#city-screen')!, sounds, engine, canvas, () => {});
 screen.enter(new BotHistory(['Curie', 'Einstein']).current);
 const meeting = document.createElement('button');

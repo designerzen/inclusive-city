@@ -82,6 +82,11 @@ test('non-pickable decoration becomes an instrument; nearby rhythms and rings do
     const object = objects.objects.find(o => o.id === 'building:Gallery')!;
     assert.ok(object); assert.equal(object.kind, 'bell');
     assert.equal(objects.at(engine.getRenderWidth() / 2, engine.getRenderHeight() / 2)?.id, object.id, 'decoration is clickable even when it is not an editor target');
+    const focus = objects.project(object.id)!;
+    assert.ok(focus.width >= 48 && focus.height >= 48);
+    wall.position.x += 3; scene.render();
+    assert.ok(objects.project(object.id)!.x > focus.x, 'the visual focus follows moving geometry');
+    assert.equal(objects.project('missing-object'), null);
     const slot = objectRhythmSlot(object.id), time = slot / 4;
     assert.equal(objects.nearby(time, 120, { x: 6, y: 0, z: 0 }).length, 1);
     assert.equal(objects.nearby(time, 120, { x: 6, y: 0, z: 0 }).length, 0);
