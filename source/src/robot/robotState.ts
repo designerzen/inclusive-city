@@ -6,7 +6,7 @@ import type { ArtworkTitle } from '../art/ArtworkTitleGenerator';
 import type { CreativePreferences } from './creativePreferences';
 import type { ArtistPreferences } from '../art/artistStyles';
 import type { ProceduralCity } from '../city/proceduralCity';
-import { freshCondition, advanceCondition } from './robotCondition';
+import { freshCondition, advanceCondition, drainBattery } from './robotCondition';
 import type { RobotCondition } from './robotCondition';
 
 export type RobotState = 'designer' | 'ready' | 'following' | 'waiting' | 'blocked' | 'paused' | 'collecting' | 'arrived';
@@ -91,7 +91,10 @@ export class RobotStateMachine {
     this.transition('following');
     this.emit('journey_started');
   }
-  add(key: keyof RobotMetrics, amount: number) { this.record.metrics[key] += amount; this.run.metrics[key] += amount; }
+  add(key: keyof RobotMetrics, amount: number) {
+    this.record.metrics[key] += amount; this.run.metrics[key] += amount;
+    if (key === 'distance') drainBattery(this.record.condition, amount, this.record.metadata.profile.effectiveAbilities.endurance);
+  }
   advance(seconds: number, mode: 'movingSeconds' | 'blockedSeconds' | 'pausedSeconds' | 'waitingSeconds') {
     this.record.clock += seconds; this.add(mode, seconds);
     advanceCondition(this.record.condition, seconds, mode === 'movingSeconds' ? 'moving' : mode === 'blockedSeconds' ? 'blocked' : mode === 'waitingSeconds' ? 'waiting' : 'resting');

@@ -33,12 +33,15 @@ test('journey reports actual speed and heading, rests on pause, resets on restar
   const history = new BotHistory(['Curie', 'Einstein'], () => 0), bot = history.current;
   const journey = new CityJourney(bot);
   journey.update(1);
+  assert.ok(bot.record.condition.batteryCharge! < 100);
   assert.ok(bot.record.condition.speed > 0); assert.equal(bot.record.condition.direction, journey.heading);
   journey.update(20); journey.update(10);
   assert.equal(bot.record.condition.speed, 0); assert.equal(bot.record.condition.mood, 'frustrated');
   const fatigue = bot.record.condition.fatigue;
+  const charge = bot.record.condition.batteryCharge;
   journey.paused = true; journey.update(5);
   assert.ok(bot.record.condition.fatigue < fatigue);
+  assert.equal(bot.record.condition.batteryCharge, charge);
   const snapshot = journey.machine.snapshot(); snapshot.condition.frustration = 0;
   assert.ok(bot.record.condition.frustration > 0);
   history.next(); assert.deepEqual(history.current.record.condition, freshCondition());

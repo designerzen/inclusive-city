@@ -7,8 +7,18 @@ export interface RobotCondition {
   speed: number;
   frustration: number;
   fatigue: number;
+  /** Remaining charge, 0–100. Older saved records start fully charged. */
+  batteryCharge?: number;
 }
-export const freshCondition = (): RobotCondition => ({ mood: 'curious', direction: 0, speed: 0, frustration: 0, fatigue: 0 });
+export const freshCondition = (): RobotCondition => ({ mood: 'curious', direction: 0, speed: 0, frustration: 0, fatigue: 0, batteryCharge: 100 });
+
+/** Charge follows actual travel, so waiting and frame rate cannot drain it. */
+export function drainBattery(condition: RobotCondition, distance: number, endurance: number) {
+  if (!Number.isFinite(distance) || distance <= 0) return;
+  const range = 80 + Math.max(0, Math.min(100, Number.isFinite(endurance) ? endurance : 50)) * 1.6;
+  const charge = Number.isFinite(condition.batteryCharge) ? condition.batteryCharge! : 100;
+  condition.batteryCharge = Math.max(0, Math.min(100, charge) - distance / range * 100);
+}
 
 /** Time-based changes keep feelings independent of animation frame rate. */
 export function advanceCondition(condition: RobotCondition, seconds: number, mode: 'moving' | 'blocked' | 'resting' | 'waiting') {

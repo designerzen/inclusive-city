@@ -17,6 +17,12 @@ export function createBatteries(scene: Scene, body: TransformNode) {
   const copper = material('copper', '#d99557');
   const metal = material('terminal', '#dce4e7');
   metal.specularColor = new Color3(.8, .8, .8);
+  const trackMaterial = material('charge-track', '#071c10');
+  const electricity = material('electricity', '#39ff14');
+  electricity.disableLighting = true;
+  electricity.emissiveColor = Color3.FromHexString('#39ff14');
+  const bars: ReturnType<typeof MeshBuilder.CreateBox>[] = [];
+  let charge = 100, flashTime = 0, motionReduced = false;
   let labelMaterial: StandardMaterial | undefined;
   if (scene.getEngine().getRenderingCanvas()) {
     const texture = new DynamicTexture('battery-AA-label', { width: 128, height: 256 }, scene, false);
@@ -43,15 +49,20 @@ export function createBatteries(scene: Scene, body: TransformNode) {
       mark.parent = root; mark.position.set(0, .99, .169); mark.material = casing; mark.isPickable = false;
     }
     if (labelMaterial) {
-      const label = MeshBuilder.CreatePlane(`battery-${index}-label`, { width: .22, height: .44 }, scene);
-      label.parent = root; label.position.set(0, .49, .173); label.rotation.y = Math.PI;
+      const label = MeshBuilder.CreatePlane(`battery-${index}-label`, { width: .12, height: .24 }, scene);
+      label.parent = root; label.position.set(-.065, .49, .173); label.rotation.y = Math.PI;
       label.material = labelMaterial; label.isPickable = false;
     }
+    const track = MeshBuilder.CreateBox(`battery-${index}-charge-track`, { width: .105, height: .74, depth: .018 }, scene);
+    track.parent = root; track.position.set(.07, .46, .177); track.material = trackMaterial; track.isPickable = false;
+    const bar = MeshBuilder.CreateBox(`battery-${index}-charge`, { width: .065, height: 1, depth: .012 }, scene);
+    bar.parent = root; bar.position.set(.07, .46, .194); bar.scaling.y = .7;
+    bar.material = electricity; bar.isPickable = false; bars.push(bar);
     const rail = MeshBuilder.CreateBox(`battery-${index}-mount`, { width: .39, height: .07, depth: .43 }, scene);
     rail.parent = root; rail.position.set(0, -.035, -.025); rail.material = casing; rail.isPickable = false;
     return root;
   });
-  return (profile: RobotProfile) => {
+  function setProfile(profile: RobotProfile) {
     const longLife = profile.abilities.endurance >= 50;
     const scale = .65 + profile.abilities.burstPower * .0035;
     cells.forEach((cell, index) => {
@@ -59,5 +70,24 @@ export function createBatteries(scene: Scene, body: TransformNode) {
       cell.position.x = longLife ? (index ? .23 : -.23) : 0;
       cell.scaling.setAll(scale);
     });
-  };
+  }
+  function setCharge(value = 100) {
+    charge = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 100;
+    for (const bar of bars) {
+      const height = .7 * charge / 100;
+      bar.scaling.y = height;
+      bar.position.y = .11 + height / 2;
+      bar.setEnabled(charge > 0);
+    }
+    if (charge > 15 || charge === 0) flashTime = 0;
+    update(0);
+  }
+  function update(seconds: number, reducedMotion = motionReduced) {
+    motionReduced = reducedMotion;
+    if (Number.isFinite(seconds) && seconds > 0) flashTime = (flashTime + seconds) % 1;
+    const low = charge > 0 && charge <= 15;
+    const brightness = low && !reducedMotion && flashTime >= .5 ? .18 : 1;
+    electricity.emissiveColor = Color3.FromHexString('#39ff14').scale(brightness);
+  }
+  return { setProfile, setCharge, update };
 }

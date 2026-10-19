@@ -1,4 +1,4 @@
-import { freshCondition, advanceCondition } from '../robot/robotCondition';
+import { freshCondition, advanceCondition, drainBattery } from '../robot/robotCondition';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import { bodyColours, bodyShapes, defaultAppearance } from '../robot/appearance';
@@ -100,6 +100,7 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
         const p = bot.character.controller.getPosition();
         const moved = Math.hypot(p.x - before.x, p.z - before.z);
         bot.distance += moved;
+        drainBattery(bot.condition, moved, 50);
         bot.stuck = speed > 0 && moved < speed * dt * .1 ? bot.stuck + dt : 0;
         if (movement.contact === 'player') bot.yielding = true;
         if (movement.contact && !bot.returning && !bot.escape) retreat(bot);

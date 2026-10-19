@@ -220,9 +220,9 @@ export function createRobot(scene: Scene) {
   frontWheel.setEnabled(false);
   frontFork.setEnabled(false);
 
-  const setBatteries = createBatteries(scene, upperBody);
+  const batteries = createBatteries(scene, upperBody);
   function setProfile(profile: RobotProfile) {
-    setBatteries(profile);
+    batteries.setProfile(profile);
     visionEnabled = profile.enabledFunctions.includes('vision');
     hearingEnabled = profile.enabledFunctions.includes('hearing');
     balanceEnabled = profile.enabledFunctions.includes('balance');
@@ -295,6 +295,7 @@ export function createRobot(scene: Scene) {
   function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false, turnAngle = 0, animationSeconds = seconds) {
     if (!Number.isFinite(distance) || !Number.isFinite(seconds) || distance < 0 || seconds <= 0) return;
     if (paused) return;
+    batteries.update(animationSeconds, reducedMotion);
     balancePhase += seconds;
     const moving = distance > 1e-8;
     travelPhase = (travelPhase + distance * Math.PI * 2 / 1.5) % (Math.PI * 2);
@@ -370,6 +371,6 @@ export function createRobot(scene: Scene) {
     });
   }
   return { robot, setName, setProfile, setAppearance, updateShapeTransition, animateTravel, characterAnimation,
-    setCondition(value: RobotCondition) { characterAnimation.condition = value; characterAnimation.mood = value.mood; robot.metadata = { ...robot.metadata, condition: value }; },
+    setCondition(value: RobotCondition) { batteries.setCharge(value.batteryCharge); characterAnimation.condition = value; characterAnimation.mood = value.mood; robot.metadata = { ...robot.metadata, condition: value }; },
     setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
 }
