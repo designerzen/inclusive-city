@@ -1,0 +1,11 @@
+.journey-inspirations { min-width: 0; }
+.journey-inspirations > summary { box-sizing: border-box; min-width: 44px; min-height: 44px; padding: 12px 16px; cursor: pointer; font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.inspiration-content { padding: 0 16px 12px; }
+.inspiration-content > p { font-size: .8125rem; line-height: 1.5; margin: 8px 0; }
+.inspiration-list { display: grid; gap: 12px; list-style: none; margin: 12px 0 0; padding: 0; }
+.inspiration-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+.inspiration-list li > span { font-size: 1.25rem; }
+.inspiration-list p { margin: 4px 0 0; }
+.inspiration-reveal { margin: 0; padding: 12px 16px; font-size: .875rem; line-height: 1.5; border-block: 1px solid var(--ui-border); }
+#city-screen.has-new-inspiration .painting-hud { outline: 3px solid currentColor; outline-offset: -3px; }
+#exhibition-inspirations .inspiration-content { position: absolute; right: 0; bottom: calc(100% + 8px); width: min(360px, calc(100vw - 32px)); box-sizing: border-box; max-height: min(50dvh, 440px); overflow: auto; border: 1px solid #777; border-radius: 8px; color: #fff; background: #202020; }
