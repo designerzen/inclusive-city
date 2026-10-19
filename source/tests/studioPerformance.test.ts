@@ -11,10 +11,10 @@ import type { FinishedJourney } from '../src/art/finishedJourney';
 import { createExhibitionPerformer } from '../src/app/createExhibitionPerformer';
 import { createCityCamera } from '../src/city/cityCamera';
 import { createRobot } from '../src/robot/createRobot';
-import { defaultAppearance } from '../src/robot/appearance';
+import { defaultAppearance, robotAccessories } from '../src/robot/appearance';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
-test('studio presentation clears the borrowed camera bank on entry and resize', t => {
+test('studio presentation clears camera bank and fits the full accessorised robot and instruments on resize', t => {
   let onResize = () => {};
   const globals = {
     window: { matchMedia: () => ({ matches: false, addEventListener() {} }), removeEventListener() {} },
@@ -39,9 +39,12 @@ test('studio presentation clears the borrowed camera bank on entry and resize', 
     parentElement: { insertBefore() {} }, nextSibling: null,
     classList: { add() {}, remove() {} },
   } as unknown as HTMLCanvasElement;
-  const journey = { name: 'ArtBot', robot: { appearance: defaultAppearance() } } as FinishedJourney;
-  const performer = createExhibitionPerformer(canvas, journey, scene, camera, createRobot(scene),
-    createStudioInstruments(scene), new JourneyDance([], 120), () => controls.update());
+  const appearance = { ...defaultAppearance(), height: 1.25, width: 1.3, accessories: robotAccessories.map(item => item.id) };
+  const journey = { name: 'ArtBot', robot: { appearance } } as FinishedJourney;
+  const bot = createRobot(scene); bot.setAppearance(appearance);
+  const instruments = createStudioInstruments(scene, appearance.height);
+  const performer = createExhibitionPerformer(canvas, journey, scene, camera, bot,
+    instruments, new JourneyDance([], 120), () => controls.update());
   const bank = () => {
     camera.rotation.set(.4, .7, .35); camera.getViewMatrix(true);
     camera.rotation.z = 0; camera.getViewMatrix(true);
@@ -53,6 +56,20 @@ test('studio presentation clears the borrowed camera bank on entry and resize', 
   try {
     bank(); performer.enter({ append() {} } as unknown as HTMLElement); assertUpright();
     bank(); onResize(); assertUpright();
+    for (const [width, height] of [[2048, 562], [390, 490], [844, 250]]) {
+      t.mock.method(engine, 'getRenderWidth', () => width!);
+      t.mock.method(engine, 'getRenderHeight', () => height!);
+      onResize();
+      const view = camera.getViewMatrix(true);
+      for (const mesh of [...bot.robot.getChildMeshes(), ...instruments.root.getChildMeshes()]) {
+        if (!mesh.isEnabled() || !mesh.isVisible) continue;
+        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+          const point = Vector3.TransformCoordinates(corner, view);
+          assert.ok(point.x > camera.orthoLeft! && point.x < camera.orthoRight!, `${mesh.name} fits horizontally at ${width}×${height}`);
+          assert.ok(point.y > camera.orthoBottom! && point.y < camera.orthoTop!, `${mesh.name} fits vertically at ${width}×${height}`);
+        }
+      }
+    }
   } finally { performer.dispose(); scene.dispose(); engine.dispose(); }
 });
 

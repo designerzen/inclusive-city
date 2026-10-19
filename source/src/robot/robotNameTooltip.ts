@@ -1,7 +1,7 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { robotScreenBounds } from './robotScreenBounds';
 
 const canvasLabels = new WeakMap<HTMLCanvasElement, Set<{ scene: Scene; label: HTMLDivElement }>>();
 const canvasHover = new WeakMap<HTMLCanvasElement, { scene: Scene; frame: number; mesh: AbstractMesh | null }>();
@@ -52,18 +52,20 @@ export function robotNameTooltip(scene: Scene, robot: TransformNode) {
       if (!hover.mesh?.isDescendantOf(robot)) return;
     }
     const viewport = scene.activeCamera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
-    robot.computeWorldMatrix(true);
-    const point = Vector3.Project(Vector3.TransformCoordinates(new Vector3(0, 4.2, 0), robot.getWorldMatrix()), Matrix.Identity(), scene.getTransformMatrix(), viewport);
-    if (point.z < 0 || point.z > 1) return;
-    const x = bounds.left + point.x * bounds.width / engine.getRenderWidth();
-    const y = bounds.top + point.y * bounds.height / engine.getRenderHeight();
+    const projected = robotScreenBounds(robot, scene.getTransformMatrix(), viewport);
+    if (!projected) return;
+    const x = bounds.left + (projected.left + projected.right) / 2 * bounds.width / engine.getRenderWidth();
+    const y = bounds.top + projected.top * bounds.height / engine.getRenderHeight();
     if (x < bounds.left || x > bounds.right || y > bounds.bottom || y < bounds.top) return;
     tooltip.hidden = false;
     const hint = robot.metadata?.shapeHover;
     const text = hint ? `Click to change ${hint} shape` : name;
     if (tooltip.textContent !== text) tooltip.textContent = text;
     tooltip.style.left = `${Math.max(tooltip.offsetWidth / 2 + 8, Math.min(window.innerWidth - tooltip.offsetWidth / 2 - 8, x))}px`;
-    tooltip.style.top = `${Math.max(8, y - tooltip.offsetHeight - 12)}px`;
+    const top = y - tooltip.offsetHeight - 12;
+    // Never clamp downward over the robot when there is no room above it.
+    if (top < Math.max(8, bounds.top + 8)) { hide(); return; }
+    tooltip.style.top = `${top}px`;
   });
   scene.onDisposeObservable.add(() => {
     scene.onAfterRenderObservable.remove(observer);

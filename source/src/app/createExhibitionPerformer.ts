@@ -35,14 +35,43 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const frontWheel = scene.getMeshByName('front-wheel')!;
   const motion = reducedMotionPreference();
   let clock: (() => number) | null = null, active = false, dirty = true;
+  const stageMeshes = [...robotMeshes, ...instruments.root.getChildMeshes()];
+  let frame: { left: number; right: number; bottom: number; top: number } | null = null;
+  const fitStage = () => {
+    const view = camera.getViewMatrix(true);
+    let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
+    for (const mesh of stageMeshes) {
+      if (!mesh.isEnabled() || !mesh.isVisible) continue;
+      mesh.computeWorldMatrix(true);
+      for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+        const point = Vector3.TransformCoordinates(corner, view);
+        left = Math.min(left, point.x); right = Math.max(right, point.x);
+        bottom = Math.min(bottom, point.y); top = Math.max(top, point.y);
+      }
+    }
+    if (!Number.isFinite(left)) return;
+    // Include accessories and instruments, with breathing room around every edge.
+    // Only expand during playback so head and arm movements cannot cause zoom jitter.
+    const padding = .3;
+    frame = {
+      left: Math.min(frame?.left ?? Infinity, left - padding),
+      right: Math.max(frame?.right ?? -Infinity, right + padding),
+      bottom: Math.min(frame?.bottom ?? Infinity, bottom - padding),
+      top: Math.max(frame?.top ?? -Infinity, top + padding),
+    };
+    const aspect = engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
+    const halfHeight = Math.max((frame.top - frame.bottom) / 2, (frame.right - frame.left) / (2 * aspect));
+    const x = (frame.left + frame.right) / 2, y = (frame.bottom + frame.top) / 2;
+    camera.orthoTop = y + halfHeight; camera.orthoBottom = y - halfHeight;
+    camera.orthoLeft = x - halfHeight * aspect; camera.orthoRight = x + halfHeight * aspect;
+  };
   const resize = () => {
     engine.resize();
     camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
     camera.upVector.copyFromFloats(0, 1, 0);
     camera.position.set(0, 4.1, -12); camera.setTarget(new Vector3(0, 1.9, 0));
-    const aspect = engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
-    const height = Math.max(2.1, (2.05 * journey.robot.appearance.width) / aspect, 2.05 * journey.robot.appearance.height);
-    camera.orthoTop = height; camera.orthoBottom = -height; camera.orthoLeft = -height * aspect; camera.orthoRight = height * aspect;
+    frame = null;
+    fitStage();
     dirty = true;
   };
   const observer = new ResizeObserver(() => { if (active) resize(); }); observer.observe(canvas);
@@ -60,6 +89,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
     head.rotation.set(pose.headNod, pose.headYaw, pose.headTilt);
     arms[0]!.rotation.set(pose.armSwing, 0, pose.leftArm); arms[1]!.rotation.set(pose.armSwing - .04 * pose.energy, 0, pose.rightArm);
     antenna.rotation.z = pose.antenna;
+    fitStage();
     scene.render(); dirty = false;
   };
   engine.runRenderLoop(render);
