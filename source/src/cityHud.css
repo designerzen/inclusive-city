@@ -30,8 +30,7 @@ body:has(.city-mode) { overflow: hidden; }
 .workshop.city-mode { width: 100%; max-width: none; height: 100dvh; margin: 0; padding: 0; }
 .city-mode > .sound-controls { position: fixed; top: 16px; right: 16px; z-index: 30; margin: 0; filter: grayscale(1); }
 #city-screen { position: fixed; inset: 0; height: 100dvh; isolation: isolate; color: #eeeeee; background: #171717; }
-/* Keep the city monochrome while allowing the recording indicator to be red. */
-#city-screen > :not(.city-interaction-hud),
+/* Keep HUD panels neutral without desaturating the city canvas. */
 .city-interaction-hud > :not(#city-reply),
 .city-reply > :not(.city-reply-heading) { filter: grayscale(1); }
 #city-screen .city-journey-actions { padding: 12px 12px 0; }
