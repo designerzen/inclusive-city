@@ -1,9 +1,11 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Curve3 } from '@babylonjs/core/Maths/math.path';
 import { robotAccessories } from './appearance';
 import type { RobotAccessory } from './appearance';
 
@@ -109,8 +111,19 @@ export function createAccessories(scene: Scene, head: TransformNode, body: Trans
     for (let stripe = 0; stripe < 3; stripe++) box('scarf', `scarf-stripe-${i}-${stripe}`, [.185, .045, .012], [x, 1.08 + stripe * .15 + i * .12, -.623], feather);
   }
   for (const side of [-1, 1]) {
-    const curl = [[0, -.09, -.68], [side * .12, -.07, -.7], [side * .25, -.15, -.7], [side * .39, -.12, -.68], [side * .43, -.02, -.66]];
-    tube('moustache', `moustache-${side}`, curl, .055, ink);
+    // Dalí's long, waxed whiskers sweep beyond the cheeks into fine upward tips.
+    const curl = Curve3.CreateCubicBezier(
+      new Vector3(0, -.1, -.84),
+      new Vector3(side * .48, -.35, -.88),
+      new Vector3(side * 1.08, -.2, -.88),
+      new Vector3(side * 1.32, .65, -.84),
+      32,
+    ).getPoints();
+    const whisker = MeshBuilder.CreateTube(`accessory-moustache-${side}`, {
+      path: curl, tessellation: 12, cap: Mesh.CAP_ALL,
+      radiusFunction: i => .008 + .087 * Math.pow(1 - i / (curl.length - 1), .8),
+    }, scene);
+    whisker.parent = roots.moustache; whisker.material = ink; whisker.isPickable = false;
     for (let i = 0; i < 4; i++) {
       const plume = ellipsoid('wings', `wing-${side}-${i}`, [side * (1.02 + i * .18), 1.05 + i * .16, .38], [.22, .65 - i * .07, .1], feather);
       plume.rotation.z = -side * (.35 + i * .16);

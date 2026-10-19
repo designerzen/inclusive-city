@@ -14,6 +14,22 @@ import type { RobotEvent, RobotEventType } from '../src/robot/robotState';
 
 const phrase = { at: 0, phrase: 0, steps: 0, edge: 0, blocked: false, harmony: false };
 
+test('museum echoes omit silent parts when the generated lead starts at the end of a bar', () => {
+  const composer = new JourneyMusicComposer('melodic', 42661, 50, {
+    get: () => [{ pitch: 67, quantizedStartStep: 31, quantizedEndStep: 32 }],
+  });
+  composer.museumInfluence = true;
+  const score = composer.compose({ ...phrase, phrase: 1 });
+  assert.match(score[0]!.label!, /magenta/);
+  assert.equal(score[0]!.score.notes.length, 1);
+  assert.ok(!score.some(entry => entry.label?.includes('backing:museum')));
+  for (const entry of score) assert.doesNotThrow(() => SoundEffect.fromScore(entry.score));
+
+  const opening = composer.compose(phrase);
+  assert.ok(opening.some(entry => entry.label?.includes('backing:museum')));
+  for (const entry of opening) assert.doesNotThrow(() => SoundEffect.fromScore(entry.score));
+});
+
 test('studio verses wait for Magenta, add chord-matched backing and preserve each genre groove', async () => {
   let ready = false, requests = 0;
   const provider = {

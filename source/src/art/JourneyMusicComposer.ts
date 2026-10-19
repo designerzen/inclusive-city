@@ -238,6 +238,8 @@ export class JourneyMusicComposer {
     });
     const result: SoundSequenceEntry[] = [{ at: data.at, score: melody, label: `journey:melody:${data.phrase}` }];
     const add = (part: string, voice: Voice, notes: SoundScore['notes']) => {
+      // A filtered accompaniment can be silent; only emit playable sound scores.
+      if (!notes.length) return;
       const score = new SoundEffect({ echoTime: beat / 2, ...voice }).toScore(); score.notes = notes;
       result.push({ at: data.at, score, label: `journey:${part}:${data.phrase}` });
     };

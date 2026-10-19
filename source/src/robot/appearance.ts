@@ -2,7 +2,7 @@ export const bodyShapes = ['box', 'rounded', 'cylinder', 'hexagon', 'diamond', '
 export type RobotShape = typeof bodyShapes[number];
 export type RobotShapePart = 'head' | 'body';
 export const robotAccessories = [
-  { id: 'moustache', label: 'Moustache', description: 'A splendid curly moustache.' },
+  { id: 'moustache', label: 'Moustache', description: 'A grand Dalí-inspired moustache with long, upturned tips.' },
   { id: 'wings', label: 'Wings', description: 'A pair of feathery wings.' },
   { id: 'monocle', label: 'Monocle', description: 'A golden eyepiece and chain.' },
   { id: 'topHat', label: 'Top hat', description: 'A tall hat with a colourful band.' },

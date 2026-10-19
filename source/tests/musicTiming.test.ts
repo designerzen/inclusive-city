@@ -54,6 +54,21 @@ test('live batches share an epoch even when callbacks arrive at different times'
   assert.ok(Math.abs(c.sounds.musicTime(120) - .36) < 1e-8);
 });
 
+test('live playback continues after a museum phrase with no echo notes', t => {
+  const c = clock(t);
+  const composer = new JourneyMusicComposer('melodic', 42661, 50, {
+    get: () => [{ pitch: 67, quantizedStartStep: 31, quantizedEndStep: 32 }],
+  });
+  composer.museumInfluence = true;
+  c.sounds.startMusic(composer.bpm);
+  const phrase = { at: 0, phrase: 1, steps: 0, edge: 0, blocked: false, harmony: false };
+  assert.doesNotThrow(() => c.sounds.performLive(composer.compose(phrase)));
+  const previousBatches = c.batches.length;
+  c.context.currentTime = 10.5;
+  assert.doesNotThrow(() => c.sounds.performLive(composer.compose({ ...phrase, at: .5, phrase: 2 })));
+  assert.ok(c.batches.length > previousBatches, 'the next live phrase is scheduled');
+});
+
 test('a delayed playback callback drops missed onsets and preserves future notes', t => {
   const c = clock(t);
   c.sounds.perform([entry(1)], 0);
