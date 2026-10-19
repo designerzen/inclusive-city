@@ -13,7 +13,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  firmware:
+    uses: ./.github/workflows/robot-comms-firmware.yml
+
   build:
+    needs: firmware
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -30,6 +34,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Include compiled Robot Comms firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: robot-comms-firmware
+          path: source/public/firmware/robot-comms
 
       - name: Configure GitHub Pages
         id: pages

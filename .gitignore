@@ -5,3 +5,8 @@ dist/
 *.local
 *.docx
 *.pdf
+source/public/firmware/robot-comms/built/
+source/public/firmware/robot-comms/pxt_modules/
+source/public/firmware/robot-comms/.mkc-cache/
+source/public/firmware/robot-comms/robot-comms.hex
+source/public/firmware/robot-comms/robot-comms.hex.sha256

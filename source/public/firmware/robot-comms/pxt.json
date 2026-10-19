@@ -1,0 +1,8 @@
+{
+  "name": "robot-comms",
+  "description": "micro:bit V2 bidirectional Bluetooth UART test",
+  "dependencies": { "core": "*", "bluetooth": "*" },
+  "files": ["main.ts"],
+  "preferredEditor": "tsprj",
+  "yotta": { "config": { "microbit-dal": { "bluetooth": { "pairing_mode": 0, "open": 1, "whitelist": 0, "security_level": null } } } }
+}

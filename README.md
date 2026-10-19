@@ -24,6 +24,8 @@ These documents describe the wider proposed game, researched on 2 October 2026. 
 
 Two standalone line projections are available at `/traffic-light.html` (a straight line with a crossing barcode midway) and `/figure-eight.html` (a loop with junction barcodes before both approaches to the intersection). Both reuse the city's line renderer, barcode format, Settings controls and saved projection preferences. They are included in the production build.
 
+**Robot Comms** is a standalone micro:bit V2 Bluetooth test at `/robot-comms.html`, included in the production build. Send any of 16 commands, receive board button signals, inspect acknowledgements and LEDs, and toggle an eight-second occasional-signal demo. [Firmware source, flashing instructions and protocol](source/public/firmware/robot-comms/README.md) are included. Run `pnpm --filter inclusive-city start` and open `http://localhost:5173/robot-comms.html` in a Web Bluetooth capable browser. This test is independent of the city's physical robot controls.
+
 Requires Node.js 20.19+ or 22.12+ and pnpm 12.3.4. From the repository root:
 
 ```sh
