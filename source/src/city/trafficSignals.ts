@@ -11,3 +11,13 @@ export function crossingSignal(time: number, greenSeconds: number) {
     clearance: phase >= redSeconds + greenSeconds,
   };
 }
+
+/** Rounded up so a live phase never misleadingly displays zero seconds. */
+export function crossingCountdown(signal: ReturnType<typeof crossingSignal>, greenSeconds: number) {
+  const remaining = signal.green ? signal.remaining : signal.untilGreen;
+  return {
+    text: `${signal.green ? 'Cross' : 'Wait'} · ${Math.ceil(remaining)}s`,
+    description: signal.green ? 'Time left to cross' : 'Time until green',
+    progress: Math.max(0, Math.min(1, remaining / (signal.green ? greenSeconds : 6))),
+  };
+}

@@ -38,6 +38,8 @@ import { createRoadGeometryCache } from './roadGeometryCache';
 import { createGoalFlag } from './goalFlag';
 import { studioApproach } from './studioApproach';
 import { createRiver } from './createRiver';
+import { createSkyline } from './createSkyline';
+import { createCitySkybox } from './createCitySkybox';
 import { creativeBuildingModel } from './creativeBuildingModel';
 import { createCityEditTransitions } from './cityEditTransitions';
 import { createZebraCrossing, zebraRoadSites, signalCrossingSite } from './zebraCrossing';
@@ -45,6 +47,7 @@ import { normalizeZebraPairs } from '../app/zebraPreferences';
 import { routeToGoal } from './proceduralCity';
 import { RouteTrajectory } from './routeTrajectory';
 import { createMusicalObjects } from './musicalObjects';
+import { createCrossingCountdown } from './crossingCountdown';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -89,6 +92,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const groundMesh = box('ground', 0, -.12, 0, 1, .15, 1, ground); solids.push(groundMesh);
   const river = createRiver(scene, world.riverX);
   const riverMesh = river.mesh;
+  const skyline = createSkyline(scene);
+  const skybox = createCitySkybox(scene);
   const streetModels = world.streets.map(street => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
     const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
@@ -155,6 +160,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const pole = box(`signal-pole-${street.id}-${i}`, x, .9, z, .12, 1.8, .12, flagBlack);
       const housing = box(`signal-head-${street.id}-${i}`, x, 2.05, z, .6, .9, .4, flagBlack);
       housing.metadata = { street: street.id }; housing.isPickable = true;
+      createCrossingCountdown(scene, housing, () => journey.signal(street), () => street.crossingSeconds);
       const lamp = (name: string, y: number) => {
         const mesh = MeshBuilder.CreateSphere(`${name}-${street.id}-${i}`, { diameter: .28, segments: 12 }, scene);
         mesh.position.set(x, y, z - .23); mesh.material = signalOff; mesh.isPickable = false; return mesh;
@@ -288,7 +294,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     }
     const extentX = Math.max(28, ...world.nodes.map(n => Math.abs(n.x) + 5), ...world.buildings.map(b => Math.abs(b.x) + b.w / 2 + 4), Math.abs(world.bicycleGarage?.x ?? 0) + 6);
     const extentZ = Math.max(22, ...world.nodes.map(n => Math.abs(n.z) + 5), ...world.buildings.map(b => Math.abs(b.z) + b.d / 2 + 4), Math.abs(world.bicycleGarage?.z ?? 0) + 6);
-    groundMesh.scaling.set(extentX * 2, 1, extentZ * 2); riverMesh.scaling.z = extentZ * 2;
+    // Carry the landscape past the skyline so the river reads as a continuous waterway.
+    groundMesh.scaling.set((extentX + 90) * 2, 1, (extentZ + 90) * 2);
+    riverMesh.scaling.z = (extentZ + 90) * 2;
+    skyline.resize(extentX, extentZ, world.riverX);
     syncSignals();
     physics?.sync();
   }
@@ -510,6 +519,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   function setTheme(value: Theme) {
     river.setTheme(value);
+    skyline.setTheme(value);
+    skybox.setTheme(value);
     theme = value; scene.clearColor = Color4.FromHexString(value === 'dark' ? '#171717ff' : '#edededff');
     palette.forEach(({ mat, dark, light }) => { mat.diffuseColor = Color3.FromHexString(value === 'dark' ? dark : light); if (mat.disableLighting) mat.emissiveColor = mat.diffuseColor; });
     labelMaterials.forEach(({ texture, text }) => { const ctx = texture.getContext() as CanvasRenderingContext2D; ctx.clearRect(0, 0, 512, 128); ctx.fillStyle = value === 'dark' ? '#171717' : '#eeeeee'; ctx.fillRect(0, 0, 512, 128); ctx.font = 'bold 45px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = value === 'dark' ? '#eeeeee' : '#222222'; ctx.fillText(text, 256, 64); texture.update(); });

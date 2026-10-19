@@ -4,7 +4,7 @@ import { BotHistory } from '../src/robot/botHistory';
 import { createRobotProfile, robotFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
-import { crossingSignal } from '../src/city/trafficSignals';
+import { crossingSignal, crossingCountdown } from '../src/city/trafficSignals';
 import type { FunctionId } from '../src/robot/functions';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 import { robotButtonReach } from '../src/city/proceduralCity';
@@ -30,6 +30,20 @@ test('pedestrian green and clearance stop road traffic, with red before each gre
   assert.equal(crossingSignal(16, 12).green, false);
   assert.equal(crossingSignal(16, 12).clearance, true);
   assert.equal(crossingSignal(18, 12).clearance, false);
+});
+
+test('countdown follows green, clearance and red boundaries without an early zero', () => {
+  const display = (time: number, green = 12) => crossingCountdown(crossingSignal(time, green), green);
+  assert.equal(display(0).text, 'Wait · 4s');
+  assert.equal(display(4).text, 'Cross · 12s');
+  assert.equal(display(15.99).text, 'Cross · 1s');
+  assert.equal(display(16).text, 'Wait · 6s');
+  assert.equal(display(18).text, 'Wait · 4s');
+  assert.equal(display(22).text, 'Cross · 12s');
+  assert.equal(display(4, 20).text, 'Cross · 20s');
+  assert.equal(display(4).progress, 1);
+  assert.equal(display(10).progress, .5);
+  assert.equal(display(16).progress, 1);
 });
 
 test('a slow robot waits for green without a failure, then finishes before red', () => {

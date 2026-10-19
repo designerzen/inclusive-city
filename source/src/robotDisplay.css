@@ -26,3 +26,23 @@
   border-bottom: 1px solid #81d9c5;
   transform: rotate(45deg);
 }
+.crossing-countdown {
+  position: fixed;
+  z-index: 35;
+  transform: translateX(-50%);
+  padding: 5px 9px 6px;
+  min-width: 76px;
+  text-align: center;
+  border: 1px solid #eea49d;
+  border-radius: 7px;
+  background: #202b30;
+  color: #ffd8d2;
+  box-shadow: 0 2px 8px #0005;
+  font: 600 12px/1.3 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.crossing-countdown[data-phase='cross'] { color: #bcfbd2; border-color: #82dca3; }
+.crossing-countdown-track { display: block; height: 3px; margin-top: 4px; background: #ffffff26; border-radius: 2px; overflow: hidden; }
+.crossing-countdown-track > span { display: block; height: 100%; background: currentColor; transform-origin: left; }
