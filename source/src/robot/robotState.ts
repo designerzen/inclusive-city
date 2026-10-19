@@ -36,7 +36,7 @@ export interface RobotRun {
   cityPlan?: { world: ProceduralCity; route: string[]; improvements: string[] };
   metrics: RobotMetrics; startedAt: number; endedAt: number | null;
   pickups: { id: string; kind: string; value: number; time: number }[];
-  creative?: { seed: number; bpm: number; music: boolean; art: boolean; harmony: boolean; colour: boolean; score: SoundSequenceEntry[]; marks: ArtMark[]; title?: ArtworkTitle; artist?: ArtistPreferences };
+  creative?: { seed: number; bpm: number; music: boolean; art: boolean; harmony: boolean; colour: boolean; score: SoundSequenceEntry[]; marks: ArtMark[]; title?: ArtworkTitle; artist?: ArtistPreferences; inspirations?: import('../city/journeyInspirations').JourneyInspiration[] };
 }
 export interface RobotRecord {
   condition: RobotCondition;

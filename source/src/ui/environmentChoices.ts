@@ -1,5 +1,10 @@
 import type { BridgeAccess } from '../city/humpbackBridge';
-export type EnvironmentChoiceKind = 'curb' | 'stairs' | 'bridge' | 'guidance' | 'communication' | 'signals' | 'elevator';
+import { accessibilityBarriers, isAccessibilityBarrier, type AccessibilityBarrierKind } from '../city/accessibilityBarriers';
+export type EnvironmentChoiceKind = 'curb' | 'stairs' | 'bridge' | 'guidance' | 'communication' | 'signals' | 'elevator' | AccessibilityBarrierKind;
+const accessChoice = (kind: AccessibilityBarrierKind): readonly [string, string, string, string] => {
+  const barrier = accessibilityBarriers[kind];
+  return [barrier.before, barrier.after, barrier.description, barrier.support];
+};
 
 export const environmentChoices: Record<EnvironmentChoiceKind, readonly [string, string, string, string]> = {
   curb: ['Raised curb · no cut', 'Curb cut · sloped edge', 'A vertical edge between road and pavement.', 'A gentle slope connects road and pavement.'],
@@ -9,6 +14,8 @@ export const environmentChoices: Record<EnvironmentChoiceKind, readonly [string,
   communication: ['No communication board', 'Symbol board available', 'No alternative way to share messages or request help.', 'Symbols let the robot share its needs and request help.'],
   signals: ['Visual signal only', 'Sound + tactile cues', 'The crossing uses a light signal.', 'The light also has a beeper and a tactile indicator.'],
   elevator: ['Elevator off', 'Elevator enabled', 'The lift is closed and cannot carry the robot.', 'The lift opens and carries the robot between levels.'],
+  uneven: accessChoice('uneven'), slope: accessChoice('slope'), rest: accessChoice('rest'),
+  signage: accessChoice('signage'), announcement: accessChoice('announcement'),
 };
 
 /** Small orthographic isometric drawings: matching viewpoints make differences easy to compare. */
@@ -23,7 +30,22 @@ export function environmentIllustration(kind: EnvironmentChoiceKind, enabled: bo
     polygon([[x,y,0.3+height],[x+w,y,0.3+height],[x+w,y+d,0.3],[x,y+d,0.3]], '#8cddc6') +
     polygon([[x+w,y,0.3],[x+w,y,0.3+height],[x+w,y+d,0.3]], '#4b9f8a');
   let drawing = box(-3,-3,6,6,0,.3, '#dbe4eb');
-  if (kind === 'curb') {
+  if (isAccessibilityBarrier(kind)) {
+    if (kind === 'uneven') {
+      for (let i = 0; i < 5; i++) drawing += box(-2 + i, -2, .8, 4, .3, enabled ? .08 : .1 + (i % 3) * .2, enabled ? '#8cddc6' : '#9eafbf');
+    } else if (kind === 'slope') {
+      drawing += slope(-2, -2, 4, 4, enabled ? .6 : 2.4);
+      if (enabled) drawing += '<path d="m75 78 30-12 25 12 25-12" fill="none" stroke="#087b63" stroke-width="4"/>';
+    } else if (kind === 'rest') {
+      if (enabled) drawing += box(-2, -1, 3, 1, .3, .6, '#8cddc6') + box(-2, -1.2, 3, .25, .9, .7, '#8cddc6');
+      drawing += '<path d="M65 90h90m-12-7 12 7-12 7" fill="none" stroke="#334155" stroke-width="3"/>';
+    } else {
+      drawing += box(-.2, -.2, .3, .3, .3, 2.2);
+      drawing += `<rect x="72" y="16" width="76" height="42" rx="3" fill="${enabled ? '#8cddc6' : '#e3e9ee'}" stroke="#334155" stroke-width="2"/>`;
+      drawing += kind === 'signage' || enabled ? `<path d="M83 29h${enabled ? 50 : 12}m-${enabled ? 50 : 12} 9h${enabled ? 42 : 15}" stroke="#334155" stroke-width="${enabled ? 4 : 1}"/>` : '<path d="m96 31 10-6v22l-10-6h-7V31zm20-4q16 9 0 18" fill="none" stroke="#334155" stroke-width="3"/>';
+      if (enabled) drawing += '<circle cx="88" cy="49" r="2"/><circle cx="96" cy="49" r="2"/><circle cx="104" cy="49" r="2"/>';
+    }
+  } else if (kind === 'curb') {
     drawing += box(-3,-3,6,2.5,.3,.9);
     if (enabled) drawing += slope(-1.3,-.5,2.6,2.2,.9);
   } else if (kind === 'stairs') {

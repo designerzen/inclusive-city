@@ -41,7 +41,8 @@ export function createMusicalObjects(scene: Scene, world: ProceduralCity) {
       else if (/belisha|zebra/.test(names)) {
         id = root.name;
         const site = world.streets.find(s => `zebra-${s.id}` === root.name);
-        name = site ? `Zebra crossing · ${world.nodes.find(n => n.id === site.a)?.label} to ${world.nodes.find(n => n.id === site.b)?.label}`
+        const junction = world.nodes.find(n => n.id === root.metadata?.junction);
+        name = junction ? `Zebra crossing · ${junction.label} junction` : site ? `Zebra crossing · ${world.nodes.find(n => n.id === site.a)?.label} to ${world.nodes.find(n => n.id === site.b)?.label}`
           : root.name === 'zebra-foreground' ? 'Zebra crossing near the workshop' : `Extra zebra crossing ${(Number(root.name.split('-').at(-1)) || 0) + 1}`;
         kind = 'bell';
       }

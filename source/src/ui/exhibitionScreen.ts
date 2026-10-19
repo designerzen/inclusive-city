@@ -5,6 +5,8 @@ import type { FinishedJourney } from '../art/finishedJourney';
 import type { CitySounds } from '../audio/CitySounds';
 import type { createExhibitionPerformer } from '../app/createExhibitionPerformer';
 import type { MusicPlayback } from '../audio/CitySounds';
+import { inspirationItem } from './journeyInspirations';
+import './journeyInspirations.css';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
@@ -25,6 +27,10 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
           <span id="exhibition-time">0:00 / 0:00</span>
         </div>
         <div class="performance-secondary-actions">
+          <details id="exhibition-inspirations" class="journey-inspirations" hidden>
+            <summary>Journey inspirations</summary>
+            <div class="inspiration-content"><p>These places helped shape the painting and song during this journey. Later discoveries may change an earlier influence.</p><ul class="inspiration-list"></ul></div>
+          </details>
           <details class="performance-save">
             <summary>Save</summary>
             <div class="performance-save-options">
@@ -158,6 +164,9 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       cancelSongExport(); songBlob = null;
       stopMusic(true, !!clock); continuationClock = clock; renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score);
+      const inspirations = container.querySelector<HTMLDetailsElement>('#exhibition-inspirations')!;
+      inspirations.open = false; inspirations.hidden = !journey.inspirations?.length;
+      inspirations.querySelector('ul')!.replaceChildren(...(journey.inspirations ?? []).map(inspirationItem));
       progress.max = String(duration); progress.disabled = !duration || !sounds.supported;
       rewind.disabled = progress.disabled; updateTime(0);
       container.querySelector<HTMLDetailsElement>('.performance-save')!.open = false;

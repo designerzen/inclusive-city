@@ -12,6 +12,23 @@ import { createRobotProfile, defaultFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
 import { proximityAttention } from '../src/robot/pointerAttention';
 
+test('fast forward keeps pickup reactions at presentation speed while wheels cover every step', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bot = createRobot(scene), wheel = scene.getMeshByName('wheel-1-1')!;
+    bot.characterAnimation.react('pickup');
+    bot.animateTravel(.1, .1, false, false, 0, .1);
+    const angle = wheel.rotation.x, headLift = bot.characterAnimation.tick(0, false).headLift;
+    for (let i = 0; i < 9; i++) bot.animateTravel(.1, .1, false, false, 0, 0);
+    assert.notEqual(wheel.rotation.x, angle);
+    assert.equal(bot.characterAnimation.tick(0, false).headLift, headLift);
+    bot.animateTravel(0, .1, false, false, 0, .1);
+    assert.notEqual(bot.characterAnimation.tick(0, false).headLift, headLift);
+    bot.animateTravel(0, .1, true);
+    assert.equal(bot.characterAnimation.tick(0, false, true).headLift, 0);
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('speed grows grounded wheels and route memory grows the complete head through animation and reset', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   try {

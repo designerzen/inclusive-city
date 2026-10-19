@@ -1,7 +1,6 @@
 .city-sound-layer { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; }
-/* Keep the world monochrome while musical explanations retain their instrument colours. */
-#city-screen > .city-map:has(.city-sound-layer) { filter: none; }
-#city-screen > .city-map > :not(.city-sound-layer) { filter: grayscale(1); }
+/* Preserve scene colours, including crossing beacons and traffic signals. */
+#city-screen > .city-map { filter: none; }
 #city-screen .city-interaction-hud > .city-object-music { filter: none; }
 .city-sound-cue { position: absolute; inset: 0; --sound-colour: #ffdf85; pointer-events: none; }
 [data-instrument='water'] { --sound-colour: #85e9fa; }

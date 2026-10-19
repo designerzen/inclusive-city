@@ -20,6 +20,11 @@ export function citySpokenChoices(journey: PlannedJourney): SpokenChoice[] {
     { name: 'clearCurrentBicycle', phrase: 'Move that bicycle', description: 'Move the blocking bicycle out of the way.' },
     { name: 'openStudioEntrance', phrase: 'Change the door', description: 'Make the studio entrance accessible.' },
     { name: 'addRouteGuidance', phrase: 'Add route cues', description: 'Add guidance at the current barrier.' },
+    { name: 'smoothPaving', phrase: 'Smooth the paving', description: 'Provide a smooth, level surface at uneven paving.' },
+    { name: 'gentleRamp', phrase: 'Add a gentle zigzag ramp', description: 'Replace a steep route with a gentler ramp.' },
+    { name: 'restPoints', phrase: 'Add rest and charging points', description: 'Provide regular rest and charging points.' },
+    { name: 'accessibleSigns', phrase: 'Add large-print, sound and tactile signs', description: 'Make small-print directions accessible in several formats.' },
+    { name: 'visualDirections', phrase: 'Add visual and tactile directions', description: 'Provide alternatives to sound-only directions.' },
   ];
   return candidates.filter(choice => {
     const action = interpretCityReply(choice.phrase, journey).action;

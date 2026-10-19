@@ -36,9 +36,12 @@ function selectTimbre(style: MusicianStyle, role: 'lead' | 'harmony' | 'bass' | 
     return timbres.pickedBass;
   }
   if (role === 'counter') return ['reed', 'brass', 'strings', 'air'].includes(lead ?? '') ? timbres.nylon : timbres.flute;
+  if (style === 'cinematic') return timbres.air;
   if (['ambient', 'cinematic', 'romantic', 'dnb', 'raga'].includes(style)) return timbres.strings;
-  if (['jazz', 'lofi', 'ethiojazz', 'hiphop', 'amapiano'].includes(style)) return timbres.electric;
-  if (['reggae', 'blues', 'qawwali'].includes(style)) return timbres.organ;
+  if (['jazz', 'ethiojazz'].includes(style)) return timbres.organ;
+  if (style === 'lofi') return timbres.air;
+  if (['hiphop', 'amapiano'].includes(style)) return timbres.mallet;
+  if (['blues', 'qawwali'].includes(style)) return timbres.organ;
   if (['gamelan', 'calypso', 'persian', 'chimes'].includes(style)) return timbres.mallet;
   if (['electronic', 'synthwave', 'disco', 'soca'].includes(style)) return { ...timbres.brass, attack: .012, release: .14 };
   return ['nylon', 'wire', 'mallet', 'clav'].includes(lead ?? '') ? timbres.electric : timbres.nylon;

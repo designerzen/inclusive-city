@@ -1,4 +1,6 @@
 import { isHumpbackBridge } from './humpbackBridge';
+import { isAccessibilityBarrier } from './accessibilityBarriers';
+import { createAccessFeature } from './createAccessFeature';
 import { createHumpbackBridge } from './createHumpbackBridge';
 import { createExhibitionPerformer } from '../app/createExhibitionPerformer';
 import { createSteamTrain } from './steamTrain';
@@ -17,6 +19,7 @@ import { createRobot } from '../robot/createRobot';
 import type { ArtBot } from '../robot/botHistory';
 import type { Theme } from '../app/theme';
 import { createBuildingRoof } from './buildingRoof';
+import { buildingArchitecture, createBuildingArchitecture } from './buildingArchitecture';
 import { createCityCamera } from './cityCamera';
 import { PlannedJourney } from '../simulation/plannedJourney';
 import type { ProceduralCity } from './proceduralCity';
@@ -37,8 +40,10 @@ import { studioApproach } from './studioApproach';
 import { createRiver } from './createRiver';
 import { creativeBuildingModel } from './creativeBuildingModel';
 import { createCityEditTransitions } from './cityEditTransitions';
-import { createZebraCrossing, foregroundCrossingPosition, zebraRoadSites } from './zebraCrossing';
+import { createZebraCrossing, zebraRoadSites, signalCrossingSite } from './zebraCrossing';
 import { normalizeZebraPairs } from '../app/zebraPreferences';
+import { routeToGoal } from './proceduralCity';
+import { RouteTrajectory } from './routeTrajectory';
 import { createMusicalObjects } from './musicalObjects';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
@@ -65,6 +70,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const pavement = material('streets', '#565656', '#bbbbbb');
   const walls = material('building-walls', '#646464', '#bababa');
   const roofs = material('building-roofs', '#b0b0b0', '#8a8a8a');
+  const glass = material('building-glass', '#282e32', '#52616a');
+  const stone = material('building-stone', '#85817a', '#d1ccc2');
   const details = material('details', '#d6d6d6', '#444444', true);
   const ink = material('route-line', '#ffffff', '#181818', true);
   const muted = material('junctions', '#a0a0a0', '#555555', true);
@@ -98,7 +105,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const humpback = isHumpbackBridge(street, world) ? createHumpbackBridge(scene, street.id, span.a, span.b, walls, details) : null;
     if (humpback) solids.push(...humpback.solids);
     const parts: ReturnType<typeof box>[] = [];
-    if (!humpback && street.id !== world.steamTrain?.street && street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
+    const accessFeature = isAccessibilityBarrier(street.kind)
+      ? createAccessFeature(scene, street.id, street.kind, x, z, Math.atan2(-dz, dx), obstruction, goalMaterial) : null;
+    if (!accessFeature && !humpback && street.id !== world.steamTrain?.street && street.kind !== 'clear' && street.kind !== 'width' && street.kind !== 'crossing') {
       const mark = box(`issue-${street.id}`, x, .34, z, dx ? .28 : 2.6, .55, dx ? 2.6 : .28, obstruction);
       mark.metadata = { street: street.id }; mark.isPickable = true; parts.push(mark);
     }
@@ -111,39 +120,36 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (bridge) { bridge.metadata = { street: street.id }; bridge.isPickable = true; }
     if (bridge) solids.push(bridge);
     if (street.kind === 'curb' || street.kind === 'stairs' || street.kind === 'bridge') solids.push(...parts);
-    return { street, surface, road, parts, bridge, humpback, dx, dz, originalWidth: width };
+    return { street, surface, road, parts, bridge, humpback, accessFeature, dx, dz, originalWidth: width };
   });
-  const foreground = foregroundCrossingPosition(world);
-  const foregroundRoad = box('foreground-crossing-road', foreground.x, .025, foreground.z, 9, .1, 3, pavement);
-  const frontZebra = createZebraCrossing(scene, 'foreground', flagWhite, flagBlack);
-  frontZebra.place(foreground.x, foreground.z, 3);
-  const cityZebras = zebraRoadSites(world, initialNetwork, 12).map(site => ({ ...site,
-    zebra: createZebraCrossing(scene, site.street.id, flagWhite, flagBlack) }));
-  // Unusual layouts may have too few suitable roads: complete the chosen count
-  // with spaced crossings on the clear foreground road.
-  const extraZebras = Array.from({ length: 11 - cityZebras.length }, (_, i) => {
-    const zebra = createZebraCrossing(scene, `foreground-extra-${i}`, flagWhite, flagBlack);
-    zebra.place(foreground.x + (i + 1) * 5, foreground.z, 3);
-    return zebra;
-  });
+  // Keep the chosen count as a maximum: never invent roads to fill spare pairs.
+  const cityZebras = Array.from({ length: 12 }, (_, i) =>
+    createZebraCrossing(scene, `junction-${i}`, flagWhite, flagBlack));
+  let zebraPairs = 4;
+  function syncZebras() {
+    const preview = journey.route.length > 1 ? journey.trajectory : new RouteTrajectory(
+      (routeToGoal(world) ?? []).map(id => world.nodes.find(n => n.id === id)!), new Map(), journey.minimumTurnRadius);
+    const sites = zebraRoadSites(world, cityRoadNetwork(world, journey.minimumTurnRadius), zebraPairs, preview);
+    cityZebras.forEach((zebra, i) => {
+      const site = sites[i];
+      zebra.root.setEnabled(!!site);
+      if (site) {
+        zebra.root.metadata = { junction: site.node };
+        zebra.place(site.x, site.z, site.width, site.horizontal, site.bandWidth);
+      }
+    });
+  }
   function setZebraPairs(value: number) {
-    const count = normalizeZebraPairs(value);
-    [frontZebra, ...cityZebras.map(site => site.zebra), ...extraZebras].forEach((zebra, i) => zebra.root.setEnabled(i < count));
-    const extras = Math.max(0, count - 1 - cityZebras.length);
-    foregroundRoad.setEnabled(count > 0);
-    foregroundRoad.scaling.x = (9 + extras * 5) / 9;
-    foregroundRoad.position.x = foreground.x + extras * 2.5;
+    zebraPairs = normalizeZebraPairs(value);
+    syncZebras();
   }
   setZebraPairs(4);
   let tempoClock: (() => number) | null = null;
   let tempoBpm = 120;
   const crossings = streetModels.filter(m => m.street.kind === 'crossing').map(({ street, dx }) => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
-    const length = journey.crossingLength(street);
-    const stripes = Array.from({ length: Math.ceil(length / .8) }, (_, i) => {
-      const t = (i + .5) / Math.ceil(length / .8);
-      return box(`crosswalk-${street.id}-${i}`, a.x + (b.x - a.x) * t, .084, a.z + (b.z - a.z) * t, dx ? .3 : street.width, .018, dx ? street.width : .3, flagWhite);
-    });
+    const stripes = Array.from({ length: 6 }, (_, i) =>
+      box(`crosswalk-${street.id}-${i}`, 0, .084, 0, 1, .018, 1, flagWhite));
     const heads = [a, b].map((node, i) => {
       const x = node.x + (dx ? 0 : street.width / 2 + .5), z = node.z + (dx ? street.width / 2 + .5 : 0);
       const pole = box(`signal-pole-${street.id}-${i}`, x, .9, z, .12, 1.8, .12, flagBlack);
@@ -172,9 +178,20 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function syncSignals() {
     for (const { street, dx, stripes, heads } of crossings) {
       const signal = journey.signal(street), cues = journey.hasCrossingCues(street);
-      stripes.forEach(mesh => { mesh.scaling[dx ? 'z' : 'x'] = street.width / 2.6; });
-      for (const head of heads) {
-        const x = head.node.x + (dx ? 0 : street.width / 2 + .5), z = head.node.z + (dx ? street.width / 2 + .5 : 0);
+      const site = signalCrossingSite(world, street, journey.minimumTurnRadius, journey.route);
+      stripes.forEach((mesh, i) => {
+        mesh.setEnabled(!!site);
+        if (!site) return;
+        const across = ((i + .5) / stripes.length - .5) * street.width;
+        mesh.position.x = site.x - site.uz * across; mesh.position.z = site.z + site.ux * across;
+        mesh.scaling.x = dx ? site.length : street.width / stripes.length * .5;
+        mesh.scaling.z = dx ? street.width / stripes.length * .5 : site.length;
+      });
+      for (const [i, head] of heads.entries()) {
+        const node = site ? { x: site.x + (i ? 1 : -1) * site.ux * (site.length / 2 + .4),
+          z: site.z + (i ? 1 : -1) * site.uz * (site.length / 2 + .4) } : head.node;
+        head.tactile.position.x = node.x; head.tactile.position.z = node.z;
+        const x = node.x + (dx ? 0 : street.width / 2 + .5), z = node.z + (dx ? street.width / 2 + .5 : 0);
         for (const mesh of [head.pole, head.housing, head.red, head.green, head.mapLight, head.beeper]) { mesh.position.x = x; mesh.position.z = z - (mesh === head.red || mesh === head.green ? .23 : 0); }
         head.roadLight.position.x = x + .6; head.roadLight.position.z = z;
         const panelHeight = resizer.value(`panel:${street.id}`) + .1;
@@ -197,7 +214,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     labelMaterials.push({ mat, texture, text });
   }
   const syncBicycles = createBicycleGarage(scene, journey, signalAmber, flagBlack, walls);
-  label('TEMPO', foreground.x + 3.1, .13, foreground.z, 2.2);
   if (world.bicycleGarage) label('BICYCLE GARAGE', world.bicycleGarage.x, 2.1, world.bicycleGarage.z + 2.2, 5);
   const syncTrain = createSteamTrain(scene, journey, walls, flagBlack, signalAmber, flagWhite);
   if (world.steamTrain) {
@@ -205,32 +221,35 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     for (const id of [rail.a, rail.b]) { const stop = world.nodes.find(n => n.id === id)!; label('STEAM TRAIN / RAMP SHED', stop.x, 2.1, stop.z - 2, 5); }
   }
   const buildingModels = world.buildings.map(b => {
+    const style = buildingArchitecture(b);
+    const facade = style === 'skyscraper' ? glass : style === 'civic' || style === 'house' ? stone : walls;
     const pieces = ['left', 'right', 'back', 'front-left', 'front-right', 'lintel'].map(side => {
-      const mesh = box(`wall-${b.name}-${side}`, 0, 0, 0, 1, 1, 1, walls);
+      const mesh = box(`wall-${b.name}-${side}`, 0, 0, 0, 1, 1, 1, facade);
       mesh.metadata = { building: b.name, side: side.startsWith('front') || side === 'lintel' ? 'front' : side };
       mesh.isPickable = true; mesh.enableEdgesRendering(); mesh.edgesColor = new Color4(.4, .4, .4, 1); return mesh;
     });
     solids.push(...pieces);
     const eaves = box(`eaves-${b.name}`, b.x, b.h + .05, b.z, 1, .12, 1, details);
     const rise = Math.min(1.4, b.w * .3);
-    const roof = createBuildingRoof(`roof-${b.name}`, b.w + .4, b.d + .4, rise, scene); roof.position.set(b.x, b.h + .12, b.z); roof.material = roofs;
+    const roof = style === 'house' ? createBuildingRoof(`roof-${b.name}`, b.w + .4, b.d + .4, rise, scene)
+      : box(`roof-${b.name}`, 0, 0, 0, b.w + .4, .16, b.d + .4, roofs);
+    roof.position.set(b.x, b.h + .12, b.z); roof.material = roofs;
     solids.push(eaves, roof);
     roof.metadata = { building: b.name }; roof.isPickable = true;
     const threshold = box(`door-${b.name}`, b.x, .11, b.z - b.d / 2 - .2, 1, .12, .5, details);
     solids.push(threshold);
     threshold.metadata = { dimension: `door:${b.name}`, axis: 'x' }; threshold.isPickable = true;
-    const windows: { mesh: ReturnType<typeof box>; side: number }[] = [];
-    for (let y = .8; y < b.h - .3; y += 1) for (const side of [-1, 1]) windows.push({ mesh: box(`window-${b.name}-${y}-${side}`, 0, y, 0, .4, .5, .04, details), side });
+    const architecture = createBuildingArchitecture(b, scene, style === 'skyscraper' ? stone : glass, roofs, walls);
     const landmark = b.creativeRole ? creativeBuildingModel(b.creativeRole, scene, details, walls) : null;
     const frontageLandmark = b.creativeRole ? creativeBuildingModel(b.creativeRole, scene, details, walls) : null;
-    return { b, pieces, eaves, roof, threshold, windows, landmark, frontageLandmark, originalW: b.w, originalD: b.d };
+    return { b, pieces, eaves, roof, threshold, architecture, landmark, frontageLandmark, originalW: b.w, originalD: b.d };
   });
   let onResizeSelected = (_id: string) => {};
   const resizer = createProceduralResizer(scene, engine, journey, syncDimensions, id => onResizeSelected(id));
   const roadGeometry = createRoadGeometryCache();
   let renderedRoads: ReturnType<typeof roadGeometry> | undefined;
   function syncDimensions() {
-    for (const { b, pieces, eaves, roof, threshold, windows, landmark, frontageLandmark, originalW, originalD } of buildingModels) {
+    for (const { b, pieces, eaves, roof, threshold, architecture, landmark, frontageLandmark, originalW, originalD } of buildingModels) {
       const left = resizer.value(`wall:${b.name}:left`), right = resizer.value(`wall:${b.name}:right`);
       const front = resizer.value(`wall:${b.name}:front`), back = resizer.value(`wall:${b.name}:back`);
       const width = right - left, depth = back - front, x = (left + right) / 2, z = (front + back) / 2;
@@ -245,9 +264,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       eaves.position.set(x, b.h + .05, z); eaves.scaling.set(width + .4, 1, depth + .4);
       roof.position.set(x, b.h + .12, z); roof.scaling.set((width + .4) / (originalW + .4), 1, (depth + .4) / (originalD + .4));
       threshold.position.set(x, .11, front - .3); threshold.scaling.x = door;
+      architecture.position.set(x, 0, z); architecture.scaling.set(width / originalW, 1, depth / originalD);
       landmark?.position.set(x, b.h + 1.6, z);
       frontageLandmark?.position.set(x, Math.min(b.h - 1.2, 1.8), front - .2);
-      for (const { mesh, side } of windows) { mesh.position.x = x + side * (door / 2 + wing / 2); mesh.position.z = front - .1; }
     }
     for (const { street, surface, parts, bridge, humpback, dx, originalWidth } of streetModels) {
       const scale = resizer.value(`width:${street.id}`) / originalWidth;
@@ -349,6 +368,19 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const arms = [-1, 1].map(side => scene.getTransformNodeByName(`shoulder-${side}`)!);
   const antenna = scene.getTransformNodeByName('antenna-rig')!;
   let speaking = false;
+  let inspirationLook: { x: number; z: number; remaining: number } | null = null;
+  function inspirationPosition(id: string) {
+    return id.startsWith('building:') ? world.buildings.find(b => b.name === id.slice(9))
+      : world.nodes.find(n => n.id === id.slice(7));
+  }
+  function projectInspiration(id: string) {
+    const point = inspirationPosition(id);
+    if (!point) return null;
+    scene.updateTransformMatrix();
+    const p = Vector3.Project(new Vector3(point.x, 'h' in point ? point.h / 2 : .2, point.z), Matrix.Identity(), scene.getTransformMatrix(), scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()));
+    if (p.z < 0 || p.z > 1) return null;
+    return { x: p.x * engine.getHardwareScalingLevel(), y: p.y * engine.getHardwareScalingLevel(), width: 90, height: 90 };
+  }
   let arrived = false;
   let line: ReturnType<typeof MeshBuilder.CreateTube> | null = null;
   let routeKey = '', revisionKey = '';
@@ -366,10 +398,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     if (revisionKey !== edits) {
       revisionKey = edits;
       syncDimensions();
+      syncZebras();
       syncBicycles();
-      streetModels.forEach(({ street, road, parts, bridge, humpback, dx }) => {
+      streetModels.forEach(({ street, road, parts, bridge, humpback, accessFeature, dx }) => {
         const repaired = street.id === world.steamTrain?.street || journey.repaired.has(street.id);
         parts.forEach(m => m.setEnabled(!repaired));
+        accessFeature?.sync(repaired);
         humpback?.sync(journey.bridgeAccess(street), street.width);
         if (bridge) { bridge.rotation.z = repaired ? 0 : .22; bridge.position.y = repaired ? .06 : .65; }
         if (street.kind === 'guidance' || street.kind === 'crossing') road.material = repaired ? details : pavement;
@@ -377,15 +411,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       physics?.sync();
     }
   }
-  function update(seconds: number) {
+  function update(seconds: number, animationSeconds = seconds) {
     const musicTime = tempoClock?.() ?? -1;
     musicalObjects.update(musicTime, reducedMotionPreference().matches);
-    frontZebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches);
-    extraZebras.forEach(zebra => zebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches));
-    for (const { zebra, street, x, z, horizontal } of cityZebras) {
-      zebra.place(x, z, street.width, horizontal);
-      zebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches);
-    }
+    cityZebras.forEach(zebra => zebra.update(musicTime, tempoBpm, true, reducedMotionPreference().matches));
     river.update(seconds, reducedMotionPreference().matches);
     const before = journey.position, heading = journey.heading;
     sync(); physics?.update(seconds);
@@ -403,7 +432,15 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     const moved = Math.hypot(p.x - before.x, p.z - before.z);
     const delta = Math.atan2(Math.sin(journey.heading - heading), Math.cos(journey.heading - heading));
     robot.setCondition(journey.machine.record.condition);
-    robot.animateTravel(moved, seconds, reducedMotionPreference().matches, journey.paused || journey.ready, delta);
+    robot.animateTravel(moved, seconds, reducedMotionPreference().matches, (journey.paused || journey.ready) && !inspirationLook, delta, animationSeconds);
+    if (inspirationLook) {
+      inspirationLook.remaining -= animationSeconds;
+      if (inspirationLook.remaining <= 0) inspirationLook = null;
+      else if (!reducedMotionPreference().matches && !journey.complete && !speaking) {
+        const yaw = Math.atan2(-(inspirationLook.x - p.x), -(inspirationLook.z - p.z)) - journey.heading;
+        head.rotation.y = Math.max(-.8, Math.min(.8, Math.atan2(Math.sin(yaw), Math.cos(yaw)))) * Math.min(1, inspirationLook.remaining * 3);
+      }
+    }
     if (journey.complete && dance) {
       const elapsed = musicClock?.() ?? 0, motion = reducedMotionPreference().matches;
       const pose = dance.pianoPose(elapsed, !!musicClock, motion);
@@ -479,10 +516,10 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   revisionKey = 'initial'; sync(); setTheme('dark'); update(0);
   const editNodes = new Set<TransformNode>([
-    ...buildingModels.flatMap(({ pieces, eaves, roof, threshold, windows }) => [...pieces, eaves, roof, threshold, ...windows.map(w => w.mesh)]),
+    ...buildingModels.flatMap(({ pieces, eaves, roof, threshold, architecture }) => [...pieces, eaves, roof, threshold, ...architecture.getChildMeshes()]),
     ...streetModels.flatMap(({ road, parts, bridge, humpback }) => [road, ...parts, ...(bridge ? [bridge] : []), ...(humpback ? humpback.root.getChildMeshes() : [])]),
     ...crossings.flatMap(({ stripes, heads }) => [...stripes, ...heads.flatMap(head => [head.pole, head.housing, head.red, head.green, head.mapLight, head.roadLight, head.beeper, head.tactile, head.panel, head.button])]),
-    ...cityZebras.flatMap(({ zebra }) => [zebra.root, ...zebra.root.getDescendants().filter((node): node is TransformNode => node instanceof TransformNode)]),
+    ...cityZebras.flatMap(zebra => [zebra.root, ...zebra.root.getDescendants().filter((node): node is TransformNode => node instanceof TransformNode)]),
     entranceRoot, ...entranceRoot.getChildMeshes(), ...flagParts, goalRing,
     ...nodeModels.map(n => n.ring),
     ...scene.meshes.filter(mesh => mesh.name.startsWith('bicycle-garage-') || mesh.name === 'label-BICYCLE GARAGE'),
@@ -511,6 +548,13 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     console.warn('City physics could not be loaded; using route movement.', error);
   });
   return { scene, journey, update, sync, setTheme, setZebraPairs, musicalObjects,
+    projectInspiration,
+    revealInspiration(id: string) {
+      if (journey.complete) return;
+      robot.characterAnimation.react('pickup');
+      const point = inspirationPosition(id);
+      inspirationLook = point ? { x: point.x, z: point.z, remaining: 1.4 } : null;
+    },
     get robotConditions() { return [{ name: journey.bot.name, state: journey.machine.state, condition: journey.machine.record.condition }, ...(autonomousBots?.bots.map((bot, i) => ({ name: `City robot ${i + 1}`, state: bot.stuck > 0 ? 'blocked' : bot.condition.speed > .01 ? 'following' : 'waiting', condition: bot.condition })) ?? [])]; }, nodeAt, streetAt, projectNode, projectRobotBounds, highlight,
     get musicPosition() { const p = physics?.position ?? journey.position; return { x: p.x, y: p.y, z: p.z }; },
     physicsReady, get physicsStatus() { return physicsStatus; },

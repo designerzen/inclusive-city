@@ -1,4 +1,5 @@
 import type { PlannedJourney } from '../simulation/plannedJourney';
+import { isAccessibilityBarrier } from './accessibilityBarriers';
 import { streetBetween, streetNames } from './proceduralCity';
 import type { RouteTrajectory } from './routeTrajectory';
 import { defaultProjectionSettings, validateProjectionSettings, type ProjectionSettings } from './projectionSettings';
@@ -8,7 +9,7 @@ export const barcodeUnit = .08;
 export const barcodeGap = .16;
 export const barcodeSpan = 1.44;
 export const projectionLineWidth = .16;
-export const projectionCodes = ['Start journey', 'Raised curb', 'Bridge / steps', 'Narrow passage', 'Pelican crossing', 'Route cues', 'Train boarding', 'Bicycle', 'Music discovery', 'Art discovery', 'Harmony discovery', 'Colour discovery', 'Studio arrival', 'Junction reached'] as const;
+export const projectionCodes = ['Start journey', 'Raised curb', 'Bridge / steps', 'Narrow passage', 'Pelican crossing', 'Route cues', 'Train boarding', 'Bicycle', 'Music discovery', 'Art discovery', 'Harmony discovery', 'Colour discovery', 'Studio arrival', 'Junction reached', 'Access support'] as const;
 
 export function barcodeWidths(code: number, settings: ProjectionSettings = defaultProjectionSettings) {
   if (!Number.isInteger(code) || code < 0 || code > 15) throw new RangeError('Barcode must be a four-bit integer.');
@@ -45,7 +46,7 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
     const add = (code: number, label: string = projectionCodes[code]!) => events.push({ code, label, node: node.label });
     if (index === 0) add(0);
     if (street) {
-      const code = { clear: -1, curb: 1, bridge: 2, stairs: 2, width: 3, crossing: 4, guidance: 5 }[street.kind];
+      const code = isAccessibilityBarrier(street.kind) ? 14 : { clear: -1, curb: 1, bridge: 2, stairs: 2, width: 3, crossing: 4, guidance: 5 }[street.kind];
       if (code >= 0) add(code, streetNames[street.kind]);
       if (street.id === journey.world.steamTrain?.street) add(6);
       if (journey.world.bicycles?.some(bike => bike.street === street.id)) add(7);

@@ -5,6 +5,7 @@ import '../../src/uiDesign.css';
 import '../../src/accessibility.css';
 import '../../src/cityCompactHud.css';
 import '../../src/cityVoice.css';
+import '../../src/environmentChoices.css';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { mountCityScreen } from '../../src/ui/cityScreen';
 import { CitySounds } from '../../src/audio/CitySounds';
@@ -33,4 +34,13 @@ meeting.addEventListener('click', () => {
   meeting.hidden = true;
 });
 document.body.append(meeting);
+const discovery = document.createElement('button');
+discovery.textContent = 'Test gallery discovery';
+discovery.style.cssText = 'position:fixed;left:16px;bottom:70px;z-index:40';
+discovery.addEventListener('click', () => {
+  const journey = engine.scenes[0]!.metadata.journey;
+  const building = journey.world.buildings.find((b: { creativeRole?: string }) => b.creativeRole === 'gallery');
+  journey.machine.emit('building_encounter', { id: building.name, kind: 'gallery' });
+});
+document.body.append(discovery);
 window.addEventListener('pagehide', () => { screen.dispose(); sounds.dispose(); engine.dispose(); });

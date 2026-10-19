@@ -7,6 +7,54 @@ import { pianoSynthScore } from '../src/audio/pianoSynth';
 import { createStudioInstruments } from '../src/app/createStudioInstruments';
 import { JourneyDance } from '../src/robot/journeyDance';
 import { musicDuration } from '../src/art/finishedJourney';
+import type { FinishedJourney } from '../src/art/finishedJourney';
+import { createExhibitionPerformer } from '../src/app/createExhibitionPerformer';
+import { createCityCamera } from '../src/city/cityCamera';
+import { createRobot } from '../src/robot/createRobot';
+import { defaultAppearance } from '../src/robot/appearance';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+
+test('studio presentation clears the borrowed camera bank on entry and resize', t => {
+  let onResize = () => {};
+  const globals = {
+    window: { matchMedia: () => ({ matches: false, addEventListener() {} }), removeEventListener() {} },
+    document: { hidden: true, removeEventListener() {} },
+    ResizeObserver: class {
+      constructor(callback: () => void) { onResize = callback; }
+      observe() {} disconnect() {}
+    },
+  };
+  for (const [key, value] of Object.entries(globals)) {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+    t.after(() => { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); });
+  }
+  const engine = new NullEngine(), scene = new Scene(engine);
+  t.mock.method(engine, 'runRenderLoop', () => {});
+  t.mock.method(engine, 'resize', () => {});
+  const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }));
+  const camera = controls.camera;
+  const canvas = {
+    getAttribute: () => null, setAttribute() {}, removeAttribute() {},
+    parentElement: { insertBefore() {} }, nextSibling: null,
+    classList: { add() {}, remove() {} },
+  } as unknown as HTMLCanvasElement;
+  const journey = { name: 'ArtBot', robot: { appearance: defaultAppearance() } } as FinishedJourney;
+  const performer = createExhibitionPerformer(canvas, journey, scene, camera, createRobot(scene),
+    createStudioInstruments(scene), new JourneyDance([], 120), () => controls.update());
+  const bank = () => {
+    camera.rotation.set(.4, .7, .35); camera.getViewMatrix(true);
+    camera.rotation.z = 0; camera.getViewMatrix(true);
+  };
+  const assertUpright = () => {
+    const vertical = Vector3.TransformNormal(Vector3.Up(), camera.getViewMatrix(true));
+    assert.ok(Math.abs(vertical.x) < 1e-5); assert.ok(vertical.y > 0);
+  };
+  try {
+    bank(); performer.enter({ append() {} } as unknown as HTMLElement); assertUpright();
+    bank(); onResize(); assertUpright();
+  } finally { performer.dispose(); scene.dispose(); engine.dispose(); }
+});
 
 test('studio synth preserves robot patches, notes and timing for playback and MP3 export', () => {
   const score = [{ at: 12, label: 'melody', score: new SoundEffect({ root: 60, waveform: 'square', pan: -.2 }).toScore() }];

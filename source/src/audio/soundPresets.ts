@@ -39,6 +39,15 @@ export function interactionSound(name: InteractionSound, overrides: SoundEffectC
 
 /** Each control has its own motif, rather than sharing the generic tap cue. */
 const buttonSignatures = {
+  'accessory-sunglasses': { root: 64, intervals: [0, 7, 10, 14], pattern: 'up', stepBeats: .085 },
+  'accessory-starTattoo': { root: 83, intervals: [0, 4, 9], pattern: 'up-down', stepBeats: .085 },
+  'accessory-lightningTattoo': { root: 66, intervals: [0, 6, 12], pattern: 'up', stepBeats: .065 },
+  'accessory-mohawk': { root: 52, intervals: [0, 7, 12, 19], pattern: 'chord', waveform: 'triangle' },
+  'accessory-headphones': { root: 61, intervals: [0, 3, 7, 10], pattern: 'up-down', stepBeats: .085 },
+  'accessory-crown': { root: 72, intervals: [0, 4, 7, 19], pattern: 'up', stepBeats: .13 },
+  'accessory-cap': { root: 57, intervals: [0, 7, 10], pattern: 'up-down', stepBeats: .085 },
+  'accessory-goldChain': { root: 86, intervals: [0, 5, 9], pattern: 'chord', waveform: 'sine' },
+  'accessory-scarf': { root: 59, intervals: [0, 4, 9, 12], pattern: 'up', stepBeats: .085 },
   'designer-accessories': { root: 74, intervals: [0, 5, 9, 16], pattern: 'up', stepBeats: .08 },
   'accessory-moustache': { root: 55, intervals: [0, 4, 11], pattern: 'up-down', stepBeats: .08 },
   'accessory-wings': { root: 79, intervals: [0, 5, 12, 19], pattern: 'up', stepBeats: .07 },

@@ -1,4 +1,5 @@
 import type { PlannedJourney } from '../simulation/plannedJourney';
+import { accessibilityBarriers, isAccessibilityBarrier } from '../city/accessibilityBarriers';
 import { robotFootprint } from '../city/proceduralCity';
 
 /** Short, factual speech for the robot's bubble and narration. */
@@ -23,6 +24,7 @@ export function cityRobotAlert(journey: PlannedJourney): string | null {
   if (/solid object/.test(block.reason)) return 'There is an object in the way.';
   const street = journey.world.streets.find(street => street.id === block.id);
   if (!street) return 'The path is blocked.';
+  if (isAccessibilityBarrier(street.kind)) return accessibilityBarriers[street.kind].alert;
   switch (street.kind) {
     case 'width': return 'The passage is too narrow.';
     case 'stairs': return 'Steps block the humpback bridge. Add a ramp or elevators.';

@@ -7,6 +7,15 @@ export const robotAccessories = [
   { id: 'monocle', label: 'Monocle', description: 'A golden eyepiece and chain.' },
   { id: 'topHat', label: 'Top hat', description: 'A tall hat with a colourful band.' },
   { id: 'bowTie', label: 'Bow tie', description: 'A bright little finishing touch.' },
+  { id: 'sunglasses', label: 'Sunglasses', description: 'Dark lenses with a bold gold frame.' },
+  { id: 'starTattoo', label: 'Star tattoo', description: 'A pink star inked on the left of the chest.' },
+  { id: 'lightningTattoo', label: 'Lightning tattoo', description: 'A gold lightning bolt inked on the right of the chest.' },
+  { id: 'mohawk', label: 'Punk mohawk', description: 'A row of electric pink spikes.' },
+  { id: 'headphones', label: 'Headphones', description: 'Big purple headphones for a music-loving robot.' },
+  { id: 'crown', label: 'Crown', description: 'A golden crown with colourful jewels.' },
+  { id: 'cap', label: 'Baseball cap', description: 'A sky blue cap with a forward-facing peak.' },
+  { id: 'goldChain', label: 'CND gold chain', description: 'A gold chain with a circular CND peace emblem.' },
+  { id: 'scarf', label: 'Scarf', description: 'A bright striped scarf with two hanging tails.' },
 ] as const;
 export type RobotAccessory = typeof robotAccessories[number]['id'];
 export const bodyColours = [

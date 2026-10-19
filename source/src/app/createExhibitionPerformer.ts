@@ -38,6 +38,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const resize = () => {
     engine.resize();
     camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
+    camera.upVector.copyFromFloats(0, 1, 0);
     camera.position.set(0, 4.1, -12); camera.setTarget(new Vector3(0, 1.9, 0));
     const aspect = engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
     const height = Math.max(2.1, (2.05 * journey.robot.appearance.width) / aspect, 2.05 * journey.robot.appearance.height);

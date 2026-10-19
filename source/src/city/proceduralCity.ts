@@ -1,17 +1,20 @@
 import type { BridgeAccess } from './humpbackBridge';
+import { accessibilityBarriers, accessibilityBarrierProblem, isAccessibilityBarrier, type AccessibilityBarrierKind } from './accessibilityBarriers';
 import type { ArtBot } from '../robot/botHistory';
 import type { RoutePoint } from './cityLayout';
 
-export type StreetKind = 'clear' | 'bridge' | 'curb' | 'stairs' | 'width' | 'crossing' | 'guidance';
+export type StreetKind = 'clear' | 'bridge' | 'curb' | 'stairs' | 'width' | 'crossing' | 'guidance' | AccessibilityBarrierKind;
 export interface CityNode extends RoutePoint { id: string; label: string; discovery?: 'music' | 'art' | 'harmony' | 'colour' }
 export interface CityStreet { id: string; a: string; b: string; kind: StreetKind; width: number; crossingSeconds: number; buttonHeight?: number; bridgeAccess?: BridgeAccess }
 export type CreativeBuilding = 'gallery' | 'record-store' | 'museum';
-export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number; creativeRole?: CreativeBuilding }
+export interface CityBuilding { name: string; x: number; z: number; w: number; d: number; h: number; creativeRole?: CreativeBuilding; architecture?: import('./buildingArchitecture').BuildingArchitecture }
 export const studioDoorTypes = ['revolving', 'automatic', 'push'] as const;
 export type StudioDoorType = typeof studioDoorTypes[number];
 export interface StudioEntrance { width: number; doorType: StudioDoorType }
 export interface CityBicycle { id: string; street: string; location: 'pavement' | 'road'; pushDistance?: number }
 export interface ProceduralCity {
+  /** Access already provided when this city was generated; not player interventions. */
+  initialImprovements?: string[];
   curvedRoadLayout?: boolean;
   curvedRoadScale?: number;
   minimumTurnRadius?: number;
@@ -64,8 +67,8 @@ export function routeToGoal(city: ProceduralCity, from = city.start) {
   return null;
 }
 
-export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Humpback bridge with steps', curb: 'Raised curb', stairs: 'Humpback bridge with steps', width: 'Narrow passage', crossing: 'Pelican crossing', guidance: 'Missing route cues' };
-export const streetActions: Record<StreetKind, string> = { clear: 'Street already open', bridge: 'Add ramp', curb: 'Lower curb', stairs: 'Add ramp', width: 'Widen passage', crossing: 'Give more crossing time', guidance: 'Add route cues' };
+export const streetNames: Record<StreetKind, string> = { clear: 'Open street', bridge: 'Humpback bridge with steps', curb: 'Raised curb', stairs: 'Humpback bridge with steps', width: 'Narrow passage', crossing: 'Pelican crossing', guidance: 'Missing route cues', uneven: accessibilityBarriers.uneven.name, slope: accessibilityBarriers.slope.name, rest: accessibilityBarriers.rest.name, signage: accessibilityBarriers.signage.name, announcement: accessibilityBarriers.announcement.name };
+export const streetActions: Record<StreetKind, string> = { clear: 'Street already open', bridge: 'Add ramp', curb: 'Lower curb', stairs: 'Add ramp', width: 'Widen passage', crossing: 'Give more crossing time', guidance: 'Add route cues', uneven: accessibilityBarriers.uneven.action, slope: accessibilityBarriers.slope.action, rest: accessibilityBarriers.rest.action, signage: accessibilityBarriers.signage.action, announcement: accessibilityBarriers.announcement.action };
 
 /** Both banks are connected; every route between them crosses an initially raised bridge. */
 export function generateCity(seed: number, robots: readonly ArtBot[]): ProceduralCity {
@@ -140,11 +143,33 @@ export function generateCity(seed: number, robots: readonly ArtBot[]): Procedura
     const replacement = openBuildings.find(building => !building.creativeRole);
     if (replacement) { replacement.name = name; replacement.creativeRole = role; }
   }
+  // Assign the skyline after clearance, so stations cannot remove all the towers.
+  // Keep tall buildings towards the far side of the default angled view.
+  const skylineLots = openBuildings.filter(b => !b.creativeRole).sort((a, b) => b.z - a.z || a.x - b.x);
+  skylineLots.slice(0, 2).forEach((building, i) => {
+    building.architecture = 'skyscraper'; building.h = i === 0 ? 13.5 : 10.5;
+  });
+  for (const building of openBuildings) {
+    if (building.architecture) continue;
+    building.architecture = building.creativeRole === 'record-store' || ['Café', 'Market', 'Cinema'].includes(building.name) ? 'shop'
+      : building.creativeRole || ['Library', 'Hall'].includes(building.name) ? 'civic'
+      : ['Flats', 'Offices', 'Studios'].includes(building.name) ? 'apartments' : 'house';
+    if (building.architecture === 'apartments') building.h = 5.5 + (building.h % 2);
+  }
+  // Add access challenges without changing the network or existing obstacle types.
+  // Keep the station forecourts and studio approach clear.
+  const accessKinds = Object.keys(accessibilityBarriers) as AccessibilityBarrierKind[];
+  const accessStreets = streets.filter(street => street.kind === 'clear' && !street.id.startsWith('train-')
+    && ![street.a, street.b].includes(destination));
+  accessStreets.slice(0, accessKinds.length).forEach((street, i) => {
+    street.kind = accessKinds[(i + (seed >>> 0)) % accessKinds.length]!;
+  });
   return { curvedRoadLayout: true, steamTrain: { street: trainStreet.id, trackStart, trackEnd }, bicycleGarage, bicycles, studioEntrance: { width: Math.max(.5, minWidth - .2), doorType: 'revolving' }, seed: seed >>> 0, nodes, streets, buildings: openBuildings, start, destination, riverX: (xs[2]! + xs[3]!) / 2, rememberedRobots: robots.length };
 }
 
 export function streetProblem(street: CityStreet, bot: ArtBot, repaired = false, crossingLength = 4): string | null {
   if (repaired || street.kind === 'clear') return null;
+  if (isAccessibilityBarrier(street.kind)) return accessibilityBarrierProblem(street.kind, bot);
   const reachProblem = crossingReachProblem(street, bot);
   if (reachProblem) return reachProblem;
   if (street.kind === 'width') return street.width < robotFootprint(bot) + .15 ? `This passage is ${street.width.toFixed(1)} m wide. ${bot.name} needs ${(robotFootprint(bot) + .15).toFixed(1)} m.` : null;

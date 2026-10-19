@@ -1,4 +1,5 @@
 import { isHumpbackBridge, type BridgeAccess } from '../city/humpbackBridge';
+import { accessibilityBarriers, isAccessibilityBarrier } from '../city/accessibilityBarriers';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { mountRobotConditionHud } from './robotConditionHud';
 import { isButtonSound } from '../audio/soundPresets';
@@ -8,13 +9,12 @@ import { mountRouteProjection } from './routeProjection';
 import { mountPhysicalRobots } from './physicalRobots';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { createCityScene } from '../city/createCityScene';
-import { buildingDescriptions, buildingSymbols } from '../city/creativeBuildings';
-import type { CreativeBuilding } from '../city/proceduralCity';
 import { normalizeZebraPairs, readZebraPairs } from '../app/zebraPreferences';
 import type { ProceduralCity } from '../city/proceduralCity';
 import type { CityView } from '../city/cityCamera';
 import { sides } from '../city/cityDimensions';
-import { generateCity, streetActions, streetNames, streetBetween } from '../city/proceduralCity';
+import { streetActions, streetNames, streetBetween } from '../city/proceduralCity';
+import { generateCityWithBarriers, isBarrierAmount, type BarrierAmount } from '../city/cityDifficulty';
 import type { StudioDoorType } from '../city/proceduralCity';
 import type { Theme } from '../app/theme';
 import type { ArtBot } from '../robot/botHistory';
@@ -42,13 +42,12 @@ import { instrumentNames, encounterMelodies } from '../audio/cityInstruments';
 import type { MusicalObject } from '../city/musicalObjects';
 import { mountCityMusicVisuals } from './cityMusicVisuals';
 import './cityMusicVisuals.css';
+import { journeyInspiration, inspirationItem, type JourneyInspiration } from './journeyInspirations';
+import './journeyInspirations.css';
 
 export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney, continuationClock?: () => number) => void, speech?: ScreenSpeech) {
   container.innerHTML = `
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
-    <p id="creative-building-guide" class="sr-only"></p>
-    <div id="creative-building-discoveries" role="img" aria-label="No creative buildings discovered yet"></div>
-    <p id="creative-building-status" class="sr-only" role="status"></p>
     <header class="city-toolbar">
       <div class="city-tools" role="group" aria-label="City tools">
         <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
@@ -68,6 +67,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
     <div class="city-interaction-hud">
+    <details id="journey-inspirations" class="journey-inspirations">
+      <summary>Journey inspirations · <span id="inspiration-count">0</span></summary>
+      <div class="inspiration-content">
+        <p>Places you pass inspire your robot’s painting and song. Discoveries are optional: help your robot reach the Duet studio at your own pace.</p>
+        <p id="inspiration-empty">No inspirations yet. Explore the city to discover some.</p>
+        <ul id="creative-building-discoveries" class="inspiration-list" aria-label="Collected inspirations"></ul>
+      </div>
+    </details>
+    <p id="creative-building-status" class="inspiration-reveal" role="status" aria-live="polite" aria-atomic="true" hidden></p>
     <section class="city-object-music" aria-label="Musical city">
       <p id="city-object-status" role="status">Tap any city object to hear it.</p>
       <p id="city-encounter-status" role="status" hidden></p>
@@ -159,6 +167,17 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         </div>
       </details>
       <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p><button id="city-art-window" type="button">Open live painting window</button></details>
+      <section aria-label="City difficulty">
+        <label for="city-barrier-amount">Barriers per city</label>
+        <select id="city-barrier-amount" aria-describedby="city-barrier-help">
+          <option value="0">0 — Open city</option>
+          <option value="3">3 — Few barriers</option>
+          <option value="6">6 — Some barriers</option>
+          <option value="12">12 — Many barriers</option>
+          <option value="all" selected>Full amount — Original challenge</option>
+        </select>
+        <p id="city-barrier-help">Applies when you choose New City. Counts places to change across the whole city; your route and robot abilities determine how many you meet. Reset keeps the original difficulty.</p>
+      </section>
       <div class="city-new-actions">
         <button id="city-restart" type="button" aria-label="Reset" title="Reset: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
         <button id="city-new" type="button" aria-label="New City" title="New City: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
@@ -205,6 +224,19 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const sizeInput = get<HTMLInputElement>('city-size');
   const turnRadiusInput = get<HTMLSelectElement>('city-turn-radius');
   let minimumTurnRadius = 3;
+  const barrierInput = get<HTMLSelectElement>('city-barrier-amount');
+  let barrierAmount: BarrierAmount = 'all';
+  try {
+    const saved = localStorage.getItem('inclusive-city-barrier-amount');
+    if (isBarrierAmount(saved)) barrierAmount = saved;
+  } catch { /* The setting also works without storage. */ }
+  barrierInput.value = barrierAmount;
+  barrierInput.addEventListener('change', () => {
+    if (!isBarrierAmount(barrierInput.value)) return;
+    barrierAmount = barrierInput.value;
+    try { localStorage.setItem('inclusive-city-barrier-amount', barrierAmount); } catch { /* Optional persistence. */ }
+    feedback('Barrier amount saved. Choose New City to apply it.');
+  });
   let zebraPairs = readZebraPairs();
   try {
     const savedRadius = Number(localStorage.getItem('inclusive-city-turn-radius'));
@@ -219,6 +251,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let lastAlert: string | null = null, voiceCapturing = false;
   let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
   let eventCursor = 0, lastPaint = performance.now(), routeKey = '', panelKey = '', lastMood = '';
+  let inspirations: JourneyInspiration[] = [], inspirationQueue: JourneyInspiration[] = [], inspirationUntil = 0;
   let finished: FinishedJourney | null = null;
   let performancePresented = false, studioPreparing = false;
   let cityMusicTime = 0;
@@ -306,10 +339,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('city-encounter-status').hidden = true;
     get('city-instrument-feedback').hidden = true;
     get('creative-building-discoveries').replaceChildren();
-    get('creative-building-discoveries').setAttribute('aria-label', 'No creative buildings discovered yet');
+    inspirations = []; inspirationQueue = []; inspirationUntil = 0;
+    get<HTMLDetailsElement>('journey-inspirations').open = false;
+    setText('inspiration-count', '0'); get('inspiration-empty').hidden = false;
+    get('creative-building-status').hidden = true;
+    container.classList.remove('has-new-inspiration');
     setText('creative-building-status', '');
-    setText('creative-building-guide', city.journey.world.buildings.filter(b => b.creativeRole)
-      .map(b => buildingDescriptions[b.creativeRole!]).join(' '));
     musicCues.clear(); keyCueCursor = 0;
     monitorNotes = []; syncMusicMonitor();
     setText('city-music-key', 'Music follows city actions.'); setText('city-music-notes', 'Journey music ready.');
@@ -548,6 +583,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       sizeId = studio ? 'studio:width' : dimension ? selected : street ? `${street.kind === 'crossing' ? j.reachProblem(street) ? 'panel' : 'crossing' : 'width'}:${street.id}` : null;
       setText('city-feature-name', bicycle ? `Bicycle on ${bicycle.location}` : studio ? 'Duet studio entrance' : dimension ? j.dimensions.name(selected!) : communication ? 'Workshop communication board' : street?.id === j.world.steamTrain?.street ? 'Train boarding · flat railway bridge' : street ? streetNames[street.kind] : 'Choose a place on the map');
       setText('city-feature-reason', bicycle ? repaired ? 'Stored in the bicycle garage. The route is clear of this bike.' : j.bicycleBlocks(bicycle.id) ? `This bicycle blocks the ${bicycle.location}. Click it on the map to tip it over and keep pushing, or move it into the garage.` : 'Pushed clear of the path. You can keep pushing it or store it in the garage.' : studio ? j.entranceProblem ?? 'The robot can enter through this door. Try different doors and widths.' : dimension ? selected!.startsWith('panel:') ? 'Lower the button panel so robots with shorter reach can press it to request a green light.' : selected!.startsWith('door:') ? 'Widen or narrow the doorway and watch the opening change.' : 'Move this wall to change the building’s shape.' : repaired ? 'Changed. Your robot can use this street.' : communication ? 'Add a symbol board so robots can share messages and request help.' : street ? j.problem(street) ?? 'This robot can already use this street. You can still improve it for other robots.' : 'Choose a wall, doorway or street to change.');
+      if (street && isAccessibilityBarrier(street.kind)) {
+        const barrier = accessibilityBarriers[street.kind];
+        setText('city-feature-reason', repaired ? `${barrier.support} ${barrier.description}`
+          : j.problem(street) ?? `This robot can use this street with its current capabilities. ${barrier.description} ${barrier.support}`);
+      }
       get('city-size-controls').hidden = !sizeId;
       if (sizeId) {
         const limits = j.dimensions.limits(sizeId)!;
@@ -557,7 +597,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       }
       const repair = get<HTMLButtonElement>('city-repair');
       const trainStreet = street?.id === j.world.steamTrain?.street;
-      const choiceKind = communication ? 'communication' : street && !trainStreet && ['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) ? street.kind as EnvironmentChoiceKind : null;
+      const choiceKind = communication ? 'communication' : street && !trainStreet && (['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) || isAccessibilityBarrier(street.kind)) ? street.kind as EnvironmentChoiceKind : null;
       const choices = get('city-environment-choices'), signalChoices = get('city-signal-choices');
       const focused = plan.ownerDocument.activeElement as HTMLElement | null;
       const focusedBridge = focused?.dataset?.bridgeAccess;
@@ -607,21 +647,34 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
             target: () => city?.musicalObjects.project('your-robot') ?? null });
         }
       }
-      if (event.type === 'building_encounter') {
-        const role = event.data.kind as CreativeBuilding;
-        const description = buildingDescriptions[role];
-        const symbol = document.createElement('span');
-        symbol.textContent = buildingSymbols[role]; symbol.setAttribute('aria-hidden', 'true');
-        symbol.style.fontSize = '2rem'; symbol.style.marginInlineEnd = '.5rem';
-        get('creative-building-discoveries').append(symbol);
-        get('creative-building-discoveries').setAttribute('aria-label', j.machine.record.events
-          .filter(e => e.runId === j.machine.run.id && e.type === 'building_encounter')
-          .map(e => buildingDescriptions[e.data.kind as CreativeBuilding]).join(' '));
-        setText('creative-building-status', description);
+      const inspiration = journeyInspiration(event, j.world.nodes.find(n => n.id === event.data.id)?.label);
+      if (inspiration && !inspirations.some(item => item.id === inspiration.id)) {
+        inspirations.push(inspiration); inspirationQueue.push(inspiration);
+        if (j.machine.run.creative) j.machine.run.creative.inspirations = structuredClone(inspirations);
+        get('creative-building-discoveries').append(inspirationItem(inspiration));
+        setText('inspiration-count', String(inspirations.length)); get('inspiration-empty').hidden = true;
       }
       if (event.type === 'collision') sounds.collision(Number(event.data.speed), String(event.data.kind));
     }
     eventCursor = j.machine.record.events.length;
+    if (performance.now() >= inspirationUntil) {
+      const next = inspirationQueue.shift();
+      get('creative-building-status').hidden = !next;
+      container.classList.toggle('has-new-inspiration', !!next);
+      if (next) {
+        setText('creative-building-status', `${next.name} discovered. ${next.description}`);
+        inspirationUntil = performance.now() + 8000;
+        city.revealInspiration(next.id);
+        const currentCity = city;
+        musicVisuals.show({ name: next.name, kind: 'bell', at: cityMusicTime, onsets: [0, .3, .6],
+          label: 'Inspiration discovered', detail: next.description,
+          source: () => currentCity.projectInspiration(next.id),
+          target: () => {
+            const bounds = currentCity.projectRobotBounds();
+            return bounds ? { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top } : null;
+          } });
+      }
+    }
     if (creation) {
       updateCityMusic();
       Object.assign(j.machine.run.creative!, { music: creation.music, harmony: creation.harmony, colour: creation.colour });
@@ -665,7 +718,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     }
     pointers.clear(); pinch = 0; savedRoute = []; canvas.style.cursor = '';
     sounds.stop(); city?.journey.leave(); city?.scene.dispose();
-    const world = savedWorld ?? (reset && originalWorld ? structuredClone(originalWorld) : generateCity(seed, robots.length ? robots : [bot]));
+    const world = savedWorld ?? (reset && originalWorld ? structuredClone(originalWorld) : generateCityWithBarriers(seed, robots.length ? robots : [bot], barrierAmount));
     // Keep an untouched layout: edits and scene preparation mutate the live world.
     if (!reset || !originalWorld) originalWorld = structuredClone(world);
     world.minimumTurnRadius = minimumTurnRadius;
@@ -902,7 +955,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const seconds = Math.min(.1, engine.getDeltaTime() / 1000);
     // Keep physics and interaction checks at their normal timestep while
     // advancing the entire city ten times further per rendered frame.
-    for (let step = 0; step < (fastForwarding ? 10 : 1); step++) city.update(seconds);
+    for (let step = 0; step < (fastForwarding ? 10 : 1); step++) city.update(seconds, step === 0 ? seconds : 0);
     refresh();
     musicVisuals.update(cityMusicTime, reducedMotion.matches, sounds.isMuted);
     physicalStop.disabled = !physicalRobots.reserved;

@@ -6,6 +6,30 @@ import { Camera } from '@babylonjs/core/Cameras/camera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createCityCamera, type CityView } from '../src/city/cityCamera';
 
+test('follow turns and studio arrival keep world vertical upright after a camera transition', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const pose = { position: new Vector3(-20, 0, -15), heading: -Math.PI / 2, eyeHeight: 1.8 };
+  const controls = createCityCamera(engine, scene, () => pose);
+  const assertUpright = () => {
+    const view = controls.camera.getViewMatrix(true);
+    const vertical = Vector3.TransformNormal(Vector3.Up(), view);
+    assert.ok(Math.abs(vertical.x) < 1e-5, `world vertical leans sideways: ${vertical.x}`);
+    assert.ok(vertical.y > 0);
+  };
+  try {
+    controls.setView('follow');
+    for (let frame = 0; frame < 90; frame++) {
+      controls.update(1 / 60);
+      controls.camera.getViewMatrix(true);
+    }
+    for (const heading of [0, Math.PI / 4, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      pose.heading = heading; controls.update(1 / 60); assertUpright();
+    }
+    controls.beginArrival();
+    for (let frame = 0; frame < 480; frame++) { controls.update(1 / 60); assertUpright(); }
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
 test('city rotation visits four edges, reverses and preserves focus and zoom', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }));

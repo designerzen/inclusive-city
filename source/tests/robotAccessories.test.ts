@@ -16,7 +16,8 @@ test('accessories mix independently, follow animated rigs and reset for undecora
     for (const { id } of robotAccessories) {
       const root = scene.getTransformNodeByName(`accessory-${id}`)!;
       assert.equal(root.isEnabled(), true);
-      assert.equal(root.parent?.name, ['wings', 'bowTie'].includes(id) ? 'upper-body' : 'head-rig');
+      assert.equal(root.parent?.name, ['wings', 'bowTie', 'starTattoo', 'lightningTattoo', 'scarf', 'goldChain'].includes(id) ? 'upper-body' : 'head-rig');
+      assert.ok(root.getChildMeshes().length > 0, `${id} has visible geometry`);
     }
     bot.setAppearance({ ...defaultAppearance(), accessories: ['monocle'] });
     assert.equal(scene.getTransformNodeByName('accessory-monocle')!.isEnabled(), true);
@@ -31,12 +32,13 @@ test('accessories survive saving, design changes and returning to a previous rob
   let saved = '';
   const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
   const history = new BotHistory(['Turing', 'Hopper'], () => .3, storage);
-  history.updateAppearance({ ...history.current.appearance, accessories: ['moustache', 'wings'] });
+  const selected = robotAccessories.map(item => item.id);
+  history.updateAppearance({ ...history.current.appearance, accessories: selected });
   const restored = new BotHistory(['Turing', 'Hopper'], () => .3, storage);
-  assert.deepEqual(restored.current.appearance.accessories, ['moustache', 'wings']);
+  assert.deepEqual(restored.current.appearance.accessories, selected);
   restored.next();
-  assert.deepEqual(restored.current.appearance.accessories, ['moustache', 'wings']);
+  assert.deepEqual(restored.current.appearance.accessories, selected);
   restored.updateAppearance({ ...restored.current.appearance, accessories: [] });
   restored.previous();
-  assert.deepEqual(restored.current.appearance.accessories, ['moustache', 'wings']);
+  assert.deepEqual(restored.current.appearance.accessories, selected);
 });

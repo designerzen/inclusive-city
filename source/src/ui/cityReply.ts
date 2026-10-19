@@ -1,4 +1,5 @@
 import { isHumpbackBridge } from '../city/humpbackBridge';
+import { accessibilityBarriers, isAccessibilityBarrier } from '../city/accessibilityBarriers';
 import type { PlannedJourney } from '../simulation/plannedJourney';
 import { robotFootprint, robotButtonReach } from '../city/proceduralCity';
 import { expandCityCommand } from './cityCommandPhrases';
@@ -37,6 +38,18 @@ export function interpretCityReply(input: string, journey: PlannedJourney): City
   if (!id) return { message: reason };
   if (id.startsWith('robot:')) return { message: 'Another robot is in the way. We can wait for it to move; no city change is needed.' };
   const street = journey.world.streets.find(item => item.id === id);
+  // Accept one explicit improvement for these places, after shared negation,
+  // diagnostic and compound-request checks. Other barrier requests stay bounded.
+  if (street && isAccessibilityBarrier(street.kind)) {
+    const improvements = {
+      uneven: /^(smooth (the )?(paving|path)|repair (the )?paving|make (the )?paving smooth)$/,
+      slope: /^(add (a )?(gentle (zigzag )?)?ramp|make (the )?slope gentler)$/,
+      rest: /^(add (rest( and charging)? points|seating|benches|charging points))$/,
+      signage: /^(add (large print( sound and tactile)? signs|accessible signs|tactile signs))$/,
+      announcement: /^(add (visual( and tactile)? directions|tactile directions|visual signs))$/,
+    };
+    if (improvements[street.kind].test(text)) return { message: `${accessibilityBarriers[street.kind].action}.`, action: { kind: 'feature', id } };
+  }
   const requests = [
     /\b(ramp|steps|stairs|elevator|elevators|lift|lifts)\b/.test(text), /\b(curb|kerb)\b/.test(text),
     /\b(bridge)\b/.test(text), /\b(beeper|beep|tactile|cues)\b/.test(text),

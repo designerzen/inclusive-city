@@ -29,6 +29,9 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
 
   function lookAt(point: Vector3) {
     focalDistance = Vector3.Distance(camera.position, point);
+    // View interpolation can rotate Babylon's up vector; do not carry that bank
+    // into later robot turns or the studio arrival orbit.
+    camera.upVector.copyFromFloats(0, 1, 0);
     camera.setTarget(point);
   }
 

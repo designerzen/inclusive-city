@@ -14,6 +14,7 @@ export interface FinishedJourney {
   marks: PaintStroke[]; score: SoundSequenceEntry[];
   artworkTitle: ArtworkTitle;
   artist: ArtistPreferences;
+  inspirations?: import('../city/journeyInspirations').JourneyInspiration[];
   robot: Pick<RobotMetadata, 'appearance' | 'profile'>;
 }
 
@@ -29,6 +30,7 @@ export function captureFinishedJourney(run: RobotRun): FinishedJourney {
     seed: run.creative.seed, bpm: run.creative.bpm, steps: run.metrics.stepsTaken,
     discoveries: run.pickups.length, improvements: run.metrics.interventions,
     marks: run.creative.marks, score: run.creative.score, artworkTitle: run.creative.title,
+    inspirations: run.creative.inspirations ?? [],
     artist: run.creative.artist ?? normaliseArtist(run.metadata.creative ? {
       painter: run.metadata.creative.artStyle === 'expressive' ? 'expressionist' : run.metadata.creative.artStyle,
       musician: run.metadata.creative.musicStyle,

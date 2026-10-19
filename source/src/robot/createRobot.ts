@@ -15,6 +15,7 @@ import type { RobotCondition } from './robotCondition';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { createShapeTransition } from './shapeTransition';
 import { createAccessories } from './accessories';
+import { createBatteries } from './batteries';
 import { audioSpectrum } from '../audio/AudioSpectrum';
 import { robotInitials } from './robotIdentity';
 import { robotNameTooltip } from './robotNameTooltip';
@@ -219,7 +220,9 @@ export function createRobot(scene: Scene) {
   frontWheel.setEnabled(false);
   frontFork.setEnabled(false);
 
+  const setBatteries = createBatteries(scene, upperBody);
   function setProfile(profile: RobotProfile) {
+    setBatteries(profile);
     visionEnabled = profile.enabledFunctions.includes('vision');
     hearingEnabled = profile.enabledFunctions.includes('hearing');
     balanceEnabled = profile.enabledFunctions.includes('balance');
@@ -289,7 +292,7 @@ export function createRobot(scene: Scene) {
   let travelPhase = 0;
   let speaking = false, speechPhase = 0;
   const characterAnimation = new CharacterAnimation();
-  function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false, turnAngle = 0) {
+  function animateTravel(distance: number, seconds: number, reducedMotion = false, paused = false, turnAngle = 0, animationSeconds = seconds) {
     if (!Number.isFinite(distance) || !Number.isFinite(seconds) || distance < 0 || seconds <= 0) return;
     if (paused) return;
     balancePhase += seconds;
@@ -307,7 +310,7 @@ export function createRobot(scene: Scene) {
     const energy = 1 - (characterAnimation.condition?.fatigue ?? 0) / 100 * .75;
     const bob = moving && !reducedMotion ? Math.sin(travelPhase) * 0.075 * energy : 0;
     const tilt = moving && !reducedMotion ? Math.cos(travelPhase) * 0.025 * energy : 0;
-    const pose = characterAnimation.tick(seconds, moving, reducedMotion);
+    const pose = characterAnimation.tick(animationSeconds, moving, reducedMotion);
     if (speaking && !reducedMotion) {
       speechPhase += seconds;
       pose.mouthOpen = .1 + Math.abs(Math.sin(speechPhase * 13) * Math.cos(speechPhase * 3)) * .85;

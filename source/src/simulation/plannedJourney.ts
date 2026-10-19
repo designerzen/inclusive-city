@@ -1,4 +1,5 @@
 import { isHumpbackBridge, rampHeight, elevatorPose, type BridgeAccess } from '../city/humpbackBridge';
+import { isAccessibilityBarrier } from '../city/accessibilityBarriers';
 import { trainRidePose, trainRideDuration, trainPhaseText } from '../city/steamTrainRide';
 import type { ArtBot } from '../robot/botHistory';
 import { RobotStateMachine, robotMetadata } from '../robot/robotState';
@@ -204,7 +205,7 @@ export class PlannedJourney {
   trainSeconds = 0;
   trainRampChoice: 'wait' | 'roboramp' | null = null;
   private rampWaitSeconds = 0;
-  get needsTrainRamp() { return this.onTrainLink && this.trainRampChoice === null; }
+  get needsTrainRamp() { return this.onTrainLink && this.trainRampChoice === null && !this.world.initialImprovements?.includes(this.world.steamTrain!.street); }
   requestTrainRamp(choice: 'wait' | 'roboramp') {
     if (!this.blocked || !this.needsTrainRamp || this.blocked.id !== this.world.steamTrain?.street) return false;
     this.trainRampChoice = choice;
@@ -257,12 +258,13 @@ export class PlannedJourney {
   private creativeEncounterRun = -1;
   private readonly visitedBuildings = new Set<string>();
   constructor(bot: ArtBot, readonly world: ProceduralCity) {
+    for (const id of world.initialImprovements ?? []) this.repaired.add(id);
     if (Number.isFinite(world.minimumTurnRadius) && world.minimumTurnRadius! >= .5 && world.minimumTurnRadius! <= 12) this.turnRadius = world.minimumTurnRadius!;
     this.dimensions = new CityDimensions(world);
     this.bot = { ...robotMetadata(bot), record: bot.record };
     this.path = [world.start];
     this.machine = new RobotStateMachine(bot.record, () => ({ edge: this.edge, position: this.position }));
-    this.machine.start(robotMetadata(bot), [], true);
+    this.machine.start(robotMetadata(bot), [...this.repaired], true);
     this.machine.run.environment.routeId = `procedural-${world.seed}`;
     this.savePlan(); this.telemetry();
   }
@@ -444,7 +446,7 @@ export class PlannedJourney {
     const street = this.world.streets.find(s => s.id === id);
     if (street && isHumpbackBridge(street, this.world)) return this.setBridgeAccess(id, enabled ? 'ramp' : 'steps');
     const signal = this.world.streets.find(s => `signals:${s.id}` === id && s.kind === 'crossing');
-    if (id !== 'communication' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind))) return false;
+    if (id !== 'communication' && !signal && (!street || !['curb', 'stairs', 'bridge', 'guidance'].includes(street.kind) && !isAccessibilityBarrier(street.kind))) return false;
     const before = this.repaired.has(id);
     if (before === enabled || !this.canEdit(id)) return false;
     this.history.push({ id, before }); this.applyRepair(id, enabled); return true;

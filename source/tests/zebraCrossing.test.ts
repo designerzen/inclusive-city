@@ -4,9 +4,77 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { BotHistory } from '../src/robot/botHistory';
-import { generateCity } from '../src/city/proceduralCity';
-import { createZebraCrossing, foregroundCrossingPosition, zebraBeaconOn, zebraRoadSites } from '../src/city/zebraCrossing';
+import { generateCity, routeToGoal } from '../src/city/proceduralCity';
+import { createZebraCrossing, zebraBeaconOn, zebraRoadSites, signalCrossingSite } from '../src/city/zebraCrossing';
+import { PlannedJourney } from '../src/simulation/plannedJourney';
+import { RouteTrajectory } from '../src/city/routeTrajectory';
+import type { ProceduralCity } from '../src/city/proceduralCity';
 import { cityRoadNetwork } from '../src/city/cityRoadNetwork';
+
+const point = (id: string, x: number, z: number) => ({ id, label: id, x, y: .16, z });
+function junction(): ProceduralCity {
+  return { seed: 1, start: 'w', destination: 'e', buildings: [], riverX: 40, rememberedRobots: 1,
+    nodes: [point('w', -10, 0), point('j', 0, 0), point('e', 10, 0), point('n', 0, 10), point('s', 0, -10)],
+    streets: ['w', 'e', 'n', 's'].map(id => ({ id, a: 'j', b: id, kind: 'clear', width: id === 'n' ? 4 : 2.6, crossingSeconds: 20 })) };
+}
+
+test('crossings span a junction along the robot route, without overlapping paint', () => {
+  const world = junction(), network = cityRoadNetwork(world, 3);
+  for (const [from, to, horizontal, width] of [['w', 'e', false, 4], ['n', 's', true, 2.6]] as const) {
+    const trajectory = new RouteTrajectory([from, 'j', to].map(id => world.nodes.find(n => n.id === id)!));
+    const sites = zebraRoadSites(world, network, 12, trajectory);
+    assert.equal(sites.length, 1);
+    assert.deepEqual([sites[0]!.x, sites[0]!.z], [0, 0]);
+    assert.equal(sites[0]!.horizontal, horizontal);
+    assert.equal(sites[0]!.width, width);
+    assert.equal(sites[0]!.onRoute, true);
+    assert.equal(sites[0]!.bandWidth, 2.6);
+  }
+  assert.equal(zebraRoadSites(world, network, 1).length, 1);
+  assert.deepEqual(zebraRoadSites(world, network, 0), []);
+  world.streets[0]!.kind = 'crossing';
+  assert.deepEqual(zebraRoadSites(world, network), [], 'signalised junctions retain their own markings');
+});
+
+test('dead ends and simple bends never receive zebra crossings', () => {
+  const world = junction();
+  world.streets = world.streets.filter(s => s.id === 'w' || s.id === 'n');
+  assert.deepEqual(zebraRoadSites(world, cityRoadNetwork(world, 3), 12), []);
+  world.streets = world.streets.filter(s => s.id === 'w');
+  assert.deepEqual(zebraRoadSites(world, cityRoadNetwork(world, 3), 12), []);
+});
+
+test('signalised markings cross only the junction width, and turning routes use its straight approach', () => {
+  const world = junction(), street = world.streets[0]!;
+  const straight = signalCrossingSite(world, street, 3, ['w', 'j', 'e'])!;
+  assert.deepEqual([straight.x, straight.z, straight.length], [0, 0, 4]);
+  const turn = signalCrossingSite(world, street, 3, ['w', 'j', 'n'])!;
+  assert.deepEqual([turn.x, turn.z, turn.length], [-5, 0, 4]);
+  assert.ok(turn.x + turn.length / 2 <= -3, 'paint ends before the rounded turn begins');
+  world.streets = [street];
+  assert.equal(signalCrossingSite(world, street, 3, ['w', 'j']), null, 'no stripes without a side road');
+});
+
+test('generated crossings stay at connected junctions and prioritise the actual journey', () => {
+  const bot = new BotHistory(['Curie', 'Einstein']).current;
+  let routeCrossings = 0;
+  for (let seed = 0; seed < 100; seed++) {
+    const world = generateCity(seed, [bot]);
+    const journey = new PlannedJourney(bot, world); journey.enableLineFollowing();
+    const route = routeToGoal(world); if (!route) continue; journey.setRoute(route);
+    const sites = zebraRoadSites(world, cityRoadNetwork(world, journey.minimumTurnRadius), 12, journey.trajectory);
+    assert.ok(sites.length <= 12);
+    assert.equal(new Set(sites.map(s => s.node)).size, sites.length);
+    for (const site of sites) {
+      const node = world.nodes.find(n => n.id === site.node)!;
+      assert.deepEqual([site.x, site.z], [node.x, node.z]);
+      assert.ok(world.streets.filter(s => s.a === node.id || s.b === node.id).length >= 3);
+      assert.ok(site.width > 0 && site.bandWidth <= 3.2);
+    }
+    if (sites.some(s => s.onRoute)) { assert.equal(sites[0]!.onRoute, true); routeCrossings++; }
+  }
+  assert.ok(routeCrossings > 0, 'generated journeys use the junction crossings when the route goes straight across a side road');
+});
 
 test('beacons flash once on every musical beat at different tempos without frame accumulation', () => {
   for (const bpm of [60, 90, 120, 180]) {
@@ -21,34 +89,25 @@ test('beacons flash once on every musical beat at different tempos without frame
   assert.equal(zebraBeaconOn(NaN, 120), false);
 });
 
-test('every generated city has space for the foreground crossing ahead of all streets and buildings', () => {
-  const bot = new BotHistory(['Curie', 'Einstein']).current;
-  for (let seed = 0; seed < 100; seed++) {
-    const world = generateCity(seed, [bot]), front = foregroundCrossingPosition(world);
-    assert.ok(world.nodes.every(node => node.z > front.z + 1.5));
-    assert.ok(world.buildings.every(b => b.z - b.d / 2 > front.z + 1.5));
-    assert.ok(Math.abs(front.x - world.riverX) > 4.5);
-  }
-});
-
 test('zebra stripes and paired Belisha globes follow road width and share the same flash', () => {
   const engine = new NullEngine(), scene = new Scene(engine);
   try {
     const zebra = createZebraCrossing(scene, 'test', new StandardMaterial('white', scene), new StandardMaterial('black', scene));
     zebra.place(2, -5, 4);
     const stripes = scene.meshes.filter(m => m.name.startsWith('zebra-stripe'));
-    assert.equal(stripes.length, 7);
+    assert.equal(stripes.length, 6);
     for (const stripe of stripes) {
       stripe.computeWorldMatrix(true);
       const bounds = stripe.getBoundingInfo().boundingBox;
-      assert.ok(bounds.extendSizeWorld.x > bounds.extendSizeWorld.z, 'stripes run along traffic, spaced across the road');
-      assert.ok(Math.abs(stripe.position.z) + stripe.scaling.z / 2 <= 2, 'paint stays between road edges');
+      assert.ok(bounds.extendSizeWorld.z > bounds.extendSizeWorld.x, 'stripes run along the pedestrian path across traffic');
+      assert.ok(Math.abs(stripe.position.x) + 3.2 * stripe.scaling.x / 2 <= 1.6 && stripe.scaling.z === 4, 'paint stays between road edges');
     }
     const globes = scene.meshes.filter(m => m.name.startsWith('belisha-globe'));
     assert.equal(globes.length, 2);
     assert.equal(scene.meshes.filter(m => m.name.startsWith('belisha-cap')).length, 0);
     assert.equal(globes[0]!.material, globes[1]!.material);
     assert.deepEqual(globes.map(m => m.parent!.position.z), [-2.45, 2.45]);
+    assert.ok(globes.every(m => m.parent!.position.x > 1.6), 'beacons stay beside the pedestrian path');
     zebra.update(0, 120);
     const material = globes[0]!.material as StandardMaterial;
     const bright = material.emissiveColor.r;
@@ -58,24 +117,4 @@ test('zebra stripes and paired Belisha globes follow road width and share the sa
     assert.equal(zebra.root.rotation.y, Math.PI / 2);
     assert.deepEqual(globes.map(m => m.parent!.position.z), [-3.45, 3.45]);
   } finally { scene.dispose(); engine.dispose(); }
-});
-
-test('zebra crossings occupy straight ordinary roads and never another crossing or a bend', () => {
-  const bot = new BotHistory(['Curie', 'Einstein']).current;
-  for (let seed = 0; seed < 100; seed++) {
-    const world = generateCity(seed, [bot]), network = cityRoadNetwork(world, 3);
-    const sites = zebraRoadSites(world, network);
-    assert.ok(sites.length + 1 <= 4, 'road pairs plus the foreground pair stay within the city limit');
-    const expandedSites = zebraRoadSites(world, network, 12);
-    assert.ok(expandedSites.length <= 11, 'reserve the foreground pair within the twelve-pair limit');
-    assert.deepEqual(sites, expandedSites.slice(0, 3));
-    assert.deepEqual(zebraRoadSites(world, network, 0), []);
-    assert.deepEqual(zebraRoadSites(world, network, 1), []);
-    for (const site of sites) {
-      assert.ok(site.street.kind === 'clear' || site.street.kind === 'width');
-      assert.notEqual(site.street.id, world.steamTrain?.street);
-      const span = network.spans.get(site.street.id)!;
-      assert.ok(Math.hypot(span.b.x - span.a.x, span.b.z - span.a.z) >= 4);
-    }
-  }
 });

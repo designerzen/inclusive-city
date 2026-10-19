@@ -20,7 +20,9 @@ test('exhibitions capture the completed robot’s artwork and stay intact across
   for (const event of journey.machine.record.events) creativity.consume(event);
   creativity.advance(1000, false);
   journey.machine.run.creative = { seed: creativity.seed, bpm: creativity.bpm, music: true, art: true, harmony: false, colour: false, marks: creativity.marks, score: creativity.score };
+  journey.machine.run.creative.inspirations = [{ id: 'building:Gallery', name: 'Gallery', symbol: '▣', description: 'Geometric brushwork.' }];
   const exhibition = captureFinishedJourney(journey.machine.run);
+  assert.deepEqual(exhibition.inspirations, journey.machine.run.creative.inspirations);
   assert.deepEqual(exhibition.robot.appearance, journey.machine.run.metadata.appearance);
   assert.deepEqual(exhibition.robot.profile, journey.machine.run.metadata.profile);
   assert.deepEqual(exhibition.artworkTitle, journey.machine.run.creative.title);
@@ -28,6 +30,8 @@ test('exhibitions capture the completed robot’s artwork and stay intact across
   assert.equal(exhibition.name, bot.name); assert.equal(exhibition.steps, journey.metrics.stepsTaken);
   assert.deepEqual(exhibition.marks, creativity.marks); assert.deepEqual(exhibition.score, creativity.score);
   const before = structuredClone(exhibition);
+  journey.machine.run.creative.inspirations[0]!.description = 'Changed on another run';
+  assert.equal(exhibition.inspirations![0]!.description, 'Geometric brushwork.');
   creativity.marks[0]!.pigment = '#000'; creativity.score.length = 0;
   assert.deepEqual(captureFinishedJourney(journey.machine.run).artworkTitle, savedTitle);
   journey.restart(); journey.bot.name = 'Another name';

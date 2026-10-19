@@ -3,7 +3,7 @@ import { instrumentNames, type CityInstrument } from '../audio/cityInstruments';
 export interface MusicFocus { x: number; y: number; width: number; height: number }
 interface VisualCue {
   name: string; kind: CityInstrument; at: number; onsets: number[]; automatic?: boolean;
-  source: () => MusicFocus | null; target?: () => MusicFocus | null; detail?: string;
+  source: () => MusicFocus | null; target?: () => MusicFocus | null; detail?: string; label?: string;
 }
 const symbols: Record<CityInstrument, string> = { bell: '♬', pluck: '♪', water: '≋', drum: '●', whistle: '♫', robot: '↔' };
 
@@ -95,11 +95,11 @@ export function mountCityMusicVisuals(map: HTMLElement, summary: HTMLElement) {
         }
       }
     }
-    now.hidden = !latest;
-    if (latest) {
+    now.hidden = !latest || !!latest.cue.label;
+    if (latest && !latest.cue.label) {
       now.dataset.instrument = latest.cue.kind;
       const state = visualNoteState(time, latest.cue.at, latest.cue.onsets);
-      const text = `${symbols[latest.cue.kind]} ${state.age < 0 ? 'Next beat' : latest.cue.target ? 'Melody exchange' : latest.cue.automatic ? 'Playing nearby' : 'You played'}${muted ? ' · muted' : ''}\n${latest.cue.name}\n${latest.cue.detail ?? instrumentNames[latest.cue.kind]}`;
+      const text = `${symbols[latest.cue.kind]} ${latest.cue.label ?? (state.age < 0 ? 'Next beat' : latest.cue.target ? 'Melody exchange' : latest.cue.automatic ? 'Playing nearby' : 'You played')}${muted ? ' · muted' : ''}\n${latest.cue.name}\n${latest.cue.detail ?? instrumentNames[latest.cue.kind]}`;
       if (now.textContent !== text) now.textContent = text;
     }
   }
