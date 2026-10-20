@@ -38,7 +38,6 @@ import { createRoadGeometryCache } from './roadGeometryCache';
 import { createGoalFlag } from './goalFlag';
 import { studioApproach } from './studioApproach';
 import { createRiver } from './createRiver';
-import { createSkyline } from './createSkyline';
 import { createCitySkybox } from './createCitySkybox';
 import { creativeBuildingModel } from './creativeBuildingModel';
 import { createCityEditTransitions } from './cityEditTransitions';
@@ -92,7 +91,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const groundMesh = box('ground', 0, -.12, 0, 1, .15, 1, ground); solids.push(groundMesh);
   const river = createRiver(scene, world.riverX);
   const riverMesh = river.mesh;
-  const skyline = createSkyline(scene);
   const skybox = createCitySkybox(scene);
   const streetModels = world.streets.map(street => {
     const a = world.nodes.find(n => n.id === street.a)!, b = world.nodes.find(n => n.id === street.b)!;
@@ -294,10 +292,9 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     }
     const extentX = Math.max(28, ...world.nodes.map(n => Math.abs(n.x) + 5), ...world.buildings.map(b => Math.abs(b.x) + b.w / 2 + 4), Math.abs(world.bicycleGarage?.x ?? 0) + 6);
     const extentZ = Math.max(22, ...world.nodes.map(n => Math.abs(n.z) + 5), ...world.buildings.map(b => Math.abs(b.z) + b.d / 2 + 4), Math.abs(world.bicycleGarage?.z ?? 0) + 6);
-    // Carry the landscape past the skyline so the river reads as a continuous waterway.
+    // Carry the landscape beyond the streets so the river remains a continuous waterway.
     groundMesh.scaling.set((extentX + 90) * 2, 1, (extentZ + 90) * 2);
     riverMesh.scaling.z = (extentZ + 90) * 2;
-    skyline.resize(extentX, extentZ, world.riverX);
     syncSignals();
     physics?.sync();
   }
@@ -519,7 +516,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   }
   function setTheme(value: Theme) {
     river.setTheme(value);
-    skyline.setTheme(value);
     skybox.setTheme(value);
     theme = value; scene.clearColor = Color4.FromHexString(value === 'dark' ? '#171717ff' : '#edededff');
     palette.forEach(({ mat, dark, light }) => { mat.diffuseColor = Color3.FromHexString(value === 'dark' ? dark : light); if (mat.disableLighting) mat.emissiveColor = mat.diffuseColor; });

@@ -2,10 +2,16 @@ import type { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { ShaderMaterial } from '@babylonjs/core/Materials/shaderMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import skylineTextureUrl from './assets/skyline.svg?url';
 import type { Theme } from '../app/theme';
 
-/** A camera-centred skybox: a still, illustrated sky behind the distant buildings. */
+/** A camera-centred sky and panoramic skyline, without surrounding building geometry. */
 export function createCitySkybox(scene: Scene) {
+  const skylineTexture = new Texture(skylineTextureUrl, scene, false, false, Texture.BILINEAR_SAMPLINGMODE);
+  skylineTexture.hasAlpha = true;
+  skylineTexture.wrapU = Texture.WRAP_ADDRESSMODE;
+  skylineTexture.wrapV = Texture.CLAMP_ADDRESSMODE;
   const material = new ShaderMaterial('city-skybox', scene, {
     vertexSource: `
       precision highp float;
@@ -26,6 +32,9 @@ export function createCitySkybox(scene: Scene) {
       uniform vec3 horizonColour;
       uniform vec3 lowerColour;
       uniform vec3 cloudColour;
+      uniform vec3 skylineNearColour;
+      uniform vec3 skylineFarColour;
+      uniform sampler2D skylineTexture;
       void main() {
         vec3 direction = normalize(skyDirection);
         float height = max(0.0, direction.y);
@@ -37,13 +46,26 @@ export function createCitySkybox(scene: Scene) {
         float clouds = smoothstep(0.4, 0.95, ribbon)
           * smoothstep(0.05, 0.2, height) * (1.0 - smoothstep(0.45, 0.8, height));
         colour = mix(colour, cloudColour, clouds * 0.16);
+        // Cylindrical mapping keeps the panorama continuous across the cube corners.
+        float azimuth = atan(direction.x, direction.z) / 6.28318530718 + 0.5;
+        float elevation = atan(direction.y, length(direction.xz));
+        if (elevation < 0.24) {
+          vec4 skyline = texture2D(skylineTexture,
+            vec2(azimuth, clamp(1.0 - elevation / 0.24, 0.0, 1.0)));
+          vec3 buildings = mix(skylineFarColour, skylineNearColour,
+            clamp((skyline.r - 0.5) * 2.0, 0.0, 1.0));
+          colour = mix(colour, buildings, skyline.a);
+        }
         gl_FragColor = vec4(colour, 1.0);
       }
     `,
   }, {
     attributes: ['position'],
-    uniforms: ['worldViewProjection', 'zenithColour', 'horizonColour', 'lowerColour', 'cloudColour'],
+    uniforms: ['worldViewProjection', 'zenithColour', 'horizonColour', 'lowerColour', 'cloudColour', 'skylineNearColour', 'skylineFarColour'],
+    samplers: ['skylineTexture'],
   });
+  material.setTexture('skylineTexture', skylineTexture);
+  scene.onDisposeObservable.addOnce(() => skylineTexture.dispose());
   material.backFaceCulling = false;
   material.disableDepthWrite = true;
   const mesh = MeshBuilder.CreateBox('city-skybox', { size: 1000 }, scene);
@@ -58,6 +80,8 @@ export function createCitySkybox(scene: Scene) {
     material.setColor3('horizonColour', Color3.FromHexString(dark ? '#495460' : '#e5ece9'));
     material.setColor3('lowerColour', Color3.FromHexString(dark ? '#171717' : '#ededed'));
     material.setColor3('cloudColour', Color3.FromHexString(dark ? '#8595ac' : '#ffffff'));
+    material.setColor3('skylineNearColour', Color3.FromHexString(dark ? '#303a40' : '#a0b1ba'));
+    material.setColor3('skylineFarColour', Color3.FromHexString(dark ? '#3c4752' : '#c0cdd2'));
   }
   setTheme('dark');
   return { mesh, material, setTheme };

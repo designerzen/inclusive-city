@@ -11,6 +11,7 @@ import { mountCityScreen } from '../../src/ui/cityScreen';
 import { CitySounds } from '../../src/audio/CitySounds';
 import { BotHistory } from '../../src/robot/botHistory';
 import { reducedMotionPreference } from '../../src/app/accessibilityPreferences';
+import { mountButtonIcons } from '../../src/ui/buttonIcons';
 
 // Exercise the actual city HUD and Web Audio with procedural fallback, without model downloads.
 const canvas = document.createElement('canvas');
@@ -21,6 +22,7 @@ if (options.has('reduced-motion')) reducedMotionPreference().setReduced(true);
 if (options.has('muted')) sounds.setMuted(true);
 const screen = mountCityScreen(document.querySelector('#city-screen')!, sounds, engine, canvas, () => {});
 screen.enter(new BotHistory(['Curie', 'Einstein']).current);
+mountButtonIcons(document.body);
 const meeting = document.createElement('button');
 meeting.textContent = 'Test robot meeting';
 meeting.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:40';

@@ -8,6 +8,7 @@ import { mountCityDisplayControls } from './cityDisplayControls';
 import { mountRouteProjection } from './routeProjection';
 import { mountPhysicalRobots } from './physicalRobots';
 import type { Engine } from '@babylonjs/core/Engines/engine';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createCityScene } from '../city/createCityScene';
 import { normalizeZebraPairs, readZebraPairs } from '../app/zebraPreferences';
 import type { ProceduralCity } from '../city/proceduralCity';
@@ -108,8 +109,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
           <div id="city-isometric-options" class="city-isometric-options" role="group" aria-label="Isometric camera controls" aria-hidden="true" inert>
             <button id="city-rotate-left" type="button" data-rotate-city="-1" aria-label="Rotate city anticlockwise"><span aria-hidden="true">↶</span></button>
             <button id="city-rotate-right" type="button" data-rotate-city="1" aria-label="Rotate city clockwise"><span aria-hidden="true">↷</span></button>
-            <button type="button" data-map="zoom-in">Zoom in</button>
-            <button type="button" data-map="zoom-out">Zoom out</button>
           </div>
         </div>
         <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
@@ -117,6 +116,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
         <button id="city-project-line" type="button">Project robot line</button>
         <button id="city-map-fit" type="button">Show goal</button>
+        <div class="city-navigation-tools" role="group" aria-label="Zoom and track the city">
+          <button type="button" data-map="zoom-in">Zoom in</button>
+          <button type="button" data-map="zoom-out">Zoom out</button>
+          <button type="button" data-map="left">Move left</button>
+          <button type="button" data-map="up">Move up</button>
+          <button type="button" data-map="down">Move down</button>
+          <button type="button" data-map="right">Move right</button>
+        </div>
       </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
       <h2 id="city-heading" tabindex="-1">Reach the goal</h2>
@@ -828,8 +835,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
   for (const button of container.querySelectorAll<HTMLButtonElement>('.city-view-tools [data-map]')) button.addEventListener('click', () => {
-    if (!city || button.disabled) return;
-    city.setZoom(button.dataset.map === 'zoom-in' ? .8 : 1.25);
+    navigateMap(button);
   });
   for (const button of container.querySelectorAll<HTMLButtonElement>('[data-rotate-city]')) button.addEventListener('click', () => {
     if (!city || button.disabled) return;
@@ -854,16 +860,23 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   turnRadiusInput.addEventListener('change', () => {
     setMinimumTurnRadius(Number(turnRadiusInput.value));
   });
-  plan.querySelector('.city-map-buttons')!.addEventListener('click', event => {
-    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('button[data-map]') : null;
-    if (!button || button.disabled || !city) return;
+  function navigateMap(button: HTMLButtonElement) {
+    if (button.disabled || !city) return;
     const action = button.dataset.map;
     if (action === 'zoom-in' || action === 'zoom-out') city.setZoom(action === 'zoom-in' ? .8 : 1.25);
     else {
       const camera = city.scene.activeCamera!;
       const step = (camera.orthoRight! - camera.orthoLeft!) * .15;
-      city.pan(action === 'left' ? -step : action === 'right' ? step : 0, action === 'up' ? step : action === 'down' ? -step : 0);
+      const x = action === 'left' ? -step : action === 'right' ? step : 0;
+      const z = action === 'up' ? step : action === 'down' ? -step : 0;
+      // Keep the arrows aligned with the screen after rotating the 3D view.
+      const right = camera.getDirection(Vector3.Right());
+      city.pan(x * right.x - z * right.z, z * right.x + x * right.z);
     }
+  }
+  plan.querySelector('.city-map-buttons')!.addEventListener('click', event => {
+    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('button[data-map]') : null;
+    if (button) navigateMap(button);
   });
   get('city-exhibition').addEventListener('click', () => { if (finished && city?.arrivalComplete) { performancePresented = true; onPresent(structuredClone(finished)); } });
   const pointers = new Map<number, { x: number; y: number }>();

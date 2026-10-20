@@ -22,7 +22,7 @@ export function createMusicalObjects(scene: Scene, world: ProceduralCity) {
   function rebuild() {
     objects.clear(); byMesh.clear();
     for (const mesh of scene.meshes) {
-      if (/^(musical-response|label-|drawn-route|resize-|dimension-|skyline-|city-skybox$)/.test(mesh.name)) continue;
+      if (/^(musical-response|label-|drawn-route|resize-|dimension-|city-skybox$)/.test(mesh.name)) continue;
       const ancestry: Node[] = [mesh];
       for (let parent = mesh.parent; parent; parent = parent.parent) ancestry.push(parent);
       const names = ancestry.map(n => n.name).join(' ');
