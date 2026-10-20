@@ -47,6 +47,7 @@ import { routeToGoal } from './proceduralCity';
 import { RouteTrajectory } from './routeTrajectory';
 import { createMusicalObjects } from './musicalObjects';
 import { createCrossingCountdown } from './crossingCountdown';
+import { crossingInUse } from './crossingActivity';
 
 export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCity) {
   const scene = new Scene(engine);
@@ -158,7 +159,8 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const pole = box(`signal-pole-${street.id}-${i}`, x, .9, z, .12, 1.8, .12, flagBlack);
       const housing = box(`signal-head-${street.id}-${i}`, x, 2.05, z, .6, .9, .4, flagBlack);
       housing.metadata = { street: street.id }; housing.isPickable = true;
-      createCrossingCountdown(scene, housing, () => journey.signal(street), () => street.crossingSeconds);
+      createCrossingCountdown(scene, housing, () => journey.signal(street), () => street.crossingSeconds,
+        () => crossingInUse(street, journey, autonomousBots?.bots));
       const lamp = (name: string, y: number) => {
         const mesh = MeshBuilder.CreateSphere(`${name}-${street.id}-${i}`, { diameter: .28, segments: 12 }, scene);
         mesh.position.set(x, y, z - .23); mesh.material = signalOff; mesh.isPickable = false; return mesh;

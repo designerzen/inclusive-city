@@ -5,7 +5,7 @@ import { crossingCountdown, type crossingSignal } from './trafficSignals';
 
 /** Screen-space labels follow the signal heads without intercepting city controls. */
 export function createCrossingCountdown(scene: Scene, head: AbstractMesh,
-  signal: () => ReturnType<typeof crossingSignal>, greenSeconds: () => number) {
+  signal: () => ReturnType<typeof crossingSignal>, greenSeconds: () => number, isRelevant: () => boolean) {
   const canvas = scene.getEngine().getRenderingCanvas();
   if (!canvas || typeof document === 'undefined') return;
   const label = document.createElement('div');
@@ -23,7 +23,7 @@ export function createCrossingCountdown(scene: Scene, head: AbstractMesh,
   const engine = scene.getEngine();
   const observer = scene.onAfterRenderObservable.add(() => {
     label.hidden = true;
-    if (document.hidden || !scene.activeCamera || !head.isEnabled() || !head.isVisible) return;
+    if (document.hidden || !isRelevant() || !scene.activeCamera || !head.isEnabled() || !head.isVisible) return;
     const bounds = canvas.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const point = Vector3.Project(head.getAbsolutePosition().add(new Vector3(0, .65, 0)),

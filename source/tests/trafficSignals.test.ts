@@ -5,6 +5,7 @@ import { createRobotProfile, robotFunctions } from '../src/robot/functions';
 import { defaultAbilities } from '../src/robot/abilities';
 import { PlannedJourney } from '../src/simulation/plannedJourney';
 import { crossingSignal, crossingCountdown } from '../src/city/trafficSignals';
+import { crossingInUse } from '../src/city/crossingActivity';
 import type { FunctionId } from '../src/robot/functions';
 import type { ProceduralCity } from '../src/city/proceduralCity';
 import { robotButtonReach } from '../src/city/proceduralCity';
@@ -53,6 +54,34 @@ test('a slow robot waits for green without a failure, then finishes before red',
   j.update(1.1); assert.ok(j.distanceOnEdge > 0);
   j.update(8); assert.equal(j.complete, true);
   assert.ok(j.signalTime < 16);
+});
+
+test('countdowns appear while the player waits or crosses and disappear after departure or restart', () => {
+  const j = crossing(), street = j.world.streets[0]!;
+  assert.equal(crossingInUse(street, j), false);
+  j.start(); j.update(3);
+  assert.equal(j.waiting, true);
+  assert.equal(crossingInUse(street, j), true);
+  assert.equal(crossingInUse({ ...street, id: 'unused-crossing' }, j), false);
+  j.update(1.1);
+  assert.ok(j.distanceOnEdge > 0);
+  j.setPaused(true);
+  assert.equal(crossingInUse(street, j), true);
+  j.setPaused(false); j.update(8);
+  assert.equal(j.complete, true);
+  assert.equal(crossingInUse(street, j), false);
+  j.restart();
+  assert.equal(crossingInUse(street, j), false);
+});
+
+test('wandering robots activate only their own crossing in either direction', () => {
+  const j = crossing(), street = j.world.streets[0]!;
+  const bot = (a: string, b: string) => ({ node: { id: a }, target: { id: b } });
+  assert.equal(crossingInUse(street, j, [bot('a', 'b')]), true);
+  assert.equal(crossingInUse(street, j, [bot('b', 'a')]), true);
+  assert.equal(crossingInUse(street, j, [bot('a', 'c')]), false);
+  assert.equal(crossingInUse(street, j, [bot('a', 'a')]), false);
+  assert.equal(crossingInUse(street, j, []), false);
 });
 
 test('short green is a barrier based on the full crossing length; extending it resolves it', () => {
