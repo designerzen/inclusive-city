@@ -7,6 +7,7 @@ import type { createExhibitionPerformer } from '../app/createExhibitionPerformer
 import type { MusicPlayback } from '../audio/CitySounds';
 import { inspirationItem } from './journeyInspirations';
 import './journeyInspirations.css';
+import { extendExhibitionSong, jamEffect, jamPads } from '../audio/exhibitionJam';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
@@ -16,6 +17,17 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     <div class="performance-artwork"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot's finished journey painting"></canvas></div>
     <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span></div>
     <aside class="performance-hud" aria-label="Performance controls">
+      <details class="performance-jam" open>
+        <summary>Play along</summary>
+        <p>Tap a drum or use Z X C V. Play melody with A S D F G H J K. MIDI channel 10 plays drums; other channels play notes. Live playing is not recorded.</p>
+        <div class="jam-controls">
+          ${jamPads.map(pad => `<button type="button" data-drum="${pad.midi}">${pad.name} <kbd>${pad.key.toUpperCase()}</kbd></button>`).join('')}
+          <button type="button" id="exhibition-extend">Add 3 minutes</button>
+          <button type="button" id="exhibition-midi">Connect MIDI input</button>
+          <label>MIDI input <select id="exhibition-midi-input" disabled><option>No input connected</option></select></label>
+        </div>
+        <p id="exhibition-jam-status" role="status">Three extra minutes of backing music. Join in whenever you like.</p>
+      </details>
       <div class="performance-timeline">
         <input id="exhibition-progress" type="range" min="0" max="0" step="0.1" value="0" aria-label="Music playback position" disabled>
       </div>
@@ -61,6 +73,77 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   let performer: ReturnType<typeof createExhibitionPerformer> | null = null;
   let active = false, playing = false;
   let songExport: AbortController | null = null, songBlob: Blob | null = null;
+  const jamStatus = container.querySelector<HTMLElement>('#exhibition-jam-status')!;
+  const midiButton = container.querySelector<HTMLButtonElement>('#exhibition-midi')!;
+  const midiSelect = container.querySelector<HTMLSelectElement>('#exhibition-midi-input')!;
+  let midiAccess: MIDIAccess | null = null;
+  let midiInput: MIDIInput | null = null;
+  let midiPending = false;
+  const hit = (note: number, velocity = 100, percussion = false) => {
+    if (!active || document.hidden || container.closest('[inert]') || document.querySelector('dialog[open]')) return;
+    sounds.unlock();
+    sounds.play(jamEffect(note, velocity, percussion), percussion ? 'percussion' : 'keyboard');
+  };
+  container.querySelectorAll<HTMLButtonElement>('[data-drum]').forEach(button => {
+    button.disabled = !sounds.supported;
+    button.addEventListener('click', () => hit(Number(button.dataset.drum), 100, true));
+  });
+  const onKey = (event: KeyboardEvent) => {
+    if (!active || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.target instanceof HTMLElement && event.target.closest('input, select, textarea, summary, [contenteditable]')) return;
+    const key = event.key.toLowerCase(), drum = jamPads.find(pad => pad.key === key);
+    const index = 'asdfghjk'.indexOf(key);
+    if (drum) { event.preventDefault(); hit(drum.midi, 100, true); }
+    else if (key.length === 1 && index >= 0) { event.preventDefault(); hit([60, 62, 64, 65, 67, 69, 71, 72][index]!); }
+  };
+  window.addEventListener('keydown', onKey);
+  const onMidi = (event: MIDIMessageEvent) => {
+    const [command = 0, note = 0, velocity = 0] = event.data ?? [];
+    if ((command & 0xf0) === 0x90 && velocity > 0) hit(note, velocity, (command & 15) === 9);
+  };
+  function selectInput() {
+    midiInput?.removeEventListener('midimessage', onMidi);
+    midiInput = midiAccess?.inputs.get(midiSelect.value) ?? null;
+    midiInput?.addEventListener('midimessage', onMidi);
+  }
+  function refreshInputs() {
+    const selected = midiSelect.value;
+    const inputs = [...(midiAccess?.inputs.values() ?? [])].filter(input => input.state === 'connected');
+    midiSelect.replaceChildren(...inputs.map(input => new Option(input.name ?? 'MIDI input', input.id)));
+    if (inputs.some(input => input.id === selected)) midiSelect.value = selected;
+    midiSelect.disabled = !inputs.length;
+    selectInput();
+    jamStatus.textContent = inputs.length ? 'MIDI ready. Play your keyboard or drum pads.' : 'No MIDI input found. Connect a device; buttons and QWERTY are ready.';
+  }
+  function disconnectInput() {
+    midiInput?.removeEventListener('midimessage', onMidi); midiInput = null;
+    midiAccess?.removeEventListener('statechange', refreshInputs); midiAccess = null;
+    midiSelect.replaceChildren(new Option('No input connected', '')); midiSelect.disabled = true;
+    midiButton.textContent = 'Connect MIDI input';
+  }
+  midiSelect.addEventListener('change', selectInput);
+  midiButton.disabled = !navigator.requestMIDIAccess;
+  midiButton.addEventListener('click', async () => {
+    if (midiAccess) { disconnectInput(); jamStatus.textContent = 'MIDI input disconnected.'; return; }
+    if (midiPending) return;
+    sounds.unlock(); midiPending = true; midiButton.disabled = true;
+    try {
+      const access = await navigator.requestMIDIAccess();
+      if (!active) return;
+      midiAccess = access; midiAccess.addEventListener('statechange', refreshInputs);
+      midiButton.textContent = 'Disconnect MIDI input'; refreshInputs();
+    } catch { jamStatus.textContent = 'MIDI input could not connect. Use the buttons or QWERTY keyboard.'; }
+    finally { midiPending = false; midiButton.disabled = !navigator.requestMIDIAccess; }
+  });
+  container.querySelector('#exhibition-extend')!.addEventListener('click', () => {
+    if (!journey?.score.length) return;
+    const resume = playing;
+    stopMusic(false); cancelSongExport(); songBlob = null;
+    mp3Download.disabled = !canExportSong();
+    extendExhibitionSong(journey.score, journey.bpm);
+    duration = musicDuration(journey.score); progress.max = String(duration); updateTime(position);
+    if (resume) playMusic();
+    jamStatus.textContent = 'Added another three minutes. Keep playing along!';
+  });
   const mp3Download = container.querySelector<HTMLButtonElement>('#exhibition-download-mp3')!;
   const canExportSong = () => !!journey?.score.length && typeof OfflineAudioContext !== 'undefined' && typeof Worker !== 'undefined';
   function cancelSongExport() { songExport?.abort(); songExport = null; mp3Download.textContent = 'Save song (MP3)'; }
@@ -164,6 +247,8 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       cancelSongExport(); songBlob = null;
       stopMusic(true, !!clock); continuationClock = clock; renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score);
+      extendExhibitionSong(journey.score, journey.bpm); duration = musicDuration(journey.score);
+      container.querySelector<HTMLButtonElement>('#exhibition-extend')!.disabled = !journey.score.length;
       const inspirations = container.querySelector<HTMLDetailsElement>('#exhibition-inspirations')!;
       inspirations.open = false; inspirations.hidden = !journey.inspirations?.length;
       inspirations.querySelector('ul')!.replaceChildren(...(journey.inspirations ?? []).map(inspirationItem));
@@ -184,7 +269,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       performerContainer.hidden = !performer;
     },
     enter() { active = true; mp3Download.disabled = !canExportSong(); performer?.enter(performerContainer); playMusic(); },
-    leave() { active = false; cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
-    dispose() { active = false; cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
+    leave() { active = false; disconnectInput(); cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
+    dispose() { active = false; disconnectInput(); window.removeEventListener('keydown', onKey); cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
   };
 }

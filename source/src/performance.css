@@ -50,3 +50,17 @@
   #exhibition-screen .exhibition-performer { top: 12%; bottom: 24%; right: 25%; left: 0; }
 }
 #exhibition-screen .exhibition-robot-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.performance-jam { border: 1px solid #ffffff38; border-radius: 10px; background: #102629ed; padding: 4px 10px; margin-top: 8px; }
+.performance-jam p { margin: 4px 0 8px; font-size: .8rem; max-width: 80ch; }
+.jam-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#exhibition-screen .jam-controls button { background: #ffffff18; }
+.jam-controls label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.jam-controls select { max-width: 100%; min-width: 44px; min-height: 44px; }
+.performance-jam kbd { font: inherit; opacity: .7; }
+.performance-hud { max-height: 65%; overflow-y: auto; }
+@media (max-width: 600px) {
+  .performance-jam p { font-size: .75rem; }
+  .jam-controls { gap: 4px; }
+  .jam-controls label { width: 100%; }
+  .jam-controls select { flex: 1; min-width: 44px; width: 44px; }
+}
