@@ -1,0 +1,8 @@
+{
+  "name": "inclusive-city-face",
+  "description": "Inclusive City micro:bit Bluetooth robot face",
+  "dependencies": { "core": "*", "bluetooth": "*" },
+  "files": ["main.ts"],
+  "preferredEditor": "tsprj",
+  "yotta": { "config": { "microbit-dal": { "bluetooth": { "pairing_mode": 0, "open": 1, "whitelist": 0, "security_level": null } } } }
+}
