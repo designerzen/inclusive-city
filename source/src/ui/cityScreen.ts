@@ -7,6 +7,8 @@ import { mountCityControlsWindow } from './cityControlsWindow';
 import { mountCityDisplayControls } from './cityDisplayControls';
 import { mountRouteProjection } from './routeProjection';
 import { mountPhysicalRobots } from './physicalRobots';
+import { mountMicrobitFaceSetup } from './microbitFace';
+import { cityFaceContext, cityFaceSnapshot, type CityFaceSpeech } from './cityMicrobitState';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createCityScene } from '../city/createCityScene';
@@ -254,6 +256,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let originalWorld: ProceduralCity | null = null;
   let renderLoopStarted = false;
   let active = false, theme: Theme = 'dark', bot: ArtBot | null = null, robots: readonly ArtBot[] = [];
+  let faceSpeech: CityFaceSpeech | undefined, faceSpeechSequence = 0;
   let mode: 'route' | 'edit' = 'edit', selected: string | null = null, lastBlock: string | null = null;
   let lastAlert: string | null = null, voiceCapturing = false;
   let creation: JourneyCreativity | null = null, renderer: AsyncPaintingRenderer | null = null;
@@ -284,7 +287,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let keyCueCursor = 0;
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
-  function feedback(text: string) { setText('city-feedback', text); setText('city-issue-feedback', text); }
+  function feedback(text: string) {
+    setText('city-feedback', text); setText('city-issue-feedback', text);
+    if (active && text) faceMessage(text);
+  }
   const controlsWindow = mountCityControlsWindow(controlsHud, get<HTMLButtonElement>('city-controls-window'), feedback, button => {
     const signature = button.dataset.map ? `map-${button.dataset.map}` : button.id;
     if (isButtonSound(signature)) { sounds.unlock(); sounds.button(signature); }
@@ -294,6 +300,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   });
   const projection = mountRouteProjection(container, () => city?.journey);
   const physicalRobots = mountPhysicalRobots(plan, () => city?.journey, projection, feedback, () => creation ?? undefined);
+  const microbitFace = mountMicrobitFaceSetup(plan);
   const physicalOpen = document.createElement('button'); physicalOpen.type = 'button'; physicalOpen.textContent = 'Physical robots';
   physicalOpen.title = 'Physical robots';
   physicalOpen.addEventListener('click', () => { controlsHud.open = true; interactionHud.hidden = false; physicalRobots.open(); });
@@ -321,11 +328,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     },
   });
   let robotSpeech: string | null = null;
+  function faceMessage(text: string) {
+    if (city) faceSpeech = { id: `speech:${++faceSpeechSequence}`, text, context: cityFaceContext(city.journey) };
+  }
   let speechTimer: number | undefined;
   function sayRobot(message: string, actionAlert = false) {
     speech?.stop(); window.clearTimeout(speechTimer);
     const speakingCity = city;
     if (!speakingCity) return;
+    faceMessage(message);
     robotSpeech = message; speakingCity.setSinging(false);
     const finish = () => { robotSpeech = null; speakingCity.setSinging(false); window.clearTimeout(speechTimer); };
     if (!speech?.say(message, () => speakingCity.setSinging(true), finish, {
@@ -643,6 +654,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         const count = j.machine.record.events.filter(e => e.runId === j.machine.run.id && e.type === 'robot_encounter').length;
         const status = get('city-encounter-status'); status.hidden = false;
         status.textContent = `Met ${event.data.name} · shared a ${melody}. Your next phrase carries it. ${count} robot${count === 1 ? '' : 's'} met.`;
+        faceMessage(`I met ${event.data.name}. We shared a ${melody}.`);
         const object = city.musicalObjects.objects.find(o => o.id === event.data.id);
         if (object && creation) city.musicalObjects.pulse(object, cityMusicTime + 60 / creation.bpm / 2);
         if (creation) {
@@ -670,6 +682,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       container.classList.toggle('has-new-inspiration', !!next);
       if (next) {
         setText('creative-building-status', `${next.name} discovered. ${next.description}`);
+        faceMessage(`${next.name} discovered. ${next.description}`);
         inspirationUntil = performance.now() + 8000;
         city.revealInspiration(next.id);
         const currentCity = city;
@@ -711,6 +724,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (mood !== lastMood) lastMood = mood;
   }
   function newCity(reset = false, savedWorld?: ProceduralCity) {
+    faceSpeech = undefined;
     voicePanel.stop();
     speech?.stop(); window.clearTimeout(speechTimer); robotSpeech = null; lastAlert = null;
     if (!bot || !engine) return;
@@ -980,6 +994,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   };
   return {
     introduceRobot,
+    get faceJourney() {
+      if (!active || !city) return undefined;
+      if (faceSpeech?.context !== cityFaceContext(city.journey)) faceSpeech = undefined;
+      return cityFaceSnapshot(city.journey, faceSpeech);
+    },
     get zebraPairs() { return zebraPairs; },
     setZebraPairs(value: number) {
       zebraPairs = normalizeZebraPairs(value);
@@ -1004,6 +1023,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { musicVisuals.dispose(); physicalRobots.dispose(); projection.dispose(); controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
+    dispose() { microbitFace.dispose(); musicVisuals.dispose(); physicalRobots.dispose(); projection.dispose(); controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }

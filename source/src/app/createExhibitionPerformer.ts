@@ -8,6 +8,7 @@ import type { createRobot } from '../robot/createRobot';
 import type { JourneyDance } from '../robot/journeyDance';
 import type { FinishedJourney } from '../art/finishedJourney';
 import type { createStudioInstruments } from './createStudioInstruments';
+import type { ExhibitionDuet } from '../robot/exhibitionDuet';
 
 /** Borrow the city's renderer, robot and instruments; restore them on leaving. */
 export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: FinishedJourney,
@@ -35,6 +36,7 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const frontWheel = scene.getMeshByName('front-wheel')!;
   const motion = reducedMotionPreference();
   let clock: (() => number) | null = null, active = false, dirty = true;
+  let duet: ExhibitionDuet | null = null;
   const stageMeshes = [...robotMeshes, ...instruments.root.getChildMeshes()];
   let frame: { left: number; right: number; bottom: number; top: number } | null = null;
   const fitStage = () => {
@@ -79,21 +81,24 @@ export function createExhibitionPerformer(canvas: HTMLCanvasElement, journey: Fi
   const render = () => {
     if (!active || document.hidden || (!dirty && (!clock || motion.matches))) return;
     const elapsed = clock?.() ?? 0;
-    const pose = choreography.pianoPose(elapsed, !!clock, motion.matches);
-    instruments.update(elapsed, !!clock, motion.matches);
+    const frame = duet?.frame(elapsed, !!clock, motion.matches);
+    const pose = frame?.pose ?? choreography.pianoPose(elapsed, !!clock, motion.matches);
+    instruments.update(elapsed, !!clock, motion.matches, frame);
     bot.robot.position.x = pose.x; bot.robot.rotation.y = pose.yaw;
     wheels.forEach(wheel => { wheel.rotation.x = -pose.x / .35; });
     frontWheel.rotation.x = -pose.x / .13;
     rig.position.y = pose.lift; rig.rotation.set(0, 0, pose.sway);
     rig.scaling.set(1 / Math.sqrt(pose.stretch), pose.stretch, 1 / Math.sqrt(pose.stretch));
     head.rotation.set(pose.headNod, pose.headYaw, pose.headTilt);
-    arms[0]!.rotation.set(pose.armSwing, 0, pose.leftArm); arms[1]!.rotation.set(pose.armSwing - .04 * pose.energy, 0, pose.rightArm);
+    arms[0]!.rotation.set(frame?.leftSwing ?? pose.armSwing, 0, pose.leftArm);
+    arms[1]!.rotation.set(frame?.rightSwing ?? pose.armSwing - .04 * pose.energy, 0, pose.rightArm);
     antenna.rotation.z = pose.antenna;
     fitStage();
     scene.render(); dirty = false;
   };
   engine.runRenderLoop(render);
   return {
+    setDuet(value: ExhibitionDuet) { duet = value; dirty = true; },
     enter(host: HTMLElement) {
       borrowed = true; host.append(canvas); canvas.classList.add('exhibition-robot-canvas');
       meshes.forEach(mesh => { mesh.isVisible = false; });

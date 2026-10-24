@@ -10,3 +10,8 @@ source/public/firmware/robot-comms/pxt_modules/
 source/public/firmware/robot-comms/.mkc-cache/
 source/public/firmware/robot-comms/robot-comms.hex
 source/public/firmware/robot-comms/robot-comms.hex.sha256
+source-microbit/built/
+source-microbit/pxt_modules/
+source-microbit/.mkc-cache/
+source/public/firmware/microbit-face/*.hex
+source/public/firmware/microbit-face/*.sha256

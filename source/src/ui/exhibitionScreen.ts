@@ -7,7 +7,14 @@ import type { createExhibitionPerformer } from '../app/createExhibitionPerformer
 import type { MusicPlayback } from '../audio/CitySounds';
 import { inspirationItem } from './journeyInspirations';
 import './journeyInspirations.css';
-import { extendExhibitionSong, jamEffect, jamPads } from '../audio/exhibitionJam';
+import { extendExhibitionSong, jamEffect, jamPads, jamHarmony, tuneJamNote, jamKeyboardNote, jamPrimer } from '../audio/exhibitionJam';
+import type { JamNote } from '../audio/exhibitionJam';
+import { magentaAccompaniment } from '../audio/MagentaAccompaniment';
+import { magentaPhraseNotes } from '../audio/magentaScore';
+import { worldArrangements } from '../art/worldMusicStyles';
+import type { WorldMusicStyle } from '../art/worldMusicStyles';
+import { ExhibitionDuet, duetStory } from '../robot/exhibitionDuet';
+import type { DuetPhase } from '../robot/exhibitionDuet';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
@@ -16,13 +23,19 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     <header class="performance-caption"><h1 id="exhibition-title" tabindex="-1"></h1><p id="exhibition-attribution" class="sr-only"></p></header>
     <div class="performance-artwork"><canvas id="exhibition-art" width="1600" height="800" role="img" aria-label="The robot's finished journey painting"></canvas></div>
     <div class="exhibition-performer" hidden><span class="exhibition-performer-shadow" aria-hidden="true"></span></div>
+    <div class="duet-story" role="status" aria-live="polite" aria-atomic="true">
+      <strong id="duet-story-title">Ready for our duet?</strong>
+      <span id="duet-story-detail">Start the song or play a note to join me.</span>
+    </div>
     <aside class="performance-hud" aria-label="Performance controls">
       <details class="performance-jam" open>
-        <summary>Play along</summary>
-        <p>Tap a drum or use Z X C V. Play melody with A S D F G H J K. MIDI channel 10 plays drums; other channels play notes. Live playing is not recorded.</p>
+        <summary>Play with your robot</summary>
+        <p>Drums: Z X C V. Melody: A S D F G H J K. Play a phrase, then ask your robot to answer. MIDI works too (channel 10 for drums).</p>
+        <p class="duet-key-legend"><span>Robot: green keys</span><span>You: blue keys</span><span>Together: purple keys</span></p>
         <div class="jam-controls">
           ${jamPads.map(pad => `<button type="button" data-drum="${pad.midi}">${pad.name} <kbd>${pad.key.toUpperCase()}</kbd></button>`).join('')}
           <button type="button" id="exhibition-extend">Add 3 minutes</button>
+          <button type="button" id="exhibition-answer" disabled>Ask robot to answer</button>
           <button type="button" id="exhibition-midi">Connect MIDI input</button>
           <label>MIDI input <select id="exhibition-midi-input" disabled><option>No input connected</option></select></label>
         </div>
@@ -48,6 +61,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
             <div class="performance-save-options">
               <button id="exhibition-download" type="button">Save painting</button>
               <button id="exhibition-download-mp3" type="button">Save song (MP3)</button>
+              <p>The MP3 contains the backing song. Live playing and replies are not recorded.</p>
             </div>
           </details>
           <button id="exhibition-attract" type="button">Start Again</button>
@@ -65,6 +79,17 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   const time = container.querySelector('#exhibition-time')!;
   const status = container.querySelector('#exhibition-playback-status')!;
   const performerContainer = container.querySelector<HTMLElement>('.exhibition-performer')!;
+  const hud = container.querySelector<HTMLElement>('.performance-hud')!;
+  const story = container.querySelector<HTMLElement>('.duet-story')!;
+  const caption = container.querySelector<HTMLElement>('.performance-caption')!;
+  const fitStage = () => {
+    const top = caption.offsetTop + caption.offsetHeight + 8;
+    container.style.setProperty('--duet-story-top', `${top}px`);
+    container.style.setProperty('--duet-story-bottom', `${top + story.offsetHeight + 8}px`);
+    container.style.setProperty('--performance-hud-height', `${hud.offsetHeight}px`);
+  };
+  const stageLayout = new ResizeObserver(fitStage);
+  [hud, story, caption].forEach(element => stageLayout.observe(element));
   let journey: FinishedJourney | null = null;
   let renderer: AsyncPaintingRenderer | null = null;
   let duration = 0, timer = 0, position = 0;
@@ -79,11 +104,91 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   let midiAccess: MIDIAccess | null = null;
   let midiInput: MIDIInput | null = null;
   let midiPending = false;
-  const hit = (note: number, velocity = 100, percussion = false) => {
+  let userNotes: JamNote[] = [], answerVersion = 0;
+  let answerPlayback: MusicPlayback | undefined;
+  let duet: ExhibitionDuet | null = null, storyPhase: DuetPhase | null = null;
+  function updateStory() {
+    const phase = duet?.frame(playback?.elapsed() ?? position, playing).phase ?? 'stopped';
+    if (phase === storyPhase) return;
+    const previous = storyPhase;
+    storyPhase = phase; container.dataset.duetPhase = phase;
+    container.querySelector('#duet-story-title')!.textContent = duetStory[phase].title;
+    container.querySelector('#duet-story-detail')!.textContent = duetStory[phase].detail;
+    performerContainer.querySelector('canvas')?.setAttribute('aria-label', `${journey?.name ?? 'Your robot'}: ${duetStory[phase].title} ${duetStory[phase].detail}`);
+    if (phase === 'answer') jamStatus.textContent = 'Your robot is playing its answer now. Watch the hands and green keys.';
+    if (phase === 'song' && previous === 'answer') jamStatus.textContent = 'Your turn again! Play a new phrase, then ask for another answer.';
+  }
+  const answerButton = container.querySelector<HTMLButtonElement>('#exhibition-answer')!;
+  const beatsPerBar = () => journey?.artist.musician === 'waltz' ? 3
+    : worldArrangements[journey?.artist.musician as WorldMusicStyle]?.beats ?? 4;
+  const musicNow = () => sounds.musicTime(journey!.bpm);
+  function resetAnswer() {
+    answerVersion++; userNotes = []; answerPlayback?.stop(); answerPlayback = undefined;
+    duet?.reset();
+    answerButton.disabled = true; answerButton.textContent = 'Ask robot to answer';
+  }
+  const hit = (note: number, velocity = 100, percussion = false, keyboardIndex?: number) => {
     if (!active || document.hidden || container.closest('[inert]') || document.querySelector('dialog[open]')) return;
     sounds.unlock();
-    sounds.play(jamEffect(note, velocity, percussion), percussion ? 'percussion' : 'keyboard');
+    // Starting playback establishes the shared tempo/epoch before the first hit.
+    if (!playing) playMusic();
+    if (!playing || !journey || sounds.isMuted) return;
+    const step = 60 / journey.bpm / 4, at = Math.ceil((musicNow() + .05) / step) * step;
+    if (!percussion) {
+      const harmony = jamHarmony(journey.score, at);
+      note = keyboardIndex === undefined ? tuneJamNote(note, harmony) : jamKeyboardNote(keyboardIndex, harmony);
+    }
+    const played = sounds.play(jamEffect(note, velocity, percussion), percussion ? 'percussion' : 'keyboard');
+    if (!played) return;
+    duet?.hear(played, percussion); updateStory();
+    if (!percussion) {
+      userNotes.push({ pitch: note, at: played.at }); userNotes = userNotes.slice(-128);
+      if (answerButton.textContent === 'Ask robot to answer') answerButton.disabled = false;
+    }
   };
+  answerButton.addEventListener('click', async () => {
+    if (!active || !playing || !journey || !userNotes.length) return;
+    const version = ++answerVersion, current = journey, beats = beatsPerBar();
+    const request = jamPrimer(userNotes, journey.bpm, beats, jamHarmony(journey.score, musicNow()).chord)!;
+    answerButton.disabled = true; answerButton.textContent = 'Listening…';
+    duet?.think(true); updateStory();
+    jamStatus.textContent = 'Magenta is making a four-bar answer from your melody, on this device.';
+    try {
+      await magentaAccompaniment.initialize();
+      if (version !== answerVersion || !active || !playing || journey !== current) return;
+      await magentaAccompaniment.waitFor([request]);
+      if (version !== answerVersion || !active || !playing || journey !== current || document.hidden) return;
+      const generated = magentaAccompaniment.get(request, 4);
+      if (!generated?.length) { jamStatus.textContent = 'Magenta is not ready yet. Your instruments still work; try another answer.'; return; }
+      // Inference may take several seconds. Choose a future bar only after it finishes.
+      const bar = beats * 60 / current.bpm, start = Math.ceil((musicNow() + .25) / bar) * bar;
+      if (start + 4 * bar > duration) { jamStatus.textContent = 'Add three minutes, then ask for another answer.'; return; }
+      // ImprovRNN accepts at most 64 steps. Re-grid its answer for longer meters.
+      const stretch = beats * 16 / request.steps!;
+      const phrase = generated.map(note => ({ ...note,
+        quantizedStartStep: Math.round(note.quantizedStartStep * stretch),
+        quantizedEndStep: Math.round(note.quantizedEndStep * stretch) }));
+      const response = Array.from({ length: 4 }, (_, i) => {
+        const at = start + i * bar, harmony = jamHarmony(current.score, at);
+        const notes = magentaPhraseNotes(phrase, harmony.root, harmony.intervals, current.bpm,
+          { beats, offsetSteps: i * beats * 4, role: 'lead' });
+        // Keep the generated rhythm and contour, but all pitches follow each upcoming chord.
+        notes.forEach(note => { note.midi = tuneJamNote(note.midi, jamHarmony(current.score, at + note.start)); });
+        return { at, label: 'keyboard:magenta-user-answer', score: { ...jamEffect(60, 75).toScore(), notes } };
+      }).filter(entry => entry.score.notes.length);
+      answerPlayback?.stop(); answerPlayback = sounds.performLive(response);
+      if (answerPlayback) duet?.answer(response, start, start + 4 * bar);
+      updateStory();
+      jamStatus.textContent = answerPlayback ? 'The robot answers your melody on the next bar. Keep playing along!' : 'The answer could not play. Try again.';
+    } catch {
+      if (version === answerVersion) jamStatus.textContent = 'Magenta could not make an answer. Your instruments still work.';
+    } finally {
+      if (version === answerVersion) {
+        duet?.think(false); updateStory();
+        answerButton.textContent = 'Ask robot to answer'; answerButton.disabled = !playing || !userNotes.length;
+      }
+    }
+  });
   container.querySelectorAll<HTMLButtonElement>('[data-drum]').forEach(button => {
     button.disabled = !sounds.supported;
     button.addEventListener('click', () => hit(Number(button.dataset.drum), 100, true));
@@ -93,7 +198,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     const key = event.key.toLowerCase(), drum = jamPads.find(pad => pad.key === key);
     const index = 'asdfghjk'.indexOf(key);
     if (drum) { event.preventDefault(); hit(drum.midi, 100, true); }
-    else if (key.length === 1 && index >= 0) { event.preventDefault(); hit([60, 62, 64, 65, 67, 69, 71, 72][index]!); }
+    else if (key.length === 1 && index >= 0) { event.preventDefault(); hit(60, 100, false, index); }
   };
   window.addEventListener('keydown', onKey);
   const onMidi = (event: MIDIMessageEvent) => {
@@ -139,7 +244,8 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     const resume = playing;
     stopMusic(false); cancelSongExport(); songBlob = null;
     mp3Download.disabled = !canExportSong();
-    extendExhibitionSong(journey.score, journey.bpm);
+    extendExhibitionSong(journey.score, journey.bpm, 180, beatsPerBar());
+    duet?.setSong(journey.score);
     duration = musicDuration(journey.score); progress.max = String(duration); updateTime(position);
     if (resume) playMusic();
     jamStatus.textContent = 'Added another three minutes. Keep playing along!';
@@ -177,6 +283,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     time.textContent = `${timestamp(position)} / ${timestamp(duration)}`;
   }
   function stopMusic(reset = true, keepMusic = false) {
+    resetAnswer();
     if (!reset && playback) updateTime(playback.elapsed());
     window.clearInterval(timer); timer = 0; playing = false;
     performer?.stop(); playback?.stop(); playback = undefined;
@@ -184,6 +291,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     container.classList.remove('is-playing');
     play.disabled = !journey?.score.length || !sounds.supported; stop.disabled = true;
     if (reset) updateTime(0);
+    updateStory();
   }
   function playMusic() {
     if (!active || !journey?.score.length || !sounds.supported) return;
@@ -202,10 +310,12 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     playing = true;
     performer?.play(() => playback?.elapsed() ?? 0);
     play.disabled = true; stop.disabled = false; container.classList.add('is-playing');
+    updateStory();
     status.textContent = continuation !== undefined ? 'Your robot continues the journey’s song into its studio crescendo. Dance along!' : 'Replaying your studio song, including its extra verses and harmonies. Dance along!';
     timer = window.setInterval(() => {
       const elapsed = playback?.elapsed() ?? 0;
       updateTime(elapsed);
+      updateStory();
       if (elapsed >= duration) { stopMusic(false); updateTime(duration); status.textContent = 'The journey’s music has finished.'; }
     }, 100);
   }
@@ -247,7 +357,8 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       cancelSongExport(); songBlob = null;
       stopMusic(true, !!clock); continuationClock = clock; renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score);
-      extendExhibitionSong(journey.score, journey.bpm); duration = musicDuration(journey.score);
+      extendExhibitionSong(journey.score, journey.bpm, 180, beatsPerBar()); duration = musicDuration(journey.score);
+      duet = new ExhibitionDuet(journey.bpm, beatsPerBar(), journey.score); storyPhase = null; updateStory();
       container.querySelector<HTMLButtonElement>('#exhibition-extend')!.disabled = !journey.score.length;
       const inspirations = container.querySelector<HTMLDetailsElement>('#exhibition-inspirations')!;
       inspirations.open = false; inspirations.hidden = !journey.inspirations?.length;
@@ -266,10 +377,11 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       renderer = new AsyncPaintingRenderer(painting);
       await renderer.snapshot(canvas);
       performer = borrowPerformer(journey);
+      if (duet) performer?.setDuet(duet);
       performerContainer.hidden = !performer;
     },
-    enter() { active = true; mp3Download.disabled = !canExportSong(); performer?.enter(performerContainer); playMusic(); },
+    enter() { active = true; fitStage(); mp3Download.disabled = !canExportSong(); performer?.enter(performerContainer); playMusic(); },
     leave() { active = false; disconnectInput(); cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
-    dispose() { active = false; disconnectInput(); window.removeEventListener('keydown', onKey); cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
+    dispose() { active = false; stageLayout.disconnect(); disconnectInput(); window.removeEventListener('keydown', onKey); cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
   };
 }

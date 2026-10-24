@@ -20,6 +20,7 @@ import { isButtonSound } from './audio/soundPresets';
 import { createScreenTransition } from './app/screenTransition';
 import type { EditorFeedback } from './robot/editorFeedback';
 import { mountAttractScreen } from './ui/attractScreen';
+import { createMicrobitFaceConnection } from './ui/microbitFace';
 import { mountExhibitionScreen } from './ui/exhibitionScreen';
 import { JourneyCreativity } from './art/JourneyCreativity';
 import { SoundEffect } from './audio/SoundEffect';
@@ -316,6 +317,10 @@ const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, 
     finally { openingExhibition = false; }
   })();
 }, screenSpeech);
+const microbitFaceConnection = createMicrobitFaceConnection(() => cityScreen.faceJourney);
+microbitFaceConnection.mountPair(attractContainer.querySelector<HTMLElement>('.attract-microbit')!);
+microbitFaceConnection.mountPair(cityContainer.querySelector<HTMLElement>('.city-toolbar')!);
+import.meta.hot?.dispose(() => microbitFaceConnection.dispose());
 let designStorage: Storage | undefined;
 try { designStorage = window.localStorage; } catch { /* The designer works without storage. */ }
 const history = new BotHistory(parseScientistSurnames(scientistSurnamesText), Math.random, designStorage);

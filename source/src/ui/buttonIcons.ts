@@ -4,6 +4,7 @@ export function buttonIcon(label: string, id = ''): Parameters<typeof mapIcon>[0
   const modules: Record<string, Parameters<typeof mapIcon>[0]> = { vision: 'eye', communication: 'message', memory: 'route', balance: 'angled', hearing: 'volume' };
   if (id.startsWith('function-')) return modules[id.slice(9)] ?? 'robot';
   if (/settings|options/i.test(label)) return 'settings';
+  if (/micro:bit|bluetooth/i.test(label)) return 'bluetooth';
   if (id === 'back-to-designer') return 'left';
   if (id === 'random-name') return 'reset';
   if (id === 'city-fullscreen') return 'fullscreen';

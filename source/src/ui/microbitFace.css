@@ -1,0 +1,10 @@
+.microbit-face { margin-block: 1rem; }
+.microbit-face p { overflow-wrap: anywhere; }
+.microbit-pair button { padding: .6rem .8rem; white-space: normal; overflow-wrap: anywhere; }
+.microbit-pair { min-width: 0; }
+.city-toolbar .microbit-pair { display: contents; }
+.microbit-pair-status { display: block; max-width: 24rem; font-size: .875rem; overflow-wrap: anywhere; }
+.microbit-face a { color: inherit; }
+#attract-screen .attract-microbit { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .75rem; margin-top: 1rem; }
+.microbit-firmware-download { box-sizing: border-box; display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; padding: .6rem .8rem; border: 1px solid currentColor; border-radius: 12px; color: inherit; font-size: .875rem; line-height: 1.4; overflow-wrap: anywhere; }
+.microbit-face a { display: inline-flex; align-items: center; min-height: 44px; }

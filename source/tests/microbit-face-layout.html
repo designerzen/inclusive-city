@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>micro:bit face screen layout</title>
+<main class="workshop attract-mode"><section id="attract-screen"></section><section id="city-screen" hidden></section></main>
+<script type="module">
+import '../src/styles.css'; import '../src/lightTheme.css'; import '../src/cityHud.css'; import '../src/uiDesign.css'; import '../src/accessibility.css'; import '../src/environmentChoices.css'; import '../src/cityVoice.css'; import '../src/readingPreferences.css'; import '../src/cityCompactHud.css';
+import { mountAttractScreen } from '../src/ui/attractScreen';
+import { mountCityScreen } from '../src/ui/cityScreen';
+import { createMicrobitFaceConnection } from '../src/ui/microbitFace';
+import { CitySounds } from '../src/audio/CitySounds';
+import { mountButtonIcons } from '../src/ui/buttonIcons';
+mountButtonIcons(document.querySelector('main'));
+const sounds = new CitySounds(), canvas = document.createElement('canvas');
+const attract = document.getElementById('attract-screen'), city = document.getElementById('city-screen');
+mountAttractScreen(attract, sounds, null, canvas, () => {
+  attract.hidden = true; city.hidden = false;
+  document.querySelector('main').className = 'workshop city-mode';
+});
+// Mount the actual city controls without starting the 3D simulation.
+mountCityScreen(city, sounds, null, canvas, () => {});
+Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: {} });
+let device;
+const connection = createMicrobitFaceConnection(() => undefined, async () => {
+  device = { id: 'fixture', name: 'Fixture board', onData() {}, onDisconnect() {}, disconnect() {},
+    async send(data) {
+      const command = new TextDecoder().decode(data).trim();
+      queueMicrotask(() => device.onData(new TextEncoder().encode(command === 'HELLO' ? 'CITYFACE:2\n' : `ACK:${command.slice(5)}\n`)));
+    }
+  }; return device;
+});
+connection.mountPair(attract.querySelector('.attract-microbit'));
+connection.mountPair(city.querySelector('.city-toolbar'));
+</script></html>

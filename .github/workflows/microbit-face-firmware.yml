@@ -1,0 +1,39 @@
+name: Build microbit face firmware
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'source-microbit/**'
+      - 'scripts/packageMicrobitFirmware.mjs'
+      - '.github/workflows/microbit-face-firmware.yml'
+      - '.github/workflows/deploy-pages.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install MakeCode compiler
+        run: npm install --prefix "$RUNNER_TEMP/makecode" --no-audit --no-fund makecode@1.3.6
+      - name: Compile face firmware
+        working-directory: source-microbit
+        run: node "$RUNNER_TEMP/makecode/node_modules/makecode/makecode" build
+      - name: Package flashable HEX
+        run: node scripts/packageMicrobitFirmware.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: microbit-face-firmware
+          path: |
+            source/public/firmware/microbit-face/city-face.hex
+            source/public/firmware/microbit-face/city-face.hex.sha256
+          if-no-files-found: error
+          retention-days: 90

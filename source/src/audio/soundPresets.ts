@@ -39,6 +39,7 @@ export function interactionSound(name: InteractionSound, overrides: SoundEffectC
 
 /** Each control has its own motif, rather than sharing the generic tap cue. */
 const buttonSignatures = {
+  'exhibition-answer': { root: 73, intervals: [0, 3, 8, 15], pattern: 'up-down', stepBeats: .1 },
   'exhibition-extend': { root: 70, intervals: [0, 4, 9, 21], pattern: 'up', stepBeats: .11 },
   'exhibition-midi': { root: 67, intervals: [0, 3, 10, 17], pattern: 'up', stepBeats: .09 },
   'accessory-sunglasses': { root: 64, intervals: [0, 7, 10, 14], pattern: 'up', stepBeats: .085 },

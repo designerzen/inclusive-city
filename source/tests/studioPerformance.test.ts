@@ -107,3 +107,19 @@ test('keyboard performance stays at the instrument, moves arms to the keys and r
   assert.ok(pose.armSwing > 1);
   assert.deepEqual(dance.pianoPose(.1, true, true), dance.pianoPose(3, true, true));
 });
+
+test('live duet keys distinguish the robot, user and shared notes and release completely on stop', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const stage = createStudioInstruments(scene);
+    const keys = [60, 64, 67].map(midi => scene.getMeshByName(`piano-key-${midi}`)!);
+    const rest = keys.map(key => ({ material: key.material, y: key.position.y }));
+    stage.update(0, true, false, { robotKeys: [60, 67], userKeys: [64, 67] });
+    assert.equal(new Set(keys.map(key => key.material)).size, 3);
+    keys.forEach((key, i) => { assert.notEqual(key.material, rest[i]!.material); assert.ok(key.position.y < rest[i]!.y); });
+    for (const reduced of [false, true]) {
+      stage.update(0, !reduced ? false : true, reduced, { robotKeys: [60, 67], userKeys: [64, 67] });
+      keys.forEach((key, i) => { assert.equal(key.material, rest[i]!.material); assert.equal(key.position.y, rest[i]!.y); });
+    }
+  } finally { scene.dispose(); engine.dispose(); }
+});

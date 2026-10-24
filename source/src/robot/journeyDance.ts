@@ -10,8 +10,8 @@ export interface DancePose {
 export class JourneyDance {
   private readonly notes: { start: number; end: number; pitch: number; gain: number }[];
   private readonly tail: number;
-  constructor(score: readonly SoundSequenceEntry[], private readonly bpm: number, private readonly beatsPerBar = 4) {
-    const origin = score[0]?.at ?? 0;
+  constructor(score: readonly SoundSequenceEntry[], private readonly bpm: number, private readonly beatsPerBar = 4,
+    origin = score[0]?.at ?? 0) {
     this.notes = score.flatMap(entry => entry.score.notes.map(note => ({
       start: entry.at - origin + note.start,
       end: entry.at - origin + note.start + note.duration + entry.score.voice.release,

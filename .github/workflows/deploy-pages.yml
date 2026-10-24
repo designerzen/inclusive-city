@@ -16,8 +16,11 @@ jobs:
   firmware:
     uses: ./.github/workflows/robot-comms-firmware.yml
 
+  face-firmware:
+    uses: ./.github/workflows/microbit-face-firmware.yml
+
   build:
-    needs: firmware
+    needs: [firmware, face-firmware]
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -41,6 +44,12 @@ jobs:
           name: robot-comms-firmware
           path: source/public/firmware/robot-comms
 
+      - name: Include compiled microbit face firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: microbit-face-firmware
+          path: source/public/firmware/microbit-face
+
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v5
@@ -49,6 +58,12 @@ jobs:
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: pnpm --filter inclusive-city build --base "$PAGES_BASE_PATH/"
+
+      - name: Verify deployed face firmware and checksum
+        working-directory: source/dist/firmware/microbit-face
+        run: |
+          test -s city-face.hex
+          sha256sum --check city-face.hex.sha256
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3

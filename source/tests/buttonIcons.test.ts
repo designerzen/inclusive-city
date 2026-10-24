@@ -6,6 +6,7 @@ import { mapIcon } from '../src/ui/mapIcons';
 test('icons follow changing playback, audio, camera and repair actions', () => {
   for (const [label, expected] of [
     ['Start robot', 'play'], ['Pause robot', 'pause'], ['Resume robot', 'play'],
+    ['Pair micro:bit face', 'bluetooth'], ['Pairing micro:bit…', 'bluetooth'],
     ['Replay from start', 'reset'], ['Stop track', 'stop'],
     ['Mute sound', 'mute'], ['Unmute sound', 'volume'],
     ['3D view', 'angled'], ['Map view', 'overhead'], ['Fit map', 'fit'],

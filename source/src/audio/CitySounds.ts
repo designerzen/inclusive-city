@@ -106,6 +106,8 @@ export class CitySounds {
     const handle = this.schedule([{ at: 0, score, label }], when);
     this.active.add(handle);
     setTimeout(() => this.active.delete(handle), (when - now + SoundEffect.fromScore(score).duration + .1) * 1000);
+    // Let live choreography share the exact quantized onset and note lengths we scheduled.
+    return { at: clock ? when - epoch : 0, score: structuredClone(score), label };
   }
 
   performLive(sequence: readonly SoundSequenceEntry[]) {

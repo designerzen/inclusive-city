@@ -12,11 +12,41 @@ the harmony, swing styles retain swing, and waltz uses twelve steps per bar.
 Mood controls generation temperature. Action sounds use the current procedural
 harmony without launching inference.
 
+AI lead bars also receive a persistent, bounded pull towards the robot's seeded
+motif and articulation, including later journey sections and studio verses.
+Beat-aligned pitches move at most three semitones within the current chord/scale;
+offbeat passing pitches, onsets and rests survive. Articulation can shorten a note
+by at most 15%. This score-shaping adaptation is inspired by Edwards, Maezawa and
+Dixon's [Learning Jazz Pianist Style with Cross-Attention Conditioning (2026)](https://almostimplemented.github.io/jazz-pianist-style/),
+[paper](https://arxiv.org/abs/2610.02918). It uses fictional robot identities with
+the existing Magenta model. See [citation, evidence and evaluation limits](../../../docs/research-and-evaluation.md#music-citation-and-implementation).
+
 The journey prepares the next section two bars ahead, using notes already played.
 Studio verses use the recorded journey as their primer and finish on the robot's
 tonic. Designer auditions and studio preparation wait up to eight seconds for
 their requested sections, then use playable procedural fallbacks. These operations
 reuse the same worker, model, audio context and score playback path.
+
+In the exhibition, QWERTY melody keys walk through the current recorded chord;
+MIDI melody notes snap to its nearest chord tone. Drum hits remain percussion.
+Live hits use the shared sixteenth-note clock. The Robot answer button sends
+the recent user melody (up to two bars, monophonic, octave-normalized) to the
+same Magenta worker. After inference, a four-bar reply starts at a future bar
+and follows the recorded chords at each note onset. Longer meters re-grid the
+model's bounded 64-step answer. Stop, seek and leaving invalidate pending
+replies. Missing or slow inference leaves the normal instruments available.
+User playing and these live answers are not included in the saved MP3.
+
+The exhibition's shared duet model samples the audible playback clock for both
+the stage and the visible story. Quantized live hits report their exact scheduled
+onsets and note lengths to it. The robot acknowledges user input, holds a preparing
+gesture during inference, waits for its scheduled bar, then plays the actual reply
+notes with independent hand strikes and register movement. Keyboard depressions
+distinguish robot (green), user (blue) and shared notes (purple). Response rests
+remain rests. On completion the robot returns to the backing song and invites
+another phrase. Extending the song also refreshes choreography. Stop and seek
+clear live gestures and key states; reduced motion retains the textual story
+with static poses and no key animation.
 
 Before the start screen, `requireModels` checks actual saved files for Magenta
 and Moonshine Tiny Streaming. First launch automatically downloads missing

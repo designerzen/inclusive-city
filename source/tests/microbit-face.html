@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>micro:bit face browser checks</title>
+<style>body { margin: 0; } .fixture { box-sizing: border-box; padding: 1rem; width: 100%; } .narrow { width: 320px; max-width: 100%; } pre { white-space: pre-wrap; }</style>
+<main>
+  <section class="fixture"><h1>Desktop controls</h1><div id="desktop-splash"></div><header id="desktop-city"></header><div id="desktop-setup"></div></section>
+  <section class="fixture narrow"><h2>Mobile controls (320px)</h2><div id="mobile-splash"></div><header id="mobile-city"></header><div id="mobile-setup"></div></section>
+  <button id="lost" type="button">Simulate lost connection</button>
+  <button id="measure" type="button">Check rendered targets</button><pre id="results" role="status"></pre>
+</main>
+<script type="module">
+import '../src/styles.css'; import '../src/uiDesign.css'; import '../src/accessibility.css';
+import { createMicrobitFaceConnection, mountMicrobitFaceSetup } from '../src/ui/microbitFace';
+// Deterministic BLE stand-in: the production connection/session and UI still run.
+Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: {} });
+let device;
+const connection = createMicrobitFaceConnection(() => undefined, async () => {
+  device = { id: 'fixture', name: 'Fixture board', onData() {}, onDisconnect() {}, disconnect() {},
+    async send(data) {
+      const command = new TextDecoder().decode(data).trim();
+      queueMicrotask(() => device.onData(new TextEncoder().encode(command === 'HELLO' ? 'CITYFACE:2\n' : `ACK:${command.slice(5)}\n`)));
+    }
+  }; return device;
+});
+for (const id of ['desktop', 'mobile']) {
+  connection.mountPair(document.getElementById(`${id}-splash`));
+  connection.mountPair(document.getElementById(`${id}-city`));
+  mountMicrobitFaceSetup(document.getElementById(`${id}-setup`));
+  document.querySelector(`#${id}-setup details`).open = true;
+}
+document.getElementById('lost').onclick = () => device?.onDisconnect('Fixture board disconnected');
+document.getElementById('measure').onclick = () => {
+  const result = [...document.querySelectorAll('.fixture button, .fixture summary')].map(el => {
+    const r = el.getBoundingClientRect(), host = el.closest('.fixture').getBoundingClientRect();
+    if (el.hidden) return `HIDDEN ${el.textContent}`;
+    const pass = r.width >= 44 && r.height >= 44 && r.left >= host.left && r.right <= host.right;
+    return `${pass ? 'PASS' : 'FAIL'} ${el.closest('.fixture').querySelector('h1,h2').textContent}: ${el.textContent} ${r.width.toFixed(1)} × ${r.height.toFixed(1)}${el.disabled ? ' (disabled)' : ''}`;
+  });
+  document.getElementById('results').textContent = result.join('\n');
+};
+</script></html>

@@ -17,6 +17,8 @@ export function createStudioInstruments(scene: Scene, robotHeight = 1) {
   const dark = mat('synth-charcoal', '#233b40'), white = mat('synth-ivory', '#f5f0dc');
   const black = mat('synth-black', '#102026'), metal = mat('microphone-metal', '#9aaeb4');
   const lit = mat('synth-playing', '#b7ef87', true);
+  const userLit = mat('synth-user-playing', '#72d9ff', true);
+  const togetherLit = mat('synth-duet-playing', '#dab3ff', true);
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, material: StandardMaterial) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
     mesh.parent = root; mesh.position.set(x, y, z); mesh.material = material; mesh.isPickable = false; return mesh;
@@ -49,6 +51,7 @@ export function createStudioInstruments(scene: Scene, robotHeight = 1) {
   let notes: { midi: number; start: number; end: number }[] = [];
   let longestNote = 0;
   const active = new Set<number>();
+  const restY = new Map(keys.map(key => [key.midi, key.mesh.position.y]));
   return {
     root,
     setScore(score: readonly SoundSequenceEntry[]) {
@@ -57,16 +60,27 @@ export function createStudioInstruments(scene: Scene, robotHeight = 1) {
         start: entry.at - origin + n.start, end: entry.at - origin + n.start + n.duration }))).sort((a, b) => a.start - b.start);
       longestNote = Math.max(0, ...notes.map(note => note.end - note.start));
     },
-    update(time: number, playing: boolean, reducedMotion: boolean) {
+    update(time: number, playing: boolean, reducedMotion: boolean,
+      duet?: { robotKeys: readonly number[]; userKeys: readonly number[] }) {
       active.clear();
-      if (playing && !reducedMotion) {
+      const user = new Set<number>();
+      const fold = (midi: number) => 48 + ((midi - 48) % 36 + 36) % 36;
+      if (duet && playing && !reducedMotion) {
+        duet.robotKeys.forEach(midi => active.add(fold(midi)));
+        duet.userKeys.forEach(midi => user.add(fold(midi)));
+      }
+      if (!duet && playing && !reducedMotion) {
         let lo = 0, hi = notes.length;
         while (lo < hi) { const mid = (lo + hi) >>> 1; if (notes[mid]!.start <= time) lo = mid + 1; else hi = mid; }
         for (let i = lo - 1; i >= 0 && notes[i]!.start >= time - longestNote; i--) {
           if (notes[i]!.end > time) active.add(notes[i]!.midi);
         }
       }
-      keys.forEach(key => { key.mesh.material = active.has(key.midi) ? lit : key.material; });
+      keys.forEach(key => {
+        const robotPlaying = active.has(key.midi), userPlaying = user.has(key.midi);
+        key.mesh.material = userPlaying ? robotPlaying ? togetherLit : userLit : robotPlaying ? lit : key.material;
+        key.mesh.position.y = restY.get(key.midi)! - (robotPlaying || userPlaying ? .025 : 0);
+      });
     },
   };
 }

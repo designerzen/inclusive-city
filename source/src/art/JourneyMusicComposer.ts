@@ -333,7 +333,11 @@ export class JourneyMusicComposer {
         if (slot !== 0 && !data.cadence) {
           const developed = magentaPhraseNotes(section.notes, root, intervals, this.bpm,
             { ...options, role: 'lead', centre: melody.notes.reduce((sum, note) => sum + note.midi, 0) / melody.notes.length });
-          if (developed.length) { melody.notes = developed; result[0]!.label += ':magenta'; }
+          if (developed.length) {
+            melody.notes = this.identity.conditionMelody(developed, melody.notes,
+              { phrase: data.phrase, beat, root, scale, intervals });
+            result[0]!.label += ':magenta';
+          }
         }
         if (data.harmony) {
           const backing = magentaBackingNotes(section.notes, root, intervals, this.bpm, options);

@@ -33,6 +33,7 @@ const paths = {
   mute: '<path d="M3 9h4l5-4v14l-5-4H3V9Zm13-1 6 8m0-8-6 8"/>',
   settings: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>',
   connect: '<path d="M9 3v5m6-5v5M6 8h12v3a6 6 0 0 1-12 0V8Zm6 9v5"/>',
+  bluetooth: '<path d="m7 7 10 10-5 4V3l5 4L7 17"/>',
   check: '<path d="m4 12 5 5L20 6"/>',
 };
 
