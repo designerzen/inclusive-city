@@ -12,6 +12,7 @@ In **Settings → Accessibility**, choose text size (100–200%), a default, sys
 
 - [Robot route projection](docs/robot-projection.md): table projection mode, event barcode format, firmware codes, and physical calibration.
 - [Physical robot BLE controls](docs/physical-robot-protocol.md): micro:bit preset, fleet commands, sensor readings and optional game tracking.
+- [Robot body designer](docs/robot-body-designer.md): one-piece folded-card nets, folding preview, cutting exports and implications of the likely Maqueen Plus V3 18650 chassis.
 - [Experience and game design](docs/experience-design.md): story, character creation, city editing, barriers, collectibles, and the live creative HUD.
 - [Technical specification](docs/technical-specification.md): Babylon.js, orthographic cameras, autonomous navigation, event data, audio/art generation, persistence, and exports.
 - [Research and evaluation](docs/research-and-evaluation.md): sources, educational framing, accessibility requirements, co-design, and validation.
@@ -21,6 +22,13 @@ In **Settings → Accessibility**, choose text size (100–200%), a default, sys
 These documents describe the wider proposed game, researched on 2 October 2026. The repository includes a working Babylon.js robot designer, a playable city route, collectible art fragments, and interaction/mood audio in `source/`. Full journey composition, art exports, and freeform city editing remain planned.
 
 ## Run the starter
+
+**micro:bit robot face:** [`source-microbit/`](source-microbit/README.md) is the
+hardware firmware project. Flash its HEX, power on the board, then open
+**Pair micro:bit face** on the splash screen or city top bar. The built-in
+LED matrix mirrors the robot's mood, animates its mouth and scrolls city alerts
+and speech over Bluetooth. Build locally
+with `pnpm firmware:build`; Pages builds and includes the download automatically.
 
 Two standalone line projections are available at `/traffic-light.html` (a straight line with a crossing barcode midway) and `/figure-eight.html` (a loop with junction barcodes before both approaches to the intersection). Both reuse the city's line renderer, barcode format, Settings controls and saved projection preferences. They are included in the production build.
 

@@ -19,8 +19,10 @@
     "@moonshine-ai/moonshine-wasm": "0.1.5",
     "@tensorflow/tfjs": "2.8.6",
     "coi-serviceworker": "0.1.7",
+    "earcut": "^3.2.4",
     "kokoro-js": "^1.2.1",
-    "onnxruntime-web": "1.30.0"
+    "onnxruntime-web": "1.30.0",
+    "polygon-clipping": "^0.15.7"
   },
   "devDependencies": {
     "tsx": "^4.23.15",

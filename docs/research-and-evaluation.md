@@ -2,6 +2,8 @@
 
 Research date: 2 October 2026. This is a desk-research foundation and proposed validation plan. No user study, prototype benchmark, or accessibility audit has yet been conducted.
 
+Music research updated: 24 October 2026.
+
 ## Evidence and design implications
 
 | Source | Supported finding | Implication for Inclusive City |
@@ -13,10 +15,21 @@ Research date: 2 October 2026. This is a desk-research foundation and proposed v
 | [W3C: clear and understandable content](https://www.w3.org/WAI/WCAG2/supplemental/objectives/o3-clear-content/) | Clear words, short blocks, unambiguous instructions, and separated content support comprehension | Use predictable signs, reminders, and brief explanations in the city and the actual game UI |
 | [W3C: WCAG 2.2 additions](https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/) | AA requirements include non-drag alternatives and minimum target sizing, subject to defined exceptions | Provide tap-place/nudge controls; adopt a generous project target for handles and buttons |
 | [Grond and Berger: parameter mapping sonification](https://sonification.de/handbook/chapters/chapter15/) | Data features can be related to sound synthesis parameters through mapping functions | Give the journey a consistent, explainable musical vocabulary and test whether people understand it |
+| [Edwards, Maezawa and Dixon, 2026: Learning Jazz Pianist Style with Cross-Attention Conditioning](https://almostimplemented.github.io/jazz-pianist-style/) · [paper](https://arxiv.org/abs/2610.02918) | Persistent artist conditioning improves classifier agreement over an unconditioned baseline; next-token loss alone misses this difference | Keep a bounded robot identity signal throughout AI continuations and check later passages as well as the opening |
 
 The studies of disability simulation concern their studied interventions, not this proposed robot game. Applying their findings here is a design inference and a reason to test the framing. The game should explicitly state: “This fictional journey shows how barriers affect access. Disabled people's experiences are diverse.”
 
 The proposed barrier rules, musical mappings, creative effects, and learning outcomes are design hypotheses. The sources do not validate the project's educational effectiveness or establish a universal musical language for emotion.
+
+## Music citation and implementation
+
+Edwards, Drew; Maezawa, Akira; Dixon, Simon. *Learning Jazz Pianist Style with Cross-Attention Conditioning*. ISMIR 2026. [arXiv:2610.02918](https://arxiv.org/abs/2610.02918), [project and demonstrations](https://almostimplemented.github.io/jazz-pianist-style/). Read 24 October 2026.
+
+The paper adds gated artist embeddings to Aria. It reports 70% versus 37% mean classifier agreement during continuation, and 95% song-level identification on real performances by a classifier trained on generated music. These are classifier results for twelve selected pianists, not listener judgments or results for this game. The authors identify human listening evaluation as future work.
+
+Our adaptation is a compositional inference: keep each fictional robot's seeded motif and articulation active in every AI lead bar. `robotMusicalIdentity.conditionMelody` gently pulls beat-aligned notes towards the current procedural motif, constrained by the current harmony/scale and a three-semitone limit. Seeded articulation shortens notes by at most 15%. Generated onsets, offbeat passing pitches and rests survive; opening motifs and final cadences use the existing composer. The signal is applied again in later journey and studio sections, alongside recent-history primers and musical development. This uses the existing Magenta model with deterministic score shaping; it does not implement Aria, learned embeddings, cross-attention or pianist imitation.
+
+Sequence tests compare early and later AI passages across robot seeds, with identical model output as a control. They also check bounded edits, meters, harmonic validity, determinism and saved-score replay. These are software regression checks. A listening study is still needed to assess whether people hear a consistent, distinctive robot voice.
 
 ## Disability-led co-design
 

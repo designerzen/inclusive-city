@@ -16,7 +16,7 @@ const headers = {
 // Keep Emscripten and its worker URLs together, outside Vite's JS bundling.
 // Static hosts get the same isolation through the bundled service worker.
 export default defineConfig({
-  build: { rollupOptions: { input: { city: resolve(import.meta.dirname, 'index.html'), trafficLight: resolve(import.meta.dirname, 'traffic-light.html'), figureEight: resolve(import.meta.dirname, 'figure-eight.html'), robotComms: resolve(import.meta.dirname, 'robot-comms.html') } } },
+  build: { rollupOptions: { input: { city: resolve(import.meta.dirname, 'index.html'), robotBody: resolve(import.meta.dirname, 'robot-body.html'), trafficLight: resolve(import.meta.dirname, 'traffic-light.html'), figureEight: resolve(import.meta.dirname, 'figure-eight.html'), robotComms: resolve(import.meta.dirname, 'robot-comms.html') } } },
   worker: { format: 'es' },
   server: { headers }, preview: { headers },
   plugins: [{

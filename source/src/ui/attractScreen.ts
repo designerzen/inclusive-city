@@ -38,6 +38,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         </a>
       </div>
       <nav class="attract-projection-links" aria-label="Line projections">
+        <a href="${import.meta.env.BASE_URL}robot-body.html">Robot body designer</a>
         <a href="${import.meta.env.BASE_URL}traffic-light.html">Traffic light</a>
         <a href="${import.meta.env.BASE_URL}figure-eight.html">Figure of eight</a>
       </nav>
