@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@12.3.4",
   "scripts": {
-    "firmware:build": "cd source-microbit && pnpm dlx makecode@1.3.6 build && node ../scripts/packageMicrobitFirmware.mjs",
+    "firmware:build": "cd source/hardware/microbit/city-face && pnpm dlx makecode@1.3.6 build && node ../../../../scripts/packageMicrobitFirmware.mjs",
     "start": "turbo run start",
     "build": "turbo run build",
     "check": "turbo run check",

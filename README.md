@@ -13,6 +13,8 @@ In **Settings → Accessibility**, choose text size (100–200%), a default, sys
 - [Robot route projection](docs/robot-projection.md): table projection mode, event barcode format, firmware codes, and physical calibration.
 - [Physical robot BLE controls](docs/physical-robot-protocol.md): micro:bit preset, fleet commands, sensor readings and optional game tracking.
 - [Robot body designer](docs/robot-body-designer.md): one-piece folded-card nets, folding preview, cutting exports and implications of the likely Maqueen Plus V3 18650 chassis.
+- [Origami design review](docs/origami-design-review.md): book references, folded ornaments, decorative windows and fabrication constraints.
+- [Card material model](docs/card-material-model.md): thickness, calibrated bend allowances, stepped tabs, slot tolerances and prototype checks.
 - [Experience and game design](docs/experience-design.md): story, character creation, city editing, barriers, collectibles, and the live creative HUD.
 - [Technical specification](docs/technical-specification.md): Babylon.js, orthographic cameras, autonomous navigation, event data, audio/art generation, persistence, and exports.
 - [Research and evaluation](docs/research-and-evaluation.md): sources, educational framing, accessibility requirements, co-design, and validation.
@@ -23,7 +25,7 @@ These documents describe the wider proposed game, researched on 2 October 2026. 
 
 ## Run the starter
 
-**micro:bit robot face:** [`source-microbit/`](source-microbit/README.md) is the
+**micro:bit robot face:** [`source/hardware/microbit/city-face/`](source/hardware/microbit/city-face/README.md) is the
 hardware firmware project. Flash its HEX, power on the board, then open
 **Pair micro:bit face** on the splash screen or city top bar. The built-in
 LED matrix mirrors the robot's mood, animates its mouth and scrolls city alerts
@@ -32,7 +34,7 @@ with `pnpm firmware:build`; Pages builds and includes the download automatically
 
 Two standalone line projections are available at `/traffic-light.html` (a straight line with a crossing barcode midway) and `/figure-eight.html` (a loop with junction barcodes before both approaches to the intersection). Both reuse the city's line renderer, barcode format, Settings controls and saved projection preferences. They are included in the production build.
 
-**Robot Comms** is a standalone micro:bit V2 Bluetooth test at `/robot-comms.html`, included in the production build. Send any of 16 commands, receive board button signals, inspect acknowledgements and LEDs, and toggle an eight-second occasional-signal demo. [Firmware source, flashing instructions and protocol](source/public/firmware/robot-comms/README.md) are included. Run `pnpm --filter inclusive-city start` and open `http://localhost:5173/robot-comms.html` in a Web Bluetooth capable browser. This test is independent of the city's physical robot controls.
+**Robot Comms** is a standalone micro:bit V2 Bluetooth test at `/robot-comms.html`, included in the production build. Send any of 16 commands, receive board button signals, inspect acknowledgements and LEDs, and toggle an eight-second occasional-signal demo. [Firmware source, flashing instructions and protocol](source/hardware/microbit/robot-comms/README.md) are included. Run `pnpm --filter inclusive-city start` and open `http://localhost:5173/robot-comms.html` in a Web Bluetooth capable browser. This test is independent of the city's physical robot controls.
 
 Requires Node.js 20.19+ or 22.12+ and pnpm 12.3.4. From the repository root:
 
