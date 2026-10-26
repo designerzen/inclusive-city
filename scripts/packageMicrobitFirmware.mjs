@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 
 // One packaging path for local builds and GitHub Actions / Pages.
-const input = new URL('../source-microbit/built/binary.hex', import.meta.url);
+const input = new URL('../source/hardware/microbit/city-face/built/binary.hex', import.meta.url);
 const output = new URL('../source/public/firmware/microbit-face/', import.meta.url);
 const bytes = await readFile(input);
 if (!bytes.length || bytes[0] !== 58) throw new Error('Missing or invalid compiled micro:bit HEX. Run the MakeCode build first.');

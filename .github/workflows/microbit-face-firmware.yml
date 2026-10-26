@@ -5,7 +5,7 @@ on:
   workflow_call:
   pull_request:
     paths:
-      - 'source-microbit/**'
+      - 'source/hardware/microbit/city-face/**'
       - 'scripts/packageMicrobitFirmware.mjs'
       - '.github/workflows/microbit-face-firmware.yml'
       - '.github/workflows/deploy-pages.yml'
@@ -25,7 +25,7 @@ jobs:
       - name: Install MakeCode compiler
         run: npm install --prefix "$RUNNER_TEMP/makecode" --no-audit --no-fund makecode@1.3.6
       - name: Compile face firmware
-        working-directory: source-microbit
+        working-directory: source/hardware/microbit/city-face
         run: node "$RUNNER_TEMP/makecode/node_modules/makecode/makecode" build
       - name: Package flashable HEX
         run: node scripts/packageMicrobitFirmware.mjs

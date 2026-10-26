@@ -3,6 +3,9 @@ import { loadProjectionSettings, projectionSettingsMarkup, readProjectionSetting
 import '../accessibility.css';
 import './routeProjection.css';
 import './configurationProjection.css';
+import { mountConfigurationRobot } from './configurationRobot';
+import { mountConfigurationDock } from './configurationDock';
+import { renderConfigurationSignals, updateConfigurationSignals } from './configurationSignals';
 
 const configuration = document.body.dataset.configuration as ProjectionConfiguration;
 const title = configuration === 'traffic-light' ? 'Traffic light' : 'Figure of eight';
@@ -26,6 +29,7 @@ function render() {
   try {
     const projection = configurationProjection(configuration, settings);
     renderProjection(svg, projection, settings);
+    renderConfigurationSignals(svg, projection);
     panel.querySelector('.projection-legend')!.replaceChildren(...projection.markers.map(marker => {
       const item = document.createElement('li');
       item.textContent = `${marker.code.toString(2).padStart(4, '0')} — ${marker.label}`;
@@ -49,3 +53,5 @@ function updateSettings() {
 panel.addEventListener('input', updateSettings);
 panel.addEventListener('change', updateSettings);
 render();
+mountConfigurationRobot(document.querySelector<HTMLElement>('.configuration-page')!, (light, barcodeStop) => updateConfigurationSignals(svg, light, barcodeStop));
+mountConfigurationDock(document.querySelector<HTMLElement>('.configuration-page')!);

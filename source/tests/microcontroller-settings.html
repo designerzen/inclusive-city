@@ -1,0 +1,86 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Microcontroller settings checks</title>
+<style>body { margin: 0; } .options-dialog { display: block; position: relative; margin: 16px auto; } #results { white-space: pre-wrap; padding: 16px; } .checks { padding: 16px; display:flex; flex-wrap:wrap; gap:12px; }</style>
+<div class="checks"><button id="run">Run connection checks</button><button id="cancel-next">Cancel next Bluetooth chooser</button><button id="late-next">Delay next Bluetooth chooser</button><button id="finish-late">Finish delayed chooser</button><button id="lost">Simulate disconnection</button><button id="measure">Measure targets</button></div>
+<pre id="results" role="status"></pre>
+<dialog open class="options-dialog"><h2>Settings</h2><section id="controls" aria-labelledby="options-microcontroller-title"></section></dialog>
+<script type="module">
+import '../src/styles.css'; import '../src/uiDesign.css'; import '../src/accessibility.css'; import '../src/readingPreferences.css';
+import { createMicrobitFaceConnection } from '../src/ui/microbitFace';
+import { mountMicrocontrollerControls } from '../src/ui/microcontrollerControls';
+import { getMicrocontrollerSettings, microcontrollerPreset, setMicrocontrollerSettings } from '../src/robot/physical/microcontroller';
+const results = document.querySelector('#results');
+let requests = 0, devices = [], cancelNext = false, lateNext = false, finishLate;
+class Char extends EventTarget {
+  properties; value; frames = [];
+  constructor(write) { super(); this.properties = { write, writeWithoutResponse: write }; }
+  async startNotifications() { return this; }
+  async writeValueWithResponse(bytes) { this.frames.push(bytes); this.accept(bytes); }
+  async writeValueWithoutResponse(bytes) { this.frames.push(bytes); this.accept(bytes); }
+  accept(bytes) {
+    this.pending = (this.pending ?? '') + new TextDecoder().decode(bytes);
+    while (this.pending.includes('\n')) {
+      const end = this.pending.indexOf('\n'), line = this.pending.slice(0, end); this.pending = this.pending.slice(end + 1);
+      const response = line === 'HELLO' ? 'CITYFACE:2' : line.startsWith('FACE:') ? `ACK:${line.slice(5)}` : line;
+      queueMicrotask(() => { const data = new TextEncoder().encode(response + '\n'); this.notify.value = new DataView(data.buffer); this.notify.dispatchEvent(new Event('characteristicvaluechanged')); });
+    }
+  }
+}
+Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { async requestDevice(options) {
+  requests++;
+  if (cancelNext) { cancelNext = false; throw new DOMException('Cancelled', 'NotFoundError'); }
+  const settings = getMicrocontrollerSettings().ble, write = new Char(true), notify = new Char(false); write.notify = notify;
+  const device = Object.assign(new EventTarget(), { id: `fixture-${requests}`, name: `Fixture MCU ${requests}`, write, options, disconnected: false,
+    gatt: { connected: false, async connect() { this.connected = true; return { async getPrimaryService(uuid) {
+      if (uuid !== settings.service) throw new Error('Wrong service');
+      return { async getCharacteristic(uuid) { if (uuid === settings.write) return write; if (uuid === settings.notify) return notify; throw new Error('Wrong characteristic'); } };
+    } }; }, disconnect() { this.connected = false; device.disconnected = true; } }
+  }); devices.push(device);
+  if (lateNext) { lateNext = false; await new Promise(resolve => { finishLate = resolve; }); }
+  return device;
+} } });
+const connection = createMicrobitFaceConnection(() => undefined);
+mountMicrocontrollerControls(document.querySelector('#controls'), connection);
+document.querySelector('#cancel-next').onclick = () => { cancelNext = true; results.textContent = 'Next chooser will be cancelled.'; };
+document.querySelector('#late-next').onclick = () => { lateNext = true; results.textContent = 'Next chooser will be delayed.'; };
+document.querySelector('#finish-late').onclick = () => { finishLate?.(); results.textContent = 'Delayed chooser released.'; };
+document.querySelector('#lost').onclick = () => devices.at(-1)?.dispatchEvent(new Event('gattserverdisconnected'));
+document.querySelector('#measure').onclick = () => {
+  const controls = [...document.querySelectorAll('#controls button, #controls select, #controls summary, #controls a')].filter(el => el.getClientRects().length && !el.hidden);
+  const failures = controls.filter(el => { const r = el.getBoundingClientRect(); return r.width < 44 || r.height < 44 || r.left < 0 || r.right > innerWidth; });
+  results.textContent = `${failures.length ? 'FAIL' : 'PASS'} ${controls.length} rendered controls at ${innerWidth}px\n` + controls.map(el => { const r = el.getBoundingClientRect(); return `${el.textContent.trim().slice(0,45)}: ${r.width.toFixed(1)} × ${r.height.toFixed(1)}${el.disabled ? ' disabled' : ''}`; }).join('\n');
+};
+async function settle() { for (let i = 0; i < 30 && document.querySelector('.microbit-pair button').disabled; i++) await new Promise(resolve => setTimeout(resolve, 10)); }
+document.querySelector('#run').onclick = async () => {
+  const checks = [];
+  const check = (condition, name) => { checks.push(`${condition ? 'PASS' : 'FAIL'} ${name}`); if (!condition) throw new Error(name); };
+  try {
+    setMicrocontrollerSettings(microcontrollerPreset('microbit')); await settle();
+    if (!devices.length) { document.querySelector('.microbit-pair button').click(); await settle(); }
+    const old = devices.at(-1), before = requests;
+    setMicrocontrollerSettings(microcontrollerPreset('nano33ble')); await settle();
+    check(old.disconnected, 'Changing MCU disconnects the old device');
+    check(requests === before + 1, 'Changing MCU immediately reconnects with a new chooser');
+    check(devices.at(-1).options.filters[0].services[0] === getMicrocontrollerSettings().ble.service, 'Arduino discovery uses service filtering');
+    check(document.querySelector('.microbit-pair button').hidden, 'CITYFACE:2 handshake completes');
+    const paired = devices.at(-1); cancelNext = true;
+    setMicrocontrollerSettings(microcontrollerPreset('mkrwifi1010')); await settle();
+    check(paired.disconnected, 'Old connection closes even when new chooser is cancelled');
+    check(!document.querySelector('.microbit-pair button').hidden && !document.querySelector('.microbit-pair button').disabled, 'Cancelled pairing can be retried');
+    check(document.querySelector('.microbit-pair-status').textContent.includes('cancelled'), 'Cancellation is announced');
+    document.querySelector('.microbit-pair button').click(); await settle();
+    const settings = getMicrocontrollerSettings(); settings.ble.chunkSize = 4; settings.ble.writeMode = 'without-response';
+    setMicrocontrollerSettings(settings); await settle();
+    check(document.querySelector('.microbit-pair button').hidden, 'Custom packet size and write mode complete handshake');
+    check(devices.at(-1).write.frames.every(bytes => bytes.length <= 4), 'Writes respect the configured packet limit');
+    lateNext = true; setMicrocontrollerSettings(microcontrollerPreset('nano33iot'));
+    const stale = devices.at(-1);
+    setMicrocontrollerSettings(microcontrollerPreset('microbit')); await settle(); finishLate();
+    await new Promise(resolve => setTimeout(resolve, 30));
+    check(stale.disconnected, 'A late old chooser cannot replace the newest connection');
+    check(document.querySelector('.microbit-pair button').hidden, 'Newest profile remains connected');
+    devices.at(-1).dispatchEvent(new Event('gattserverdisconnected'));
+    check(!document.querySelector('.microbit-pair button').hidden, 'Dropped Bluetooth connection restores pairing');
+  } catch (error) { checks.push(`ERROR ${error.message}`); }
+  results.textContent = checks.join('\n');
+};
+</script></html>

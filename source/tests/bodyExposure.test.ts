@@ -7,6 +7,7 @@ import type { Point3 } from '../src/robot/bodyNet';
 import { defaultExposure, exposureLabels, materialArea, normaliseExposure, trimFold } from '../src/robot/bodyExposure';
 import type { ExposureKey } from '../src/robot/bodyExposure';
 import { bodyFoldingPose } from '../src/robot/bodyFolding';
+import { defaultDecoration, ornamentPoint } from '../src/robot/bodyDecoration';
 
 const dot = (a: Point3, b: Point3) => a.reduce((s, v, i) => s + v * b[i], 0);
 const sub = (a: Point3, b: Point3) => a.map((v, i) => v - b[i]) as Point3;
@@ -29,12 +30,15 @@ function triangles(polygon: Polygon) {
 test('rays from every enabled sensor and the LED face pass through the actual retained card', () => {
   const settings = normaliseExposure(defaultExposure);
   for (const key of Object.keys(exposureLabels) as ExposureKey[]) settings.enabled[key] = true;
-  for (const sides of [4, 5, 8, 12]) for (const taper of [65, 100]) {
-    const model = makeBody({ ...defaultBody, sides, taper, height: 280 }, settings), pose = bodyFoldingPose(model, 1);
-    const surfaces = [...model.exposure.panelPolygons.map((polygons, face) => ({ polygons, face })), ...model.exposure.tabs.map(polygons => ({ polygons, face: sides }))];
+  let populated=0;
+  for(let scenario=0;scenario<12;scenario++) {
+    const sides=[4,5,8,12][scenario%4], taper=[85,100,130][scenario%3], section=scenario%4, ornament=(['plain','wing','horn','bolt','mixed'] as const)[scenario%5];
+    const model = makeBody({ ...defaultBody, sides, taper, section, diameter:240, aspect: 135, thickness:[.3,1,2.5][scenario%3], lean: 0, rim: 2, ridge: 25, height: 280 }, settings, { ...defaultDecoration, ornament, height: 100 }), pose = bodyFoldingPose(model, 1);
+    if(model.exposure.panelPolygons.some(p=>p.length))populated++;
+    const surfaces = [...model.exposure.panelPolygons.map((polygons, face) => ({ polygons, point: (p: [number, number]) => pose.point(face, p) })), ...model.exposure.tabs.map(polygons => ({ polygons, point: (p: [number, number]) => pose.point(sides, p) })), ...model.exposure.ornaments.map((polygons, i) => ({ polygons, point: (p: [number, number]) => ornamentPoint(model, model.decoration.ornaments[i], p, 1, pose) })),...model.exposure.bands];
     const card: Point3[][] = [];
     for (const surface of surfaces) for (const polygon of surface.polygons) {
-      const { points, indices } = triangles(polygon), vertices = points.map(p => pose.point(surface.face, p));
+      const { points, indices } = triangles(polygon), vertices = points.map(surface.point);
       for (let i = 0; i < indices.length; i += 3) card.push(indices.slice(i, i + 3).map(index => vertices[index]));
     }
     for (const zone of model.exposure.zones) for (const x of [-.99, 0, .99]) for (const y of [-.99, 0, .99]) {
@@ -44,6 +48,7 @@ test('rays from every enabled sensor and the LED face pass through the actual re
       assert.ok(!obstruction, `${zone.key} obstructed for ${sides} panels / ${taper}% taper: ${JSON.stringify({origin,direction,obstruction})}`);
     }
   }
+  assert.ok(populated>=10,'sensor checks must exercise actual retained card');
 });
 test('matrix toggle removes material, survives size changes, and SVG uses the same net contours', () => {
   const settings = normaliseExposure(defaultExposure);
@@ -79,4 +84,13 @@ test('normalisation retains explicit off states and bounds malformed calibration
   const e = normaliseExposure({ enabled: { matrix: false, laser: 'false' }, margin: Infinity, matrixHeight: -99, laserTilt: 1000 });
   assert.equal(e.enabled.matrix, false); assert.equal(e.enabled.laser, true); assert.equal(e.margin, 5);
   assert.equal(e.matrixHeight, 35); assert.equal(e.laserTilt, 30);
+});
+
+test('exposure geometry stays finite at parameter and calibration extremes', () => {
+  for (const sides of [4, 7, 12]) for (const diameter of [100, 260]) for (const height of [90, 300]) for (const taper of [55, 100]) for (const laserTilt of [-30, 30]) {
+    const settings = normaliseExposure({ ...defaultExposure, margin: 10, matrixHeight: 35, frontOffset: 70, laserTilt });
+    const model = makeBody({ ...defaultBody, sides, diameter, height, taper }, settings);
+    assert.ok(model.exposure.net.flat(3).every(Number.isFinite));
+    if (model.valid) assert.equal(model.exposure.net.length, 1);
+  }
 });

@@ -57,7 +57,7 @@ export class MicrobitFace {
         if (frame === this.pending?.reply) {
           const pending = this.pending; this.pending = undefined;
           clearTimeout(pending.timer); pending.resolve();
-        } else if (frame === 'ERR:FRAME') this.fail('The micro:bit rejected the face command. Reflash the city face firmware.');
+        } else if (frame === 'ERR:FRAME') this.fail('The microcontroller rejected the face command. Reflash compatible city face firmware.');
       }
     };
     transport.onDisconnect = reason => this.fail(reason);
@@ -99,7 +99,7 @@ export class MicrobitFace {
     finally { this.working = false; }
   }
   private exchange(frame: string, reply: string) {
-    if (this.closed) return Promise.reject(new Error('micro:bit face disconnected.'));
+    if (this.closed) return Promise.reject(new Error('Robot face disconnected.'));
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending = undefined;
@@ -116,7 +116,7 @@ export class MicrobitFace {
   private fail(message: string) { if (!this.closed) { this.disconnect(); this.lost(message); } }
   disconnect() {
     this.closed = true;
-    if (this.pending) { clearTimeout(this.pending.timer); this.pending.reject(new Error('micro:bit face disconnected.')); this.pending = undefined; }
+    if (this.pending) { clearTimeout(this.pending.timer); this.pending.reject(new Error('Robot face disconnected.')); this.pending = undefined; }
     this.transport.disconnect();
   }
 }

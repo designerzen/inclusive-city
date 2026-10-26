@@ -1,12 +1,18 @@
 import { defineConfig } from 'vite';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { cp, copyFile, readFile } from 'node:fs/promises';
+import { cp, copyFile, mkdir, readFile } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
 const moonshine = dirname(require.resolve('@moonshine-ai/moonshine-wasm/moonshine.wasm'));
 const isolationWorker = require.resolve('coi-serviceworker/coi-serviceworker.js');
 const onnx = dirname(require.resolve('onnxruntime-web'));
+const hardwareDownloads = [
+  ['firmware/arduino-city-face/arduino-city-face.ino', 'arduino/arduino-city-face/arduino-city-face.ino'],
+  ['firmware/arduino-city-face/README.md', 'arduino/arduino-city-face/README.md'],
+  ['firmware/microbit-face/README.md', 'microbit/city-face/README.md'],
+  ['firmware/robot-comms/README.md', 'microbit/robot-comms/README.md'],
+].map(([url, source]) => ({ url, path: resolve(import.meta.dirname, 'hardware', source) }));
 let configBase = '/';
 const headers = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -20,6 +26,27 @@ export default defineConfig({
   worker: { format: 'es' },
   server: { headers }, preview: { headers },
   plugins: [{
+    name: 'hardware-downloads',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = (req.url ?? '').split('?')[0];
+        const download = hardwareDownloads.find(file => url === `${server.config.base}${file.url}`);
+        if (!download) { next(); return; }
+        try {
+          const bytes = await readFile(download.path);
+          res.setHeader('Content-Type', download.url.endsWith('.md') ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8');
+          res.end(bytes);
+        } catch (error) { next(error); }
+      });
+    },
+    async writeBundle(options) {
+      await Promise.all(hardwareDownloads.map(async download => {
+        const output = resolve(options.dir ?? 'dist', download.url);
+        await mkdir(dirname(output), { recursive: true });
+        await copyFile(download.path, output);
+      }));
+    },
+  }, {
     name: 'moonshine-assets',
     transformIndexHtml(_html, context) {
       const base = context.server?.config.base ?? configBase;

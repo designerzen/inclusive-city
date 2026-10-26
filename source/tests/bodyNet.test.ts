@@ -21,7 +21,9 @@ test('developed panels are rigidly congruent to the folded body over the paramet
       assert.ok(Math.abs(distance(face.flat[a], face.flat[b]) - distance(face.solid[a], face.solid[b])) < 1e-7);
     }
     model.faces.slice(1).forEach((face, i) => {
-      assert.deepEqual(face.flat[0], model.faces[i].flat[1]); assert.deepEqual(face.flat[3], model.faces[i].flat[2]);
+      const band=model.material.bends[i];
+      assert.ok(distance(band.flat[0],model.faces[i].flat[1])<1e-7); assert.ok(distance(band.flat[3],model.faces[i].flat[2])<1e-7);
+      assert.ok(distance(band.flat[1],face.flat[0])<1e-7); assert.ok(distance(band.flat[2],face.flat[3])<1e-7);
     });
     assert.ok(model.bounds.width > 0 && model.bounds.height > 0);
   }
@@ -39,14 +41,14 @@ test('fabricable nets have one simple exterior, attached tabs, and slots entirel
     }
     for (const slot of model.slots) for (const point of slot) assert.ok(inside(point, model.faces[0].flat), `slot outside face: ${JSON.stringify(model.p)}`);
     assert.equal(model.tabPolygons.length, tabs); assert.equal(model.slots.length, tabs);
-    assert.equal(model.folds.length, sides - 1 + tabs * 2);
+    assert.equal(model.folds.length, model.material.bends.filter(b=>b.width>1e-7).length + tabs * model.tabBends.filter(b=>b.width>1e-7).length);
   }
 });
 
 test('prism limit, invalid seam spacing and conservative skeleton fit', () => {
   const prism = makeBody({ ...defaultBody, taper: 100 });
   assert.equal(prism.faces[0].flat[2][1], defaultBody.height);
-  assert.equal(prism.faces[0].flat[1][0], prism.bottom);
+  assert.ok(prism.faces[0].flat[1][0] < prism.bottom);
   assert.ok(makeBody(defaultBody).fits);
   assert.equal(makeBody({ ...defaultBody, skeletonWidth: 200 }).fits, false);
   assert.equal(makeBody({ ...defaultBody, skeletonHeight: 280 }).fits, false);

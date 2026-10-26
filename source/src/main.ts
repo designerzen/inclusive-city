@@ -21,6 +21,7 @@ import { createScreenTransition } from './app/screenTransition';
 import type { EditorFeedback } from './robot/editorFeedback';
 import { mountAttractScreen } from './ui/attractScreen';
 import { createMicrobitFaceConnection } from './ui/microbitFace';
+import { mountMicrocontrollerControls } from './ui/microcontrollerControls';
 import { mountExhibitionScreen } from './ui/exhibitionScreen';
 import { JourneyCreativity } from './art/JourneyCreativity';
 import { SoundEffect } from './audio/SoundEffect';
@@ -64,6 +65,7 @@ app.innerHTML = `
     <dialog id="options-dialog" class="options-dialog" aria-labelledby="options-title">
       <div class="options-heading"><h2 id="options-title">Settings</h2><button id="options-close" type="button" aria-label="Close settings">✕</button></div>
       <section class="options-appearance" aria-labelledby="options-appearance-title"><h3 id="options-appearance-title">Appearance</h3><label for="app-theme">Colour mode</label><select id="app-theme"><option value="dark">Dark</option><option value="light">Light</option></select></section>
+      <section id="microcontroller-controls" aria-labelledby="options-microcontroller-title"></section>
       <section aria-labelledby="options-route-title"><h3 id="options-route-title">Line-following curves</h3>
         <label for="app-turn-radius">Minimum turn radius</label>
         <select id="app-turn-radius" aria-describedby="app-turn-radius-help">
@@ -318,6 +320,8 @@ const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, 
   })();
 }, screenSpeech);
 const microbitFaceConnection = createMicrobitFaceConnection(() => cityScreen.faceJourney);
+const disposeMicrocontrollerControls = mountMicrocontrollerControls(document.querySelector<HTMLElement>('#microcontroller-controls')!, microbitFaceConnection);
+import.meta.hot?.dispose(disposeMicrocontrollerControls);
 microbitFaceConnection.mountPair(attractContainer.querySelector<HTMLElement>('.attract-microbit')!);
 microbitFaceConnection.mountPair(cityContainer.querySelector<HTMLElement>('.city-toolbar')!);
 import.meta.hot?.dispose(() => microbitFaceConnection.dispose());

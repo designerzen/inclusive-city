@@ -24,7 +24,7 @@ test('decoder handles arbitrary notification boundaries, CRLF and oversized inpu
 });
 
 function firmware() {
-  const source = readFileSync(new URL('../public/firmware/robot-comms/main.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../hardware/microbit/robot-comms/main.ts', import.meta.url), 'utf8');
   const handlers: Record<string, () => void> = {}, loops: (() => void)[] = [], sent: string[] = [];
   let frame = '', time = 0, pixels = Array<boolean>(25).fill(false);
   const context = vm.createContext({

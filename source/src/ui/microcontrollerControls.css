@@ -1,0 +1,8 @@
+.microcontroller-settings { display: grid; gap: 12px; }
+.microcontroller-settings details { min-width: 0; }
+.microcontroller-settings summary { display: flex; align-items: center; cursor: pointer; }
+.microcontroller-settings details label { display: grid; gap: 6px; margin-block: 12px; }
+.microcontroller-settings input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 10px; font: inherit; }
+.microcontroller-settings button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.microcontroller-settings a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; color: inherit; }
+.microcontroller-settings p { margin: 0; }

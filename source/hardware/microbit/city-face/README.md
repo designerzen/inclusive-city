@@ -1,7 +1,7 @@
 # Inclusive City — micro:bit robot face
 
-This is the hardware source folder, separate from the browser application in
-`source/`. It produces a flashable MakeCode HEX for the micro:bit's built-in
+This is the micro:bit city-face source folder under `source/hardware/`, separate
+from the browser application in `source/src/`. It produces a flashable MakeCode HEX for the micro:bit's built-in
 5 × 5 LED matrix. One Universal HEX contains builds for **micro:bit V1 and V2**.
 No motor board or extra display is needed; this firmware displays the simulated
 robot's expressions while the browser runs the city.
@@ -70,7 +70,7 @@ pnpm firmware:build
 This runs pinned `makecode@1.3.6`, selecting the micro:bit editor via `mkc.json`.
 It downloads the released editor toolchain and uses its native compilation
 service, so the first build needs internet. The editor version can change
-upstream. The compiler output is `source-microbit/built/binary.hex`. The build
+upstream. The compiler output is `source/hardware/microbit/city-face/built/binary.hex`. The build
 command also packages it as `source/public/firmware/microbit-face/city-face.hex`
 with a SHA-256 checksum, making the local site's download link ready to use.
 

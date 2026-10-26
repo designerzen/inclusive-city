@@ -24,7 +24,7 @@ test('every intermediate pose preserves all panel distances and connected hinges
     const model = makeBody({ ...defaultBody, taper, sides }), pose = bodyFoldingPose(model, amount);
     model.faces.forEach((face, i) => {
       for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) assert.ok(Math.abs(distance(pose.faces[i][a], pose.faces[i][b]) - distance(face.flat[a], face.flat[b])) < 1e-7);
-      if (i) { near(pose.faces[i][0], pose.faces[i - 1][1]); near(pose.faces[i][3], pose.faces[i - 1][2]); }
+      if (i) { const band=model.material.bends[i-1];near(pose.bendPoint(i-1,band.flat[0]),pose.faces[i-1][1]);near(pose.bendPoint(i-1,band.flat[3]),pose.faces[i-1][2]);near(pose.bendPoint(i-1,band.flat[1]),pose.faces[i][0]);near(pose.bendPoint(i-1,band.flat[2]),pose.faces[i][3]); }
     });
     model.tabPolygons.forEach(tab => {
       near(pose.point(sides, tab[0]), pose.point(sides - 1, tab[0]));

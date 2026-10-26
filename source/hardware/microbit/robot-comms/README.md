@@ -38,7 +38,8 @@ silently ship a missing or stale HEX. Artifacts include a SHA-256 checksum and
 are retained for 90 days; the deployed download persists until the next deploy.
 
 For a local developer build, run `pnpm dlx makecode@1.3.6 build` in this firmware
-directory, then copy `built/binary.hex` to `robot-comms.hex` for a local preview.
+directory (`source/hardware/microbit/robot-comms/`), then copy `built/binary.hex`
+to `source/public/firmware/robot-comms/robot-comms.hex` for a local preview.
 The compiler downloads the released MakeCode toolchain and may use its cloud
 native compiler; network access is required. The CLI version is pinned; the
 stable editor toolchain can update upstream. `main.ts` and `pxt.json` remain

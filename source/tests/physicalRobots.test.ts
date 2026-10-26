@@ -73,6 +73,44 @@ test('urgent Stop cancels queued motion and follows the in-flight write, without
   const stop = queue.send(new TextEncoder().encode('STOP'), true); release(); await Promise.all([first, ...cancelled, stop]);
   assert.deepEqual(writes, ['in-flight', 'STOP']); queue.close(); await assert.rejects(queue.send(new Uint8Array([1])), /disconnected/);
 });
+
+test('BLE reconnect reuses the granted device, changes packet/write mode, and cleans up failed profiles', async () => {
+  class Char extends EventTarget {
+    properties = { write: true, writeWithoutResponse: true };
+    modes: string[] = []; packets: Uint8Array[] = [];
+    async startNotifications() { return this; }
+    async writeValueWithResponse(bytes: Uint8Array) { this.modes.push('response'); this.packets.push(bytes); }
+    async writeValueWithoutResponse(bytes: Uint8Array) { this.modes.push('without'); this.packets.push(bytes); }
+  }
+  const write = new Char(), notify = new Char(); let requests = 0, connections = 0, disconnects = 0;
+  const device = Object.assign(new EventTarget(), { id: 'arduino', gatt: {
+    connected: false, disconnect() { this.connected = false; disconnects++; },
+    async connect() { this.connected = true; connections++; return {
+      async getPrimaryService(service: string) {
+        if (service !== nordicUart.service) throw new Error('Service not granted');
+        return { async getCharacteristic(uuid: string) { return uuid === nordicUart.write ? write : notify; } };
+      },
+    }; },
+  } });
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { bluetooth: { async requestDevice() { requests++; return device; } } } });
+  try {
+    const first = await BleRobotTransport.connect(nordicUart);
+    await first.send(new TextEncoder().encode('STOP\n'));
+    const second = await first.reconnect({ ...nordicUart, writeMode: 'without-response', chunkSize: 4 });
+    await assert.rejects(first.send(new Uint8Array([1])), /disconnected/);
+    await second.send(new TextEncoder().encode('HELLO\n'));
+    assert.equal(requests, 1); assert.equal(connections, 2);
+    assert.deepEqual(write.modes, ['response', 'without', 'without']);
+    assert.deepEqual(write.packets.map(packet => packet.length), [5, 4, 2]);
+    assert.ok(disconnects >= 1);
+    await assert.rejects(second.reconnect({ ...nordicUart, service: '0000ffe0-0000-1000-8000-00805f9b34fb' }), /Service not granted/);
+    assert.equal(device.gatt.connected, false);
+    write.properties.writeWithoutResponse = false;
+    await assert.rejects(BleRobotTransport.connect({ ...nordicUart, writeMode: 'without-response' }), /write mode/);
+    assert.equal(device.gatt.connected, false);
+  } finally { if (original) Object.defineProperty(globalThis, 'navigator', original); else Reflect.deleteProperty(globalThis, 'navigator'); }
+});
 test('UART decoder handles fragmented UTF-8, CRLF values and complete JSON without a delimiter', () => {
   const decoder = new SensorDecoder(), bytes = new TextEncoder().encode('{"name":"🎨","battery":75}\r\n');
   assert.deepEqual(decoder.accept(bytes.slice(0, 11)), []);

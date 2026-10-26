@@ -1,12 +1,24 @@
-export interface BleSettings { service: string; write: string; notify: string; namePrefix?: string; }
+export interface BleSettings {
+  service: string; write: string; notify: string; namePrefix?: string;
+  writeMode?: 'auto' | 'with-response' | 'without-response'; chunkSize?: number; swapUart?: boolean;
+}
 export const nordicUart: BleSettings = {
   service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e', write: '6e400002-b5a3-f393-e0a9-e50e24dcca9e', notify: '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
 };
-export const microbitUart: BleSettings = { service: nordicUart.service, write: nordicUart.notify, notify: nordicUart.write, namePrefix: 'BBC micro:bit' };
+export const microbitUart: BleSettings = { service: nordicUart.service, write: nordicUart.notify, notify: nordicUart.write, namePrefix: 'BBC micro:bit', swapUart: true };
 export function validateBleSettings(s: BleSettings) {
   const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-  if (!uuid.test(s.service) || !uuid.test(s.write) || s.notify && !uuid.test(s.notify)) throw new Error('Enter full service/write UUIDs and an optional notification UUID.');
-  return { ...s };
+  const normalise = (value: string) => {
+    if (typeof value !== 'string') throw new Error('Enter service/write UUIDs and an optional notification UUID.');
+    const trimmed = value.trim().toLowerCase();
+    return /^[a-f0-9]{4}$|^[a-f0-9]{8}$/.test(trimmed) ? `${trimmed.padStart(8, '0')}-0000-1000-8000-00805f9b34fb` : trimmed;
+  };
+  const service = normalise(s.service), write = normalise(s.write), notify = normalise(s.notify);
+  if (!uuid.test(service) || !uuid.test(write) || notify && !uuid.test(notify)) throw new Error('Enter valid service/write UUIDs and an optional notification UUID.');
+  if (s.writeMode !== undefined && !['auto', 'with-response', 'without-response'].includes(s.writeMode)) throw new Error('Choose a valid Bluetooth write mode.');
+  if (s.chunkSize !== undefined && (!Number.isInteger(s.chunkSize) || s.chunkSize < 1 || s.chunkSize > 512)) throw new Error('Packet size must be between 1 and 512 bytes.');
+  if (s.namePrefix !== undefined && (typeof s.namePrefix !== 'string' || s.namePrefix.length > 248)) throw new Error('Bluetooth name prefix is too long.');
+  return { ...s, service, write, notify };
 }
 export interface RobotTransport {
   readonly id: string; readonly name: string;
@@ -59,14 +71,16 @@ export class BleRobotTransport implements RobotTransport {
   readonly id: string; readonly name: string;
   onData: RobotTransport['onData'] = () => {}; onDisconnect: RobotTransport['onDisconnect'] = () => {};
   private queue: RobotWriteQueue; private closed = false;
-  private constructor(private device: Device, write: Characteristic, private notify?: Characteristic) {
+  private constructor(private device: Device, write: Characteristic, private notify: Characteristic | undefined, settings: BleSettings) {
     this.id = device.id; this.name = device.name || 'Bluetooth robot';
     this.queue = new RobotWriteQueue(async data => {
       if (this.closed || !device.gatt?.connected) throw new Error('Bluetooth disconnected.');
-      for (let offset = 0; offset < data.length; offset += 20) {
+      const size = settings.chunkSize ?? 20;
+      for (let offset = 0; offset < data.length; offset += size) {
         if (this.closed) throw new Error('Bluetooth disconnected.');
-        const chunk = new Uint8Array(data.subarray(offset, offset + 20));
-        await withTimeout(write.properties.write ? write.writeValueWithResponse(chunk) : write.writeValueWithoutResponse(chunk), 5000);
+        const chunk = new Uint8Array(data.subarray(offset, offset + size));
+        const response = settings.writeMode === 'with-response' || settings.writeMode !== 'without-response' && write.properties.write;
+        await withTimeout(response ? write.writeValueWithResponse(chunk) : write.writeValueWithoutResponse(chunk), 5000);
       }
     });
     notify?.addEventListener('characteristicvaluechanged', this.receive); device.addEventListener('gattserverdisconnected', this.lost);
@@ -79,6 +93,15 @@ export class BleRobotTransport implements RobotTransport {
       ? { filters: [{ namePrefix: s.namePrefix }], optionalServices: [s.service] }
       : { filters: [{ services: [s.service] }] });
     if (connectedIds.has(device.id)) throw new Error('This robot is already connected.');
+    return BleRobotTransport.open(device, s);
+  }
+  /** Reuse the granted device when switching profiles; no motor command is replayed. */
+  reconnect(input: BleSettings) {
+    const settings = validateBleSettings(input);
+    this.disconnect();
+    return BleRobotTransport.open(this.device, settings);
+  }
+  private static async open(device: Device, s: BleSettings) {
     let transport: BleRobotTransport | undefined;
     try {
       if (!device.gatt) throw new Error('Robot has no BLE GATT server.');
@@ -86,18 +109,19 @@ export class BleRobotTransport implements RobotTransport {
       let write = await service.getCharacteristic(s.write);
       let notify = s.notify ? await service.getCharacteristic(s.notify) : undefined;
       // micro:bit runtimes have shipped both UART characteristic assignments.
-      if (s.namePrefix && !write.properties.write && !write.properties.writeWithoutResponse && notify && (notify.properties.write || notify.properties.writeWithoutResponse)) [write, notify] = [notify, write];
+      if (s.swapUart && !write.properties.write && !write.properties.writeWithoutResponse && notify && (notify.properties.write || notify.properties.writeWithoutResponse)) [write, notify] = [notify, write];
       if (!write.properties.write && !write.properties.writeWithoutResponse) throw new Error('Characteristic cannot accept commands.');
-      transport = new BleRobotTransport(device, write, notify); if (notify) await notify.startNotifications(); return transport;
+      if (s.writeMode === 'with-response' && !write.properties.write || s.writeMode === 'without-response' && !write.properties.writeWithoutResponse) throw new Error('The selected Bluetooth write mode is not supported by this firmware.');
+      transport = new BleRobotTransport(device, write, notify, s); if (notify) await withTimeout(notify.startNotifications(), 10000); return transport;
     } catch (error) { transport?.disconnect(); device.gatt?.disconnect(); throw error; }
   }
   private receive = () => { const v = this.notify?.value; if (v) this.onData(new Uint8Array(v.buffer, v.byteOffset, v.byteLength).slice()); };
   private lost = () => { if (!this.closed) { this.queue.close(); this.onDisconnect('Bluetooth disconnected.'); this.disconnect(); } };
   async send(data: Uint8Array, urgent = false) {
     try { await this.queue.send(data, urgent); }
-    catch (error) { if (!(error instanceof Error && error.message === 'Cancelled by Stop.')) { this.onDisconnect(String(error)); this.disconnect(); } throw error; }
+    catch (error) { if (!this.closed && !(error instanceof Error && error.message === 'Cancelled by Stop.')) { this.onDisconnect(String(error)); this.disconnect(); } throw error; }
   }
-  disconnect() { this.closed = true; this.queue.close(); this.notify?.removeEventListener('characteristicvaluechanged', this.receive); this.device.removeEventListener('gattserverdisconnected', this.lost); this.device.gatt?.disconnect(); }
+  disconnect() { if (this.closed) return; this.closed = true; this.queue.close(); this.notify?.removeEventListener('characteristicvaluechanged', this.receive); this.device.removeEventListener('gattserverdisconnected', this.lost); this.device.gatt?.disconnect(); }
 }
 /** Optional adapter for an existing gateway: plain text in, sensor text out. */
 export class GatewayRobotTransport implements RobotTransport {

@@ -43,7 +43,7 @@ function board() {
       uartWriteString(frame: string) { sent.push(frame); },
     },
   });
-  vm.runInContext(stripTypeScriptTypes(readFileSync(new URL('../../source-microbit/main.ts', import.meta.url), 'utf8')), context);
+  vm.runInContext(stripTypeScriptTypes(readFileSync(new URL('../hardware/microbit/city-face/main.ts', import.meta.url), 'utf8')), context);
   return {
     pixels, sent, scrolled, mouths, notes,
     get volume() { return volume; }, get soundStops() { return soundStops; },

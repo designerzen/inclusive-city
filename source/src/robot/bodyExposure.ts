@@ -2,6 +2,8 @@ import polygonClipping from 'polygon-clipping';
 import type { MultiPolygon, Polygon } from 'polygon-clipping';
 import { bodyFoldingPose } from './bodyFolding';
 import type { BaseBodyModel, Point, Point3 } from './bodyNet';
+import { ornamentPoint } from './bodyDecoration';
+import { bendStrips, makeBend, move } from './cardMaterial';
 
 export const exposureLabels = {
   matrix: 'micro:bit LED matrix / light sensing', laser: 'Matrix laser ranging',
@@ -69,7 +71,7 @@ function clipPlane(polygon: Point[], plane: (point: Point) => number): Point[] {
   return result;
 }
 const snap = (p: Point[]): Point[] => p.map(v => v.map(n => Math.round(n * 1e7) / 1e7) as Point);
-const geometry = (ring: Point[]): Polygon => [ring];
+const geometry = (ring: Point[]): Polygon => [snap(ring)];
 /** Boolean intersections can leave coincident points along shared creases.
  * Remove sub-micron slivers before triangulation or rounding an SVG contour. */
 function clean(polygons: MultiPolygon): MultiPolygon {
@@ -123,27 +125,84 @@ export function trimFold(segment: Point[], cuts: Point[][]): Point[][] {
   }
   return result;
 }
-export function buildBodyExposure(model: BaseBodyModel, input?: ExposureSettings) {
+function resolveBodyExposure(model: BaseBodyModel, input?: ExposureSettings) {
   // Generic geometry remains available to callers that have no hardware profile.
   const settings = input ? normaliseExposure(input) : { ...defaultExposure, enabled: Object.fromEntries(Object.keys(exposureLabels).map(k => [k, false])) as ExposureSettings['enabled'] };
   const zones = exposureZones(settings), pose = bodyFoldingPose(model, 1);
-  const cuts: Point[][] = [], zoneCuts = zones.map(zone => ({ key: zone.key, area: 0 }));
-  const surfaces = [...model.faces.map((face, i) => ({ face: i, flat: face.flat })), ...model.tabPolygons.map(flat => ({ face: model.p.sides, flat }))];
+  const cuts: Point[][] = model.decoration.windows.map(window => window.flat), zoneCuts = zones.map(zone => ({ key: zone.key, area: 0 }));
+  const surfaces = [
+    ...model.faces.map((face, i) => ({ flat: face.flat, point: (flat: Point) => pose.point(i, flat) })),
+    ...model.tabPolygons.map(flat => ({ flat, point: (p: Point) => pose.point(model.p.sides, p) })),
+    ...model.decoration.ornaments.map(facet => ({ flat: facet.flat, point: (p: Point) => ornamentPoint(model, facet, p, 1, pose) })),
+  ];
+  const bandSurfaces = [
+    ...model.material.bends.filter(bend=>bend.width>1e-7).map(bend=>({flat:bend.flat,bend,body:model.material.bends.indexOf(bend),ornament:undefined as number|undefined,point:(p:Point)=>pose.bendPoint(model.material.bends.indexOf(bend),p)})),
+    ...model.decoration.ornaments.map((facet,ornament)=>({flat:facet.hinges.at(-1)!.flat,bend:facet.hinges.at(-1)!,body:undefined as number|undefined,ornament,point:(p:Point)=>ornamentPoint(model,facet,p,1,pose,true)})),
+  ];
+  surfaces.push(...bandSurfaces);
   const windows = surfaces.map(surface => zones.flatMap((zone, j) => {
     let cut = surface.flat;
-    for (const plane of zonePlanes(zone, settings.margin)) cut = clipPlane(cut, p => plane(pose.point(surface.face, p)));
+    // Pad the chord approximation of a bend by more than its maximum radial
+    // deviation, and include the complete material thickness in every opening.
+    for (const plane of zonePlanes(zone, settings.margin+model.p.thickness+2*(model.p.bendRadius+model.p.thickness))) cut = clipPlane(cut, p => plane(surface.point(p)));
     cut = snap(cut);
     if (cut.length < 3 || ringArea(cut) < 1e-6) return [];
     zoneCuts[j].area += ringArea(cut); cuts.push(cut); return [cut];
   }));
-  const subtract = (ring: Point[], holes: Point[][]): MultiPolygon => clean(holes.length ? polygonClipping.difference(geometry(snap(ring)), ...holes.map(geometry)) : [[snap(ring)]]);
-  const panelPolygons = model.faces.map((face, i) => subtract(face.flat, [...windows[i], ...(i === 0 ? model.slots : [])]));
-  const tabs = model.tabPolygons.map((tab, i) => subtract(tab, windows[model.p.sides + i]));
-  const net = subtract(model.boundary, [...model.slots, ...cuts]);
-  const foldGroups = model.folds.map(fold => trimFold(fold, cuts));
-  const weakHinge = foldGroups.some((pieces, i) => pieces.reduce((sum, line) => sum + Math.hypot(line[1][0] - line[0][0], line[1][1] - line[0][1]), 0) < (i < model.p.sides - 1 ? 6 : 8));
-  const seamConflict = cuts.some(cut => model.slots.some(slot => materialArea(polygonClipping.intersection(geometry(cut), geometry(slot))) > 1e-6)) || windows.slice(model.p.sides).some(list => list.length > 0);
-  const valid = net.length === 1 && panelPolygons.every(polygons => materialArea(polygons) > 1) && !weakHinge && !seamConflict;
-  return { settings, zones, cuts, zoneCuts, panelPolygons, tabs, net, folds: foldGroups.flat(), valid, active: zones.length > 0,
-    reason: net.length !== 1 ? 'Exposure openings would split the card into separate pieces.' : weakHinge ? 'Exposure openings leave too little card at a fold.' : seamConflict ? 'Exposure openings intersect the closing tabs or slots.' : !valid ? 'Exposure openings remove an entire panel.' : '' };
+  const boxes=new WeakMap<Point[],number[]>();
+  const bounds=(ring:Point[])=>{let box=boxes.get(ring);if(!box){box=[Math.min(...ring.map(p=>p[0])),Math.min(...ring.map(p=>p[1])),Math.max(...ring.map(p=>p[0])),Math.max(...ring.map(p=>p[1]))];boxes.set(ring,box);}return box;};
+  const overlaps=(a:Point[],b:Point[])=>{const x=bounds(a),y=bounds(b);return x[0]<=y[2] && x[2]>=y[0] && x[1]<=y[3] && x[3]>=y[1];};
+  const subtract = (ring: Point[], holes: Point[][]): MultiPolygon => {const local=holes.filter(h=>overlaps(ring,h));return clean(local.length ? polygonClipping.difference(geometry(snap(ring)), ...local.map(geometry)) : [[snap(ring)]]);};
+  const panelPolygons = model.faces.map((face, i) => subtract(face.flat, [...windows[i], ...model.decoration.windows.filter(w => w.face === i).map(w => w.flat), ...(i === 0 ? model.slots : [])]));
+  const root=model.tabBends[0], positions=new Set<number>([0,model.tabDimensions.reach]);
+  for(const bend of model.tabBends){const start=(bend.edge[0][0]-root.edge[0][0])*root.across[0]+(bend.edge[0][1]-root.edge[0][1])*root.across[1];for(let i=0;i<=8;i++)positions.add(start+bend.width*i/8);}
+  const intervals=[...positions].sort((a,b)=>a-b), slabs=intervals.slice(1).flatMap((end,i)=>end-intervals[i]>1e-7?[makeBend(root.edge.map(p=>move(p,root.across,intervals[i])),end-intervals[i],0,model.p.sides-1).flat]:[]);
+  const tabs = model.tabPolygons.map((tab, i) => {const polygons=subtract(tab,windows[model.p.sides+i]);return slabs.filter(slab=>overlaps(tab,slab)).flatMap(slab=>clean(polygonClipping.intersection(polygons,geometry(slab))));});
+  const ornamentStart = model.p.sides + model.tabPolygons.length;
+  const bandStart=ornamentStart+model.decoration.ornaments.length;
+  const originalOrnaments = model.decoration.ornaments.map((facet, i) => subtract(facet.flat, windows[ornamentStart + i]));
+  const omittedGroups = new Set<number>();
+  model.decoration.ornaments.forEach((facet, i) => {
+    const bend=facet.hinges.at(-1)!;
+    const retainedRoot = Math.min(...[bend.edge,bend.edge.map(p=>move(p,bend.across,bend.width))].map(edge=>trimFold(edge,cuts).reduce((sum,line)=>sum+Math.hypot(line[1][0]-line[0][0],line[1][1]-line[0][1]),0)));
+    if (retainedRoot < model.material.minWeb || materialArea(originalOrnaments[i]) < 1) omittedGroups.add(facet.group);
+  });
+  const retained = model.decoration.ornaments.filter(f => !omittedGroups.has(f.group));
+  const ornaments = originalOrnaments.map((polygons, i) => omittedGroups.has(model.decoration.ornaments[i].group) ? [] : polygons);
+  // Functional openings take priority: omit a whole rim motif if its hinge would
+  // be severed, instead of leaving a detached flap or disabling the sensor.
+  const keptSurface=(i:number)=>i<ornamentStart || (i<bandStart ? !omittedGroups.has(model.decoration.ornaments[i-ornamentStart].group) : bandSurfaces[i-bandStart].ornament===undefined || !omittedGroups.has(model.decoration.ornaments[bandSurfaces[i-bandStart].ornament!].group));
+  cuts.length = 0; cuts.push(...model.decoration.windows.map(w => w.flat), ...windows.flatMap((list,i)=>keptSurface(i)?list:[]));
+  const bands=bandSurfaces.filter((_,i)=>keptSurface(i+bandStart)).flatMap(surface=>bendStrips(surface.bend).map(flat=>({...surface,flat,polygons:subtract(flat,cuts)})));
+  const ornamentBands=retained.map(f=>f.hinges.at(-1)!.flat);
+  // Weld coincident hinge edges for the boolean operation. These 0.0002 mm
+  // strips lie inside the neighbouring faces, not across a physical opening.
+  const welds = retained.flatMap(facet => {
+    const bend=facet.hinges.at(-1)!;return [bend.edge,bend.edge.map(p=>move(p,bend.across,bend.width))];
+  }).map(edge => {
+    const [a,b]=edge, length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const dx = (b[0] - a[0]) / length, dy = (b[1] - a[1]) / length;
+    return [[a[0] + dx * .01 - dy * .0001, a[1] + dy * .01 + dx * .0001], [b[0] - dx * .01 - dy * .0001, b[1] - dy * .01 + dx * .0001], [b[0] - dx * .01 + dy * .0001, b[1] - dy * .01 - dx * .0001], [a[0] + dx * .01 + dy * .0001, a[1] + dy * .01 - dx * .0001]] as Point[];
+  });
+  const uncut = retained.length ? polygonClipping.union(geometry(model.boundary), ...retained.map(f => geometry(f.flat)), ...ornamentBands.map(geometry), ...welds.map(geometry)) : [geometry(model.boundary)];
+  const net = clean(polygonClipping.difference(uncut, ...[...model.slots, ...cuts].map(geometry)));
+  const flatOverlap = materialArea(uncut) < ringArea(model.boundary) + retained.reduce((s, f) => s + ringArea(f.flat), 0) + ornamentBands.reduce((s,f)=>s+ringArea(f),0) - .01;
+  const extraFolds = retained.map(facet => facet.hinges.at(-1)!.score);
+  const foldGroups = [...model.folds, ...extraFolds].map(fold => trimFold(fold, cuts));
+  const weakHinge = foldGroups.some(pieces => pieces.reduce((sum,line)=>sum+Math.hypot(line[1][0]-line[0][0],line[1][1]-line[0][1]),0)<model.material.minWeb);
+  const seamConflict = cuts.some(cut => model.slots.some(slot => overlaps(cut,slot) && materialArea(polygonClipping.intersection(geometry(cut), geometry(slot))) > 1e-6)) || windows.slice(model.p.sides, model.p.sides + model.tabPolygons.length).some(list => list.length > 0);
+  const valid = net.length === 1 && panelPolygons.every(polygons => materialArea(polygons) > 1) && !weakHinge && !seamConflict && !flatOverlap;
+  return { settings, zones, cuts, zoneCuts, panelPolygons, tabs, ornaments, bands, omittedOrnaments: omittedGroups.size, net, folds: foldGroups.flat(), valid, active: true,
+    reason: flatOverlap ? 'The flat ornaments overlap. Reduce their height or increase the top size.' : net.length !== 1 ? 'Openings or ornaments would split the card into separate pieces.' : weakHinge ? 'Openings leave too little card at a fold.' : seamConflict ? 'Openings intersect the closing tabs or slots.' : !valid ? 'Openings remove an entire panel or ornament.' : '' };
+}
+/** Numerical boolean failures must block fabrication instead of breaking controls.
+ * Random searches can then discard the candidate and continue. */
+export function buildBodyExposure(model: BaseBodyModel, input?: ExposureSettings): ReturnType<typeof resolveBodyExposure> {
+  try { return resolveBodyExposure(model, input); }
+  catch (error) {
+    if (!(error instanceof Error) || !error.stack?.includes('polygon-clipping')) throw error;
+    const settings = input ? normaliseExposure(input) : { ...defaultExposure, enabled: Object.fromEntries(Object.keys(exposureLabels).map(k => [k, false])) as ExposureSettings['enabled'] };
+    const zones = exposureZones(settings);
+    return { settings, zones, cuts: [], zoneCuts: zones.map(zone => ({ key: zone.key, area: 0 })), panelPolygons: model.faces.map(() => []), tabs: model.tabPolygons.map(() => []), ornaments: model.decoration.ornaments.map(() => []), bands:[], omittedOrnaments: 0, net: [], folds: [], valid: false, active: true, reason: 'This cut pattern could not be resolved safely. Change the angles or details.' };
+  }
 }

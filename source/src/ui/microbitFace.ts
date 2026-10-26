@@ -1,4 +1,5 @@
-import { BleRobotTransport, bluetoothAvailable, microbitUart } from '../robot/physical/transport';
+import { BleRobotTransport, bluetoothAvailable, type BleSettings } from '../robot/physical/transport';
+import { getMicrocontrollerSettings, microcontrollerChanges } from '../robot/physical/microcontroller';
 import { MicrobitFace, journeyFace, type FaceJourney } from '../robot/microbitFace';
 import './microbitFace.css';
 
@@ -14,20 +15,22 @@ export function mountMicrobitFaceSetup(host: HTMLElement) {
 
 /** One connection survives the splash → designer → city navigation. */
 export function createMicrobitFaceConnection(getJourney: () => FaceJourney | undefined,
-  connect = () => BleRobotTransport.connect(microbitUart)) {
+  connect = (settings: BleSettings) => BleRobotTransport.connect(settings)) {
   const available = window.isSecureContext && bluetoothAvailable();
-  let message = available ? 'Look for the Bluetooth symbol on your micro:bit.' : 'Pairing needs HTTPS or localhost and a Web Bluetooth browser such as Chrome or Edge.';
+  const unsupported = 'Pairing needs HTTPS or localhost and a Web Bluetooth browser such as Chrome or Edge.';
+  let message = available ? 'Power on your microcontroller, then choose Pair to connect over Bluetooth.' : unsupported;
   let face: MicrobitFace | undefined, disposed = false, generation = 0, busy = false, connected = false;
   let showMessage = !available;
-  const views: { root: HTMLElement; pair: HTMLButtonElement; status: HTMLElement }[] = [];
+  const views: { root: HTMLElement; pair: HTMLButtonElement; status: HTMLElement; alwaysShowStatus: boolean }[] = [];
+  const pairLabel = () => getMicrocontrollerSettings().board === 'microbit' ? 'Pair micro:bit face' : 'Pair Bluetooth robot face';
   function render() {
     for (const view of views) {
       view.pair.hidden = connected;
       view.pair.disabled = busy || !available;
-      view.pair.textContent = busy ? 'Pairing micro:bit…' : 'Pair micro:bit face';
-      view.pair.title = `Pair micro:bit face. ${message}`;
+      view.pair.textContent = busy ? 'Pairing Bluetooth…' : pairLabel();
+      view.pair.title = `${pairLabel()}. ${message}`;
       view.status.textContent = message;
-      view.status.className = showMessage ? 'microbit-pair-status' : 'sr-only';
+      view.status.className = showMessage || view.alwaysShowStatus ? 'microbit-pair-status' : 'sr-only';
     }
   }
   function reset(message: string) {
@@ -39,10 +42,12 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
     if (busy || connected || disposed) return;
     const attempt = ++generation;
     showMessage = false;
-    busy = true; setMessage('Choose your BBC micro:bit in the Bluetooth chooser.');
+    busy = true; setMessage('Choose your microcontroller in the Bluetooth chooser.');
     let candidate: MicrobitFace | undefined;
     try {
-      const transport = await connect();
+      const settings = getMicrocontrollerSettings().ble;
+      if (!settings.notify) throw new Error('The city face needs a notification characteristic to confirm its firmware. Command-only profiles can be used in Physical robots.');
+      const transport = await connect(settings);
       if (disposed || generation !== attempt) { transport.disconnect(); return; }
       candidate = new MicrobitFace(transport, message => { if (!disposed && generation === attempt) reset(message); });
       face = candidate;
@@ -50,11 +55,11 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
       await candidate.start();
       if (disposed || generation !== attempt) { candidate.disconnect(); return; }
       connected = true; busy = false;
-      setMessage(`Connected to ${transport.name}. LEDs follow your city robot.`);
+      setMessage(`Connected to ${transport.name}. City face firmware is ready.`);
       tick();
     } catch (error) {
       candidate?.disconnect();
-      if (!disposed && generation === attempt) reset(error instanceof Error && error.name === 'NotFoundError' ? 'Pairing cancelled. Choose Pair micro:bit face to try again.' : error instanceof Error ? error.message : String(error));
+      if (!disposed && generation === attempt) reset(error instanceof Error && error.name === 'NotFoundError' ? `Pairing cancelled. Choose ${pairLabel()} to try again.` : error instanceof Error ? error.message : String(error));
     }
   }
   const tick = () => {
@@ -63,14 +68,22 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
   };
   const timer = window.setInterval(tick, 250);
   document.addEventListener('visibilitychange', tick);
+  const disconnect = () => reset('Microcontroller disconnected. Pair again when ready.');
+  const reconfigure = () => {
+    reset(available ? 'Microcontroller changed. Reconnecting Bluetooth…' : unsupported);
+    if (available && !disposed) void pair();
+  };
+  microcontrollerChanges.addEventListener('change', reconfigure);
   return {
-    mountPair(host: HTMLElement) {
+    disconnect,
+    reconnect: reconfigure,
+    mountPair(host: HTMLElement, alwaysShowStatus = false) {
       const root = document.createElement('div'); root.className = 'microbit-pair';
       const button = document.createElement('button'); button.type = 'button';
       const status = document.createElement('span'); status.className = 'sr-only'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
       button.addEventListener('click', pair); root.append(button, status); host.append(root);
-      views.push({ root, pair: button, status }); render();
+      views.push({ root, pair: button, status, alwaysShowStatus }); render();
     },
-    dispose() { disposed = true; generation++; face?.disconnect(); window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); for (const view of views) view.root.remove(); },
+    dispose() { disposed = true; generation++; face?.disconnect(); window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); microcontrollerChanges.removeEventListener('change', reconfigure); for (const view of views) view.root.remove(); },
   };
 }

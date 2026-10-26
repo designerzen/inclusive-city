@@ -39,9 +39,43 @@ export function configurationProjection(configuration: ProjectionConfiguration, 
     });
     return { code, label: projectionCodes[code], bars };
   });
+  // Anchor each signal to its barcode, clear of both the optical line and bars.
+  const signalRadius = 1.8, clearance = signalRadius + .5;
+  function segmentDistance(point: Point, a: Point, b: Point) {
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / (dx * dx + dz * dz || 1)));
+    return Math.hypot(point.x - a.x - t * dx, point.z - a.z - t * dz);
+  }
+  const signals = markers.map((marker, index) => {
+    const direction = directions[index]!;
+    const first = marker.bars[0]!, last = marker.bars.at(-1)!;
+    const anchor = { x: (first.x + last.x + direction.x * (last.width - first.width) / 2) / 2,
+      z: (first.z + last.z + direction.z * (last.width - first.width) / 2) / 2 };
+    let normal = { x: direction.z, z: -direction.x };
+    if (figureEight && normal.x * anchor.x < 0) normal = { x: -normal.x, z: -normal.z };
+    for (let offset = Math.max(settings.barcodeWidth, settings.lineWidth) / 2 + clearance; ; offset += 1) {
+      // At the intersection the perpendicular may land on the other approach.
+      // Check nearby angles before moving farther from this barcode.
+      for (const step of [0, -1, 1, -2, 2, -3, 3, -4, 4, 8]) {
+        const angle = step * Math.PI / 8;
+        const nx = normal.x * Math.cos(angle) - normal.z * Math.sin(angle);
+        const nz = normal.x * Math.sin(angle) + normal.z * Math.cos(angle);
+        const point = { x: anchor.x + nx * offset, z: anchor.z + nz * offset };
+        const lineClear = points.every((a, i) => i === 0 || segmentDistance(point, points[i - 1]!, a) >= settings.lineWidth / 2 + clearance);
+        const barsClear = markers.every((other, j) => other.bars.every(bar => {
+          const along = directions[j]!, across = { x: along.z, z: -along.x };
+          const dx = point.x - bar.x, dz = point.z - bar.z;
+          return Math.hypot(Math.max(0, Math.abs(dx * along.x + dz * along.z) - bar.width / 2),
+            Math.max(0, Math.abs(dx * across.x + dz * across.z) - settings.barcodeWidth / 2)) >= clearance;
+        }));
+        if (lineClear && barsClear) return { ...point, code: marker.code, anchor };
+      }
+    }
+  });
   const padding = Math.max(settings.barcodeWidth, settings.lineWidth) + 1;
-  const xs = points.map(point => point.x), zs = points.map(point => point.z);
+  const bounds = [...points, ...signals.flatMap(signal => [{ x: signal.x - signalRadius, z: signal.z - signalRadius }, { x: signal.x + signalRadius, z: signal.z + signalRadius }])];
+  const xs = bounds.map(point => point.x), zs = bounds.map(point => point.z);
   const x = Math.min(...xs) - padding, z = Math.min(...zs) - padding;
-  return { points, markers, scale, lineWidth: settings.lineWidth, barcodeWidth: settings.barcodeWidth,
+  return { points, markers, signals, scale, lineWidth: settings.lineWidth, barcodeWidth: settings.barcodeWidth,
     viewBox: `${x} ${z} ${Math.max(...xs) - x + padding} ${Math.max(...zs) - z + padding}` };
 }
