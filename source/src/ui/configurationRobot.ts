@@ -1,8 +1,9 @@
 import { BleRobotTransport, bluetoothAvailable } from '../robot/physical/transport';
 import { getMicrocontrollerSettings } from '../robot/physical/microcontroller';
 import { RobotTrafficLight } from '../robot/physical/trafficLight';
+import type { TrafficLightCommands } from '../robot/physical/trafficLightCommands';
 
-export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (light: string, barcodeStop: number) => void) {
+export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (light: string, barcodeStop: number, enabled: boolean) => void, commands: () => TrafficLightCommands) {
   const section = document.createElement('section');
   section.className = 'configuration-robot';
   section.ariaLabel = 'Robot traffic lights';
@@ -20,7 +21,7 @@ export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (ligh
     stop.disabled = phase === 'disconnected' && !connecting;
     status.textContent = connecting ? 'Choose your robot. It will start following the line when connected.' : controller?.message ?? (supported ? 'Pair your robot to start following the line.' : 'Pairing needs HTTPS or localhost and a Bluetooth browser such as Chrome or Edge.');
     const light = phase === 'following' ? 'green' : ['waiting', 'resuming', 'fault'].includes(phase) ? 'red' : 'off';
-    lightChanged(light, controller?.barcodeStop ?? -1);
+    lightChanged(light, controller?.barcodeStop ?? -1, controller?.canFulfill ?? false);
   }
   pair.addEventListener('click', async () => {
     const attempt = ++generation;
@@ -30,7 +31,7 @@ export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (ligh
       if (!settings.notify) throw new Error('A notification characteristic is required to receive the robot stop signal.');
       const transport = await BleRobotTransport.connect(settings);
       if (attempt !== generation) { transport.disconnect(); return; }
-      controller = new RobotTrafficLight(transport, refresh);
+      controller = new RobotTrafficLight(transport, refresh, commands);
       connecting = false; refresh();
       await controller.start();
     } catch (error) {
@@ -42,4 +43,5 @@ export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (ligh
   window.addEventListener('pagehide', close);
   document.addEventListener('visibilitychange', () => { if (document.hidden) close(); });
   refresh();
+  return { fulfill: (approach: number) => controller?.fulfill(approach) };
 }

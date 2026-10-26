@@ -4,7 +4,7 @@ import { validateProjectionSettings, type ProjectionSettings } from './projectio
 export type ProjectionConfiguration = 'traffic-light' | 'figure-eight';
 type Point = { x: number; z: number };
 
-export function configurationProjection(configuration: ProjectionConfiguration, preferences: ProjectionSettings) {
+export function configurationProjection(configuration: ProjectionConfiguration, preferences: ProjectionSettings, signalTarget = 3.6) {
   const settings = validateProjectionSettings(preferences);
   const figureEight = configuration === 'figure-eight';
   const code = figureEight ? 13 : 4;
@@ -40,7 +40,7 @@ export function configurationProjection(configuration: ProjectionConfiguration, 
     return { code, label: projectionCodes[code], bars };
   });
   // Anchor each signal to its barcode, clear of both the optical line and bars.
-  const signalRadius = 1.8, clearance = signalRadius + .5;
+  const signalRadius = Math.SQRT2 * signalTarget / 2, clearance = signalRadius + .5;
   function segmentDistance(point: Point, a: Point, b: Point) {
     const dx = b.x - a.x, dz = b.z - a.z;
     const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / (dx * dx + dz * dz || 1)));
@@ -68,7 +68,7 @@ export function configurationProjection(configuration: ProjectionConfiguration, 
           return Math.hypot(Math.max(0, Math.abs(dx * along.x + dz * along.z) - bar.width / 2),
             Math.max(0, Math.abs(dx * across.x + dz * across.z) - settings.barcodeWidth / 2)) >= clearance;
         }));
-        if (lineClear && barsClear) return { ...point, code: marker.code, anchor };
+        if (lineClear && barsClear) return { ...point, code: marker.code, anchor, target: signalTarget };
       }
     }
   });

@@ -28,7 +28,10 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 #projection-setting-status:empty { display: none; }
 .configuration-page :is(a, button, input, summary):focus-visible { outline: 3px solid #526b7c; outline-offset: 2px; }
 .configuration-robot { box-sizing: border-box; display: flex; gap: 12px; align-items: center; padding-block: 4px; }
-.track-signal { pointer-events: none; }
+.track-signal { cursor: pointer; pointer-events: all; }
+.track-signal[aria-disabled='true'] { cursor: default; }
+.track-signal:focus-visible { outline: none; }
+.track-signal:focus-visible .track-signal-target { stroke: #526b7c; stroke-width: .18; }
 .track-signal circle { fill: #49535d; transition: fill .25s; }
 .track-signal[data-light='red'] .track-signal-red { fill: #ff4b4b; }
 .track-signal[data-light='green'] .track-signal-green { fill: #2de488; }
@@ -39,6 +42,10 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 .robot-actions button { cursor: pointer; background: #254d40; color: white; }
 .robot-actions button:disabled { cursor: default; background: #e9edef; color: #59636c; }
 .robot-actions a { display: inline-flex; align-items: center; color: #254d40; }
+.configuration-commands { border-top: 1px solid #d6dce0; margin-top: 12px; padding-top: 8px; }
+.configuration-commands h2 { font-size: 14px; }
+.configuration-commands label { display: flex; flex-direction: column; gap: 4px; margin-block: 12px; }
+.configuration-commands select { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: #fff; color: #252b30; }
 .configuration-dock { grid-row: 2; position: relative; box-sizing: border-box; border-top: 1px solid #d6dce0; background: #fff; padding: 4px 8px; }
 .configuration-dock-disclosure > summary { display: flex; align-items: center; width: fit-content; max-width: calc(100% - 166px); box-sizing: border-box; padding: 8px; cursor: pointer; font-size: 13px; }
 .configuration-dock-move { position: absolute; top: 4px; right: 8px; box-sizing: border-box; width: 158px; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: #fff; color: #254d40; font: inherit; font-size: 12px; cursor: pointer; }

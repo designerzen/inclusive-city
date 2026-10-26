@@ -3,14 +3,15 @@ import { test } from 'node:test';
 import { RobotTrafficLight, trafficLightWaitMs } from '../src/robot/physical/trafficLight';
 import type { RobotTransport } from '../src/robot/physical/transport';
 import { approachLight } from '../src/ui/configurationSignals';
+import { defaultTrafficLightCommands, validateTrafficLightCommands, type TrafficLightCommands } from '../src/robot/physical/trafficLightCommands';
 
-function fixture() {
+function fixture(commands?: () => TrafficLightCommands) {
   const sent: string[] = [];
   const transport: RobotTransport = {
     id: 'test', name: 'Test robot', onData() {}, onDisconnect() {},
     async send(bytes) { sent.push(new TextDecoder().decode(bytes)); }, disconnect() {},
   };
-  const controller = new RobotTrafficLight(transport, () => {});
+  const controller = new RobotTrafficLight(transport, () => {}, commands);
   const receive = (text: string) => transport.onData(new TextEncoder().encode(text));
   return { controller, transport, sent, receive };
 }
@@ -33,6 +34,51 @@ test('pairing starts; complete stop signal waits two seconds and resumes only on
   receive('SIG:2\n'); t.mock.timers.tick(trafficLightWaitMs);
   assert.equal(sent.at(-1), 'CMD:4\n'); assert.equal(sent.length, 3);
   controller.close();
+});
+
+test('click fulfils the wait immediately, selects its approach, and prevents a second timed command', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const commands = { start: 5, stop: 3, approaches: [6, 7] };
+  const { controller, receive, sent } = fixture(() => commands);
+  await controller.start(); receive('ACK:5\nSIG:2\n');
+  t.mock.timers.tick(500);
+  await controller.fulfill(1);
+  assert.equal(controller.barcodeStop, 1);
+  assert.equal(controller.phase, 'following');
+  assert.deepEqual(sent, ['CMD:5\n', 'CMD:7\n']);
+  await controller.fulfill(0); // No duplicate write while the first is unconfirmed.
+  assert.equal(sent.length, 2);
+  t.mock.timers.tick(trafficLightWaitMs); assert.equal(sent.length, 2);
+  receive('ACK:7\n'); assert.equal(controller.canFulfill, true);
+  receive('SIG:2\n'); // Next approach wraps to 0; use an edited mapping live.
+  commands.approaches[0] = 8;
+  t.mock.timers.tick(trafficLightWaitMs); assert.equal(sent.at(-1), 'CMD:8\n');
+  receive('ACK:8\n');
+  await controller.fulfill(0); assert.equal(sent.at(-1), 'CMD:8\n');
+  controller.close(); assert.equal(sent.at(-1), 'CMD:3\n');
+  t.mock.timers.tick(10000); assert.equal(controller.phase, 'disconnected');
+});
+
+test('manual lights require a live ready connection and valid approach; edited commands still require acknowledgement', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { controller, receive, sent } = fixture();
+  await controller.fulfill(0); assert.equal(sent.length, 0);
+  await controller.start(); await controller.fulfill(0); assert.equal(sent.length, 1);
+  receive('ACK:1\n');
+  for (const index of [-1, 1, 1.5, NaN]) await controller.fulfill(index);
+  assert.equal(sent.length, 1);
+  await controller.fulfill(0); assert.equal(sent.length, 2);
+  t.mock.timers.tick(5000); assert.equal(controller.phase, 'fault');
+  await controller.fulfill(0); assert.equal(sent.length, 2);
+  controller.close(); await controller.fulfill(0); assert.equal(sent.length, 3);
+});
+
+test('command mappings reject malformed saved data and preserve independent approaches', () => {
+  assert.deepEqual(validateTrafficLightCommands({ start: 15, stop: 0, approaches: [3, 8] }, 2), { start: 15, stop: 0, approaches: [3, 8] });
+  for (const value of [null, {}, { start: -1, stop: 2, approaches: [4] }, { start: 1, stop: 16, approaches: [4] }, { start: 1, stop: 2, approaches: [1.5] }, { start: 1, stop: 2, approaches: [] }]) {
+    assert.throws(() => validateTrafficLightCommands(value as TrafficLightCommands, 1));
+  }
+  assert.deepEqual(defaultTrafficLightCommands(2), { start: 1, stop: 2, approaches: [4, 4] });
 });
 
 test('disconnect and Stop cancel scheduled movement, including stale signals', async t => {
