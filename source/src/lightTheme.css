@@ -30,8 +30,8 @@
 [data-theme='light'] input[type='range']::-moz-range-progress { background: #355d52; }
 [data-theme='light'] input[type='range']::-webkit-slider-thumb { background: #f8faf4; border-color: #355d52; box-shadow: none; }
 [data-theme='light'] input[type='range']::-moz-range-thumb { background: #f8faf4; border-color: #355d52; }
-[data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track { background: var(--button-background, #355d52); }
-[data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track > span { background: var(--button-background, #f8faf4); }
+[data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track { background: #355d52; }
+[data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track > span { background: #f8faf4; }
 [data-theme='light'] :is(.midi-settings select, #app-theme, #city-feature, #robot-preset) { color: #24494a; background: #e9efe8; border-color: #a5bbb1; }
 [data-theme='light'] :is(.stage, #ability-designer, .city-stage, .city-editor, .creative-studio, .catwalk-presentation, .city-instructions) { color: #203b3c; background: #f8faf4; border-color: #a5bbb1; }
 [data-theme='light'] .stage { background: #e2eee9; }
@@ -42,7 +42,7 @@
 [data-theme='light'] :is(.map-views button, .map-controls button, .feature-grid button) { color: var(--button-ink, #315766); background: var(--button-background, #f3f6ee); border-color: var(--button-border, #b9cbc0); }
 [data-theme='light'] :is(.map-views button, .feature-grid button)[aria-pressed='true'] { color: var(--button-ink, #194e35); background: var(--button-background, #cce6d4); border-color: var(--button-border, #5e8d71); }
 [data-theme='light'] :is(.map-views button:hover, .map-controls button:hover:not(:disabled), .feature-grid button:hover) { color: var(--button-ink, #194e35); background: var(--button-hover-background, #dceade); }
-[data-theme='light'] .map-views button[aria-pressed='true'] .view-detail { color: var(--button-ink, #356449); }
+[data-theme='light'] .map-views button[aria-pressed='true'] .view-detail { color: #356449; }
 [data-theme='light'] :is(.map-view-heading > :first-child, .editor-eyebrow, #robot-mood, .city-robot-facts summary, .feature-help, .catwalk-eyebrow) { color: var(--button-ink, #24684a); }
 [data-theme='light'] :is(.map-view-heading > :last-child, .view-detail, .city-editor-heading p, .city-feature-list summary span, .city-robot-facts dt, .city-robot-facts dd, #feature-property, #journey-status, #barrier-reason, #feature-occupied, .creative-hint, #creative-status, #catwalk-description, #city-instructions-intro, .city-instruction-steps p, .city-instructions-map) { color: #46616b; }
 [data-theme='light'] :is(.map-zoom, .map-pan) { background: #f8faf4ed; border-color: #9bb7aa; box-shadow: 0 4px 20px #24494a20; }

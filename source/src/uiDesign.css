@@ -43,7 +43,7 @@ button:is(#app-options, #options-close, #rotation-toggle, #previous-bot, #random
 .settings-label { font-size: var(--text-control); }
 .workshop.attract-mode > .sound-controls { top: 22px; }
 .options-dialog { border-color: var(--ui-border); }
-.options-dialog button, .options-dialog select { border-color: var(--button-border, var(--ui-border)); }
+.options-dialog button, .options-dialog select { border-color: var(--ui-border); }
 .midi-disclosure { margin-top: 24px; border-top: 1px solid var(--ui-border); }
 .midi-disclosure summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 4px; font-size: var(--text-control); cursor: pointer; }
 .midi-disclosure section { margin-top: 0; }

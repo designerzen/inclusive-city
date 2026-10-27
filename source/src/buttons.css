@@ -28,30 +28,30 @@
   --button-selected-ink: #443367;
   --button-selected-border: #8369ac;
 }
-button.primary, a.primary {
+button.primary {
   --button-background: var(--button-primary-background);
   --button-hover-background: var(--button-primary-hover);
   --button-ink: var(--button-primary-ink);
   --button-border: var(--button-primary-background);
 }
-button.secondary, a.secondary {
+button.secondary {
   --button-background: var(--button-secondary-background);
   --button-hover-background: var(--button-secondary-hover);
   --button-ink: var(--button-secondary-ink);
   --button-border: var(--button-secondary-border);
 }
-button.tertiary, a.tertiary {
+button.tertiary {
   --button-background: transparent;
   --button-hover-background: var(--button-tertiary-hover);
   --button-ink: var(--button-tertiary-ink);
   --button-border: transparent;
 }
-:is(button, a):is(.primary, .secondary, .tertiary) {
+button:is(.primary, .secondary, .tertiary) {
   background: var(--button-background);
   color: var(--button-ink);
   border-color: var(--button-border);
 }
-:is(button, a):is(.primary, .secondary, .tertiary):hover:not(:disabled):not([aria-disabled='true']) {
+button:is(.primary, .secondary, .tertiary):hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--button-hover-background);
 }
 /* Selection is a state, separate from an action's priority. */

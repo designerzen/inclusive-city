@@ -37,7 +37,7 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
         <div class="function-item">
           <div class="function-row"><div><h3 id="function-label-${item.id}">${item.label}</h3>
             <p class="sr-only" id="function-description-${item.id}">${item.description}</p></div>
-            <button class="secondary" type="button" role="switch" id="function-${item.id}" data-function="${item.id}" aria-checked="false"
+            <button type="button" role="switch" id="function-${item.id}" data-function="${item.id}" aria-checked="false"
               aria-labelledby="function-label-${item.id}" aria-describedby="function-description-${item.id} function-swap-${item.id}">
               <span class="switch-track" aria-hidden="true"><span></span></span><span class="switch-state" aria-hidden="true">Disabled</span>
             </button></div>
