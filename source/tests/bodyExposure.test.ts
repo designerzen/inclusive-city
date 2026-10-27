@@ -58,7 +58,7 @@ test('matrix toggle removes material, survives size changes, and SVG uses the sa
   for (const sides of [4, 6, 8, 12]) {
     const model = makeBody({ ...defaultBody, sides }, settings);
     assert.ok(model.exposure.zoneCuts.find(z => z.key === 'matrix')!.area > 0);
-    assert.ok(model.valid); assert.equal(model.exposure.net.length, 1);
+    assert.ok(model.geometryValid); assert.equal(model.exposure.net.length, 1);
     const svg = bodySvg(model);
     assert.ok(svg.includes('Protected: matrix'));
     assert.equal((svg.match(/<polygon /g) ?? []).length, model.exposure.net.reduce((s, p) => s + p.length, 0));
@@ -72,7 +72,7 @@ test('unusable exposure combinations are rejected without silently disabling pro
   for (const key of Object.keys(exposureLabels) as ExposureKey[]) settings.enabled[key] = true;
   const short = makeBody(defaultBody, settings), tall = makeBody({ ...defaultBody, height: 280 }, settings);
   assert.equal(short.valid, false); assert.ok(short.exposure.reason.includes('separate pieces'));
-  assert.ok(tall.valid); assert.equal(tall.exposure.net.length, 1);
+  assert.ok(tall.geometryValid); assert.equal(tall.exposure.net.length, 1);
   assert.deepEqual(short.exposure.settings.enabled, settings.enabled);
   assert.equal(short.exposure.zones.length, Object.keys(exposureLabels).length);
 });

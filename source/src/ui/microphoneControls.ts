@@ -9,7 +9,7 @@ export function mountMicrophoneControls(container: HTMLElement, media: Microphon
     <label for="app-microphone">Speech input</label>
     <select id="app-microphone" aria-describedby="microphone-hint"><option value="">System default</option></select>
     <p id="microphone-hint" class="accessibility-hint">Used for spoken city commands and prompt recording. Changing it stops any recording in progress.</p>
-    <button type="button" id="microphone-discover">Find microphones</button>
+    <button class="secondary" type="button" id="microphone-discover">Find microphones</button>
     <p id="microphone-status" class="accessibility-hint" role="status" aria-live="polite">Choose Find microphones to allow access and show device names. The microphone is released after discovery.</p></div>`;
   const select = container.querySelector<HTMLSelectElement>('#app-microphone')!;
   const model = container.querySelector<HTMLSelectElement>('#app-command-model')!; model.value = readVoiceCommandModel();

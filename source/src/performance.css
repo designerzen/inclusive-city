@@ -19,8 +19,8 @@
 .performance-actions { justify-content: space-between; flex-wrap: wrap; column-gap: 16px; }
 .performance-buttons, .performance-secondary-actions { flex-wrap: wrap; }
 .performance-secondary-actions { position: relative; margin-left: auto; gap: 8px; }
-#exhibition-screen .performance-hud :is(button, summary) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 10px 12px; font-size: var(--text-control); line-height: 1.3; border: 0; border-radius: 4px; color: #fff; background: transparent; cursor: pointer; }
-#exhibition-screen .performance-hud :is(button:enabled, summary):hover { background: #ffffff1f; }
+#exhibition-screen .performance-hud :is(button, summary) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 10px 12px; font-size: var(--text-control); line-height: 1.3; border: 0; border-radius: 4px; color: var(--button-ink, #fff); background: var(--button-background, transparent); cursor: pointer; }
+#exhibition-screen .performance-hud :is(button:enabled, summary):hover { background: var(--button-hover-background, #ffffff1f); }
 #exhibition-screen .performance-hud button::before { margin: 0; }
 #exhibition-screen .performance-hud button:disabled { opacity: .45; cursor: default; }
 #exhibition-screen .performance-hud .performance-icon-button { width: 44px; height: 44px; flex: 0 0 44px; padding: 12px; }
@@ -53,7 +53,7 @@
 .performance-jam { border: 1px solid #ffffff38; border-radius: 10px; background: #102629ed; padding: 4px 10px; margin-top: 8px; }
 .performance-jam p { margin: 4px 0 8px; font-size: .8rem; max-width: 80ch; }
 .jam-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-#exhibition-screen .jam-controls button { background: #ffffff18; }
+#exhibition-screen .jam-controls button { background: var(--button-background, #ffffff18); }
 .jam-controls label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .jam-controls select { max-width: 100%; min-width: 44px; min-height: 44px; }
 .performance-jam kbd { font: inherit; opacity: .7; }
@@ -89,7 +89,7 @@
 /* Instrument faces animate inside stable, full-size touch targets. */
 .jam-instruments { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(384px, 1.4fr); gap: 16px; align-items: end; margin-block: 8px; }
 .jam-drum-kit { display: grid; grid-template-columns: repeat(4, minmax(44px, 1fr)); gap: 6px; }
-#exhibition-screen .performance-hud .jam-instrument { min-width: 44px; min-height: 80px; padding: 6px 2px; gap: 5px; flex-direction: column; background: transparent; border-radius: 10px; }
+#exhibition-screen .performance-hud .jam-instrument { min-width: 44px; min-height: 80px; padding: 6px 2px; gap: 5px; flex-direction: column; background: var(--button-background, transparent); border-radius: 10px; }
 .jam-drum { display: grid; place-items: center; width: 52px; max-width: 100%; height: 44px; box-sizing: border-box; border: 3px solid #b4c4bd; border-radius: 50%; background: #42605b; box-shadow: 0 5px 0 #1d3738; color: #fff; }
 .jam-z .jam-drum { height: 52px; border-width: 5px; }
 .jam-x .jam-drum { border-style: double; border-width: 5px; }

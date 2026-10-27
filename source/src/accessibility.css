@@ -1,3 +1,5 @@
+@import './buttons.css';
+
 /* Site-wide hit-target floor. Keep this invariant above component sizing rules. */
 :is(button, [role='button'], input[type='button'], input[type='submit'], input[type='reset'], select, summary) {
   min-width: 44px !important;

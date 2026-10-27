@@ -7,7 +7,7 @@
 .route-projection .projection-close {
   position: absolute; top: 12px; right: 12px; display: flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0;
-  background: #fff; color: #000; border: 1px solid #aaa; border-radius: 8px;
+  background: var(--button-background, #fff); color: var(--button-ink, #000); border: 1px solid #aaa; border-radius: 8px;
 }
 .projection-close:focus-visible { outline: 3px solid #000; outline-offset: 3px; }
 .projection-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }

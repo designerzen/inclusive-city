@@ -40,14 +40,14 @@ export function arrangeBodyDesigner(root: HTMLElement) {
   const material = take('.material-options'), decoration = take('.decoration-options'), hardware = take('.exposure-options');
   for (const section of [material, decoration, hardware]) section.querySelector('h2')?.classList.add('visually-hidden');
   const fit = take<HTMLDetailsElement>('.body-panel > details'); fit.id = 'group-fit'; fit.classList.add('control-group'); fit.append(take('#reset-body'));
-  const designGroups = [shape, group('decoration', 'Appendages & windows', [decoration]), group('material', 'Card & bend tolerances', [material]), group('hardware', 'Hardware openings', [hardware]), fit, group('surprises', 'Surprise options', [surpriseHelp, take('#surprise-appendages'), take('#surprise-windows')])];
+  const designGroups = [shape, group('roof', 'Roofs & lids', [take('.roof-options')]), group('decoration', 'Appendages & windows', [decoration]), group('material', 'Card & bend tolerances', [material]), group('hardware', 'Hardware openings', [hardware]), fit, group('surprises', 'Surprise options', [surpriseHelp, take('#surprise-appendages'), take('#surprise-windows')])];
   const folding = take('.fold-controls'), caption = take('.preview-caption'), viewActions = take('.view-actions');
   const status = take('#fit-status'), exports = take('.body-export'), exportNote = take('.export-note'), guide = take('#making');
   const back = take<HTMLAnchorElement>('.back-link'), switcher = take('.view-switch'), random = take('#random-body');
   back.textContent = '←'; back.setAttribute('aria-label', 'Back to the city'); back.title = 'Back to the city';
   random.textContent = '✦ Surprise me';
   const ui = document.createElement('div'); ui.className = 'workspace-interface';
-  ui.innerHTML = `<header class="workspace-header"><div class="workspace-brand"><h1>Robot body lab</h1><span>ONE SHEET / YOUR DESIGN</span></div><button id="hide-workspace-ui" aria-label="Hide all controls" title="Hide all controls">◫</button></header><div class="workspace-panels"></div><nav class="workspace-dock" aria-label="Designer tools"></nav><button id="workspace-warning" class="workspace-warning" hidden>Check fit & cutting</button>`;
+  ui.innerHTML = `<header class="workspace-header"><div class="workspace-brand"><h1>Robot body lab</h1><span>ONE SHEET / YOUR DESIGN</span></div><button class="tertiary" id="hide-workspace-ui" aria-label="Hide all controls" title="Hide all controls">◫</button></header><div class="workspace-panels"></div><nav class="workspace-dock" aria-label="Designer tools"></nav><button id="workspace-warning" class="secondary workspace-warning" hidden>Check fit & cutting</button>`;
   const header = ui.querySelector('.workspace-header')!;
   header.prepend(back); header.append(switcher, random);
   const drawers = new Map<string, HTMLElement>(), buttons = new Map<string, HTMLButtonElement>();
@@ -57,12 +57,12 @@ export function arrangeBodyDesigner(root: HTMLElement) {
   for (const id of Object.keys(titles)) {
     const drawer = document.createElement('section'); drawer.id = `drawer-${id}`; drawer.className = `workspace-drawer drawer-${id}`; drawer.hidden = true;
     drawer.setAttribute('aria-labelledby', `drawer-${id}-title`);
-    drawer.innerHTML = `<div class="drawer-heading"><h2 id="drawer-${id}-title" tabindex="-1">${titles[id]}</h2><button data-close-drawer="${id}" aria-label="Hide ${titles[id].toLowerCase()}">×</button></div><div class="drawer-content"></div>`;
+    drawer.innerHTML = `<div class="drawer-heading"><h2 id="drawer-${id}-title" tabindex="-1">${titles[id]}</h2><button class="tertiary" data-close-drawer="${id}" aria-label="Hide ${titles[id].toLowerCase()}">×</button></div><div class="drawer-content"></div>`;
     drawer.querySelector('.drawer-content')!.append(...contents[id]); ui.querySelector('.workspace-panels')!.append(drawer); drawers.set(id, drawer);
-    const button = document.createElement('button'); button.id = `tool-${id}`; button.textContent = dockTitles[id]; button.setAttribute('aria-controls',drawer.id); button.setAttribute('aria-expanded','false');
+    const button = document.createElement('button'); button.classList.add('tertiary'); button.id = `tool-${id}`; button.textContent = dockTitles[id]; button.setAttribute('aria-controls',drawer.id); button.setAttribute('aria-expanded','false');
     ui.querySelector('.workspace-dock')!.append(button); buttons.set(id,button);
   }
-  const restore = document.createElement('button'); restore.id='restore-workspace-ui'; restore.className='restore-workspace-ui'; restore.textContent='Show controls'; restore.hidden=true;
+  const restore = document.createElement('button'); restore.classList.add('tertiary'); restore.id='restore-workspace-ui'; restore.className='tertiary restore-workspace-ui'; restore.textContent='Show controls'; restore.hidden=true;
   preview.replaceChildren(stage); root.replaceChildren(preview,ui,restore); root.classList.add('designer-workspace');
   let layoutFrame=0;
   const scheduleLayout=()=>{

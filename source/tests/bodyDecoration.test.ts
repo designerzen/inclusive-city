@@ -25,7 +25,7 @@ test('appendage layouts and variation alter the sheet while preserving connected
   const signatures = new Set<string>();
   for (const layout of Object.keys(appendageLayouts) as (keyof typeof appendageLayouts)[]) {
     const model = makeBody({ ...defaultBody, height: 280 }, defaultExposure, { ...defaultDecoration, ornament: 'mixed', layout, variation: 80, offset: 3 });
-    assert.ok(model.valid, `${layout}: ${model.exposure.reason}`);
+    assert.ok(model.geometryValid, `${layout}: ${model.exposure.reason}`);
     assert.equal(model.exposure.net.length, 1);
     signatures.add(JSON.stringify(model.exposure.net));
     if (layout === 'pair') assert.equal(new Set(model.decoration.ornaments.map(p => p.group)).size, 2);
@@ -51,7 +51,7 @@ test('surprises change appendage and window families and respect exclusions', ()
 test('every ornament and window family produces a connected sheet with matching SVG stock extents', () => {
   for (const ornament of Object.keys(ornamentStyles) as (keyof typeof ornamentStyles)[]) for (const windows of Object.keys(windowStyles) as (keyof typeof windowStyles)[]) {
     const model = makeBody({ ...defaultBody, height: 280 }, defaultExposure, { ...defaultDecoration, ornament, windows });
-    assert.ok(model.valid, `${ornament}/${windows}: ${model.exposure.reason}`); assert.equal(model.exposure.net.length, 1);
+    assert.ok(model.geometryValid, `${ornament}/${windows}: ${model.exposure.reason}`); assert.equal(model.exposure.net.length, 1);
     const svg = bodySvg(model);
     assert.ok(svg.includes(`Ornament: ${ornament}`)); assert.ok(svg.includes(`ornamental windows: ${windows}`));
     assert.ok(!svg.includes('<text'));
@@ -67,7 +67,7 @@ test('every ornament and window family produces a connected sheet with matching 
 });
 test('sensor constraints can omit detached rim motifs without disabling protection', () => {
   const model = makeBody(defaultBody, defaultExposure, { ...defaultDecoration, ornament: 'crown' });
-  assert.ok(model.valid); assert.ok(model.exposure.omittedOrnaments > 0);
+  assert.ok(model.geometryValid); assert.ok(model.exposure.omittedOrnaments > 0);
   assert.ok(model.exposure.settings.enabled.laser); assert.ok(model.exposure.settings.enabled.matrix);
   assert.equal(model.exposure.net.length, 1);
   model.exposure.ornaments.forEach((polygons, i) => {

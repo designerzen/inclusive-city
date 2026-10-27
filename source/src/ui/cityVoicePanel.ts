@@ -17,14 +17,14 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
     <p data-reply-sentence role="status" aria-live="polite">Tell me what you would like to change.</p>
     </div>
     <form class="city-prompt-row"><label class="sr-only" for="city-reply-text">City prompt</label>
-      <textarea id="city-reply-text" rows="2" maxlength="500" placeholder="Type a change…"></textarea><button type="submit" data-reply-send>Send</button>
-    <button id="city-record-voice" type="button" data-reply-talk aria-label="Hold to talk" title="Hold to talk; release to finish" aria-pressed="false">
+      <textarea id="city-reply-text" rows="2" maxlength="500" placeholder="Type a change…"></textarea><button class="secondary" type="submit" data-reply-send>Send</button>
+    <button class="secondary" id="city-record-voice" type="button" data-reply-talk aria-label="Hold to talk" title="Hold to talk; release to finish" aria-pressed="false">
       <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
       <span>Hold to talk</span>
     </button></form>
     <p data-reply-status role="status" aria-live="polite">Hold the mic to speak. Focus the prompt to dictate into it.</p>
     <p data-command-transcript aria-label="Spoken command transcript"></p>
-    <div data-reply-proposal hidden><p data-reply-proposal-text></p><div class="city-reply-buttons"><button type="button" data-reply-confirm>Apply</button><button type="button" data-reply-dismiss>Discard</button></div></div>
+    <div data-reply-proposal hidden><p data-reply-proposal-text></p><div class="city-reply-buttons"><button class="secondary" type="button" data-reply-confirm>Apply</button><button class="secondary" type="button" data-reply-dismiss>Discard</button></div></div>
     <div class="city-reply-buttons" data-reply-choices aria-label="Suggested changes"></div>
     <p data-reply-result role="status" aria-live="polite"></p>`;
   const get = <T extends HTMLElement>(selector: string) => container.querySelector<T>(selector)!;
@@ -124,7 +124,7 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
       const next = options.context(); if (next === previous && choices.length) return;
       if (speech.busy || neu.busy || proposed) stop(); previous = next; choices = options.choices();
       get('[data-reply-choices]').replaceChildren(...choices.map(choice => {
-        const button = document.createElement('button'); button.type = 'button'; button.textContent = choice.phrase;
+        const button = document.createElement('button'); button.classList.add('secondary'); button.type = 'button'; button.textContent = choice.phrase;
         button.title = choice.variations?.join(' · ') ?? choice.phrase;
         if (choice.variations?.length) {
           const alternate = document.createElement('span'); alternate.className = 'city-command-variations';

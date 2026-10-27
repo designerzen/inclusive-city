@@ -3,9 +3,9 @@ import { mountMidiCcReference } from './midiCcReference';
 import './midiCcReference.css';
 
 export function mountMidiControls(container: HTMLElement, midi: CityMidiOutput) {
-  container.innerHTML = `<div class="midi-panel-heading"><h3>MIDI output</h3><button id="midi-cc-reference" type="button" aria-haspopup="dialog" aria-controls="midi-cc-dialog">CC reference</button></div><div class="midi-settings">
-    <button id="midi-connect" type="button">Enable MIDI</button>
-    <button id="midi-disconnect" type="button" disabled>Disconnect MIDI</button>
+  container.innerHTML = `<div class="midi-panel-heading"><h3>MIDI output</h3><button class="tertiary" id="midi-cc-reference" type="button" aria-haspopup="dialog" aria-controls="midi-cc-dialog">CC reference</button></div><div class="midi-settings">
+    <button class="primary" id="midi-connect" type="button">Enable MIDI</button>
+    <button class="secondary" id="midi-disconnect" type="button" disabled>Disconnect MIDI</button>
     <label for="midi-output">Output device</label><select id="midi-output"></select>
     <label for="midi-channel">Channel</label><select id="midi-channel">${Array.from({ length: 16 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select>
     <p id="midi-status" role="status" aria-live="polite"></p>

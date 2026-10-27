@@ -54,11 +54,11 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
     <header class="city-toolbar">
       <div class="city-tools" role="group" aria-label="City tools">
-        <button id="city-tool-route" type="button" aria-pressed="false">Create route</button>
-        <button id="city-fast-forward" type="button" aria-pressed="false" aria-label="Fast forward at 10 times speed"></button>
+        <button class="secondary" id="city-tool-route" type="button" aria-pressed="false">Create route</button>
+        <button class="secondary" id="city-fast-forward" type="button" aria-pressed="false" aria-label="Fast forward at 10 times speed"></button>
       </div>
-      <button id="city-exhibition" type="button" hidden disabled>Watch performance</button>
-      <button id="back-to-designer" type="button" aria-label="Back to robot editor" title="Back to robot editor">Back</button>
+      <button class="primary" id="city-exhibition" type="button" hidden disabled>Watch performance</button>
+      <button class="tertiary" id="back-to-designer" type="button" aria-label="Back to robot editor" title="Back to robot editor">Back</button>
       <div class="city-music-feedback" aria-label="Live music cues" hidden>
         <p id="city-music-key" role="status" aria-live="polite">Music follows city actions.</p>
         <p id="city-music-notes" aria-live="off">Journey music ready.</p>
@@ -72,21 +72,21 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     </div>
       <div class="city-navigation-tools" role="group" aria-label="Map navigation">
         <div class="city-map-zoom" role="group" aria-label="Map zoom">
-          <button type="button" data-map="zoom-in">Zoom in</button>
-          <button type="button" data-map="zoom-out">Zoom out</button>
+          <button class="tertiary" type="button" data-map="zoom-in">Zoom in</button>
+          <button class="tertiary" type="button" data-map="zoom-out">Zoom out</button>
         </div>
         <div class="city-map-fit-control">
-          <button id="city-map-fit" type="button">Fit map in viewport</button>
+          <button class="tertiary" id="city-map-fit" type="button">Fit map in viewport</button>
         </div>
         <div id="city-map-move" class="city-map-move" role="group" aria-label="Move map" hidden>
-          <button type="button" data-map="left">Move left</button>
-          <button type="button" data-map="up">Move up</button>
-          <button type="button" data-map="down">Move down</button>
-          <button type="button" data-map="right">Move right</button>
+          <button class="tertiary" type="button" data-map="left">Move left</button>
+          <button class="tertiary" type="button" data-map="up">Move up</button>
+          <button class="tertiary" type="button" data-map="down">Move down</button>
+          <button class="tertiary" type="button" data-map="right">Move right</button>
         </div>
       </div>
     <div class="city-interaction-hud">
-    <div class="city-assistant-heading"><strong>Robot companion</strong><button id="city-assistant-toggle" type="button" aria-expanded="true" aria-controls="city-reply journey-inspirations city-controls-hud city-issue">Minimise</button></div>
+    <div class="city-assistant-heading"><strong>Robot companion</strong><button class="tertiary" id="city-assistant-toggle" type="button" aria-expanded="true" aria-controls="city-reply journey-inspirations city-controls-hud city-issue">Minimise</button></div>
     <details id="journey-inspirations" class="journey-inspirations">
       <summary>Journey inspirations · <span id="inspiration-count">0</span></summary>
       <div class="inspiration-content">
@@ -100,15 +100,15 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-object-status" role="status">Tap any city object to hear it.</p>
       <p id="city-encounter-status" role="status" hidden></p>
     </section>
-    <div class="city-journey-actions" role="group" aria-label="City journey controls"><button id="city-pause" type="button">Start robot</button></div>
+    <div class="city-journey-actions" role="group" aria-label="City journey controls"><button class="primary" id="city-pause" type="button">Start robot</button></div>
     <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
     <section id="city-issue" class="city-issue" aria-label="Help your robot" hidden>
       <h2>Your robot is stuck</h2>
       <p id="city-issue-description" role="status" aria-live="polite"></p>
-      <button id="city-issue-action" type="button"></button>
-      <button id="city-bridge-elevator" type="button" hidden>Add elevators</button>
-      <button id="city-roboramp" type="button" hidden>Roboramp</button>
-      <button id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
+      <button class="primary" id="city-issue-action" type="button"></button>
+      <button class="secondary" id="city-bridge-elevator" type="button" hidden>Add elevators</button>
+      <button class="secondary" id="city-roboramp" type="button" hidden>Roboramp</button>
+      <button class="secondary" id="city-ask-robot" type="button" hidden>Ask nearby robot to press the button</button>
       <p id="city-issue-feedback" role="status" aria-live="polite"></p>
     </section>
     <details class="city-controls-hud" id="city-controls-hud"><summary><span id="city-controls-label">City controls</span> <span class="disclosure-chevron" aria-hidden="true">&#8964;</span></summary>
@@ -116,24 +116,24 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <details id="city-instruments"><summary>Play city objects</summary>
         <label for="city-instrument">Object to hear</label>
         <select id="city-instrument"></select>
-        <button id="city-play-object" type="button">Hear object</button>
+        <button class="secondary" id="city-play-object" type="button">Hear object</button>
         <p id="city-instrument-feedback" aria-hidden="true" hidden></p>
         <p>Objects join the music in their own rhythm. Meeting another robot changes your melody.</p>
       </details>
-      <div class="city-controls-window-actions"><button id="city-controls-window" type="button" aria-label="Move controls to new window" title="Move controls to new window" aria-pressed="false"></button></div>
+      <div class="city-controls-window-actions"><button class="tertiary" id="city-controls-window" type="button" aria-label="Move controls to new window" title="Move controls to new window" aria-pressed="false"></button></div>
       <div class="city-view-tools" role="group" aria-label="City view">
-        <button type="button" data-view="overhead" aria-pressed="true">Map view</button>
+        <button class="secondary" type="button" data-view="overhead" aria-pressed="true">Map view</button>
         <div class="city-isometric-menu">
-          <button type="button" data-view="angled" aria-pressed="false" aria-expanded="false" aria-controls="city-isometric-options">3D view</button>
+          <button class="secondary" type="button" data-view="angled" aria-pressed="false" aria-expanded="false" aria-controls="city-isometric-options">3D view</button>
           <div id="city-isometric-options" class="city-isometric-options" role="group" aria-label="Isometric camera controls" aria-hidden="true" inert>
-            <button id="city-rotate-left" type="button" data-rotate-city="-1" aria-label="Rotate city anticlockwise"><span aria-hidden="true">↶</span></button>
-            <button id="city-rotate-right" type="button" data-rotate-city="1" aria-label="Rotate city clockwise"><span aria-hidden="true">↷</span></button>
+            <button class="tertiary" id="city-rotate-left" type="button" data-rotate-city="-1" aria-label="Rotate city anticlockwise"><span aria-hidden="true">↶</span></button>
+            <button class="tertiary" id="city-rotate-right" type="button" data-rotate-city="1" aria-label="Rotate city clockwise"><span aria-hidden="true">↷</span></button>
           </div>
         </div>
-        <button type="button" data-view="follow" aria-pressed="false">Follow robot</button>
-        <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
-        <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
-        <button id="city-project-line" type="button">Project robot line</button>
+        <button class="secondary" type="button" data-view="follow" aria-pressed="false">Follow robot</button>
+        <button class="secondary" type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
+        <button class="tertiary" id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
+        <button class="secondary" id="city-project-line" type="button">Project robot line</button>
 
       </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
@@ -143,7 +143,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <p class="city-plan-hint">Drawing is optional. Choose stops or draw between junctions to explore. Start robot fills in the rest of the route to the flagged goal.</p>
         <h3 id="city-next-heading">Next stop</h3>
         <div id="city-next-stops" class="city-next-stops"></div>
-        <div class="city-secondary-actions"><button id="city-route-undo" type="button" disabled>Undo line</button><button id="city-route-clear" type="button" disabled>Clear line</button></div>
+        <div class="city-secondary-actions"><button class="tertiary" id="city-route-undo" type="button" disabled>Undo line</button><button class="tertiary" id="city-route-clear" type="button" disabled>Clear line</button></div>
       </section>
       <section id="city-change-controls" aria-label="Change the city" hidden>
         <label for="city-street">Place to change</label><select id="city-street" aria-label="Place to change"></select>
@@ -157,9 +157,9 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
           <output id="city-size-value" for="city-size"></output>
           <p>Drag a wall, doorway or street edge on the map, or use this slider. Undo lets you try again.</p>
         </div>
-        <button id="city-repair" type="button" disabled>Choose a place</button>
-        <button id="city-crossing-cues" type="button" hidden>Add beeper and tactile cues</button>
-        <button id="city-undo" type="button" disabled>Undo city change</button>
+        <button class="secondary" id="city-repair" type="button" disabled>Choose a place</button>
+        <button class="secondary" id="city-crossing-cues" type="button" hidden>Add beeper and tactile cues</button>
+        <button class="tertiary" id="city-undo" type="button" disabled>Undo city change</button>
       </section>
       <p id="city-feedback" role="status" aria-live="polite"></p>
       <details class="city-journey-details"><summary>Journey details</summary>
@@ -177,7 +177,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <div id="city-projection-settings"></div>
       </details>
       <details class="city-music-options"><summary>Music monitor settings</summary><div id="city-music-monitor-controls" class="music-monitor-controls"></div></details>
-      <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p><button id="city-art-window" type="button">Open live painting window</button></details>
+      <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p><button class="tertiary" id="city-art-window" type="button">Open live painting window</button></details>
       <section aria-label="City difficulty">
         <label for="city-barrier-amount">Barriers per city</label>
         <select id="city-barrier-amount" aria-describedby="city-barrier-help">
@@ -190,8 +190,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <p id="city-barrier-help">Applies when you choose New City. Counts places to change across the whole city; your route and robot abilities determine how many you meet. Reset keeps the original difficulty.</p>
       </section>
       <div class="city-new-actions">
-        <button id="city-restart" type="button" aria-label="Reset" title="Reset: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
-        <button id="city-new" type="button" aria-label="New City" title="New City: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
+        <button class="secondary" id="city-restart" type="button" aria-label="Reset" title="Reset: restore this layout and return to the start" aria-describedby="city-reset-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button>
+        <button class="secondary" id="city-new" type="button" aria-label="New City" title="New City: create a different layout and return to the start" aria-describedby="city-remix-description"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h3c5 0 7 14 12 14h3M3 19h3c2 0 4-3 6-7s4-7 6-7h3M18 2l3 3-3 3M18 16l3 3-3 3"/></svg></button>
       </div>
       <p id="city-reset-description" class="sr-only">Restores this layout, removes city changes and returns to the start.</p>
       <p id="city-remix-description" class="sr-only">Creates a different layout and returns to the start.</p>
@@ -311,7 +311,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   const projection = mountRouteProjection(container, () => city?.journey);
   const physicalRobots = mountPhysicalRobots(physicalControls, () => city?.journey, projection, feedback, () => creation ?? undefined);
   const microbitFace = mountMicrobitFaceSetup(physicalControls);
-  const physicalStop = document.createElement('button'); physicalStop.type = 'button';
+  const physicalStop = document.createElement('button'); physicalStop.classList.add('secondary'); physicalStop.type = 'button';
   physicalStop.textContent = 'Stop physical robots'; physicalStop.disabled = true;
   physicalStop.title = 'Stop physical robots';
   physicalStop.addEventListener('click', () => physicalRobots.halt('Operator stopped the fleet.'));
@@ -590,7 +590,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       routeKey = nextKey;
       const focusWasNext = get('city-next-stops').contains(document.activeElement);
       get('city-next-stops').replaceChildren(...j.nextStops.map(node => {
-        const button = document.createElement('button'); button.type = 'button'; button.dataset.nextStop = node.id;
+        const button = document.createElement('button'); button.classList.add('secondary'); button.type = 'button'; button.dataset.nextStop = node.id;
         const street = streetBetween(j.world, j.route.at(-1)!, node.id)!;
         button.textContent = `${node.label}${node.discovery ? ' · discovery' : ''}${street.kind !== 'clear' ? ` · ${street.id === j.world.steamTrain?.street ? 'train boarding' : streetNames[street.kind].toLowerCase()}` : ''}`;
         button.addEventListener('click', () => { if (j.appendStop(node.id)) { sounds.interaction('tap'); city!.sync(); feedback(''); refresh(); } }); return button;

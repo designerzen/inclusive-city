@@ -21,23 +21,23 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
   let previewStyle: PainterStyle | null = null;
   container.innerHTML = `
     <div class="designer-hud-views" role="group" aria-label="Robot settings">
-      <button id="designer-capabilities" type="button" data-designer-panel="capabilities" aria-label="Capabilities" title="Capabilities" aria-pressed="true" aria-controls="designer-capabilities-panel">${mapIcon('robot')}<span class="designer-tab-label">Capabilities</span></button>
-      <button id="designer-tuning" type="button" data-designer-panel="tuning" aria-label="Tuning" title="Tuning" aria-pressed="false" aria-controls="designer-tuning-panel">${mapIcon('settings')}<span class="designer-tab-label">Tuning</span></button>
-      <button id="designer-creativity" type="button" data-designer-panel="creativity" aria-label="Creativity" title="Creativity" aria-pressed="false" aria-controls="designer-creativity-panel">${mapIcon('art')}<span class="designer-tab-label">Creativity</span></button>
-      <button id="designer-accessories" type="button" data-designer-panel="accessories" aria-label="Accessories" title="Accessories" aria-pressed="false" aria-controls="designer-accessories-panel">${mapIcon('accessories')}<span class="designer-tab-label">Accessories</span></button>
+      <button class="tertiary" id="designer-capabilities" type="button" data-designer-panel="capabilities" aria-label="Capabilities" title="Capabilities" aria-pressed="true" aria-controls="designer-capabilities-panel">${mapIcon('robot')}<span class="designer-tab-label">Capabilities</span></button>
+      <button class="tertiary" id="designer-tuning" type="button" data-designer-panel="tuning" aria-label="Tuning" title="Tuning" aria-pressed="false" aria-controls="designer-tuning-panel">${mapIcon('settings')}<span class="designer-tab-label">Tuning</span></button>
+      <button class="tertiary" id="designer-creativity" type="button" data-designer-panel="creativity" aria-label="Creativity" title="Creativity" aria-pressed="false" aria-controls="designer-creativity-panel">${mapIcon('art')}<span class="designer-tab-label">Creativity</span></button>
+      <button class="tertiary" id="designer-accessories" type="button" data-designer-panel="accessories" aria-label="Accessories" title="Accessories" aria-pressed="false" aria-controls="designer-accessories-panel">${mapIcon('accessories')}<span class="designer-tab-label">Accessories</span></button>
     </div>
     <div class="designer-settings-panels">
     <div id="designer-capabilities-panel" data-settings-panel="capabilities">
     <div class="designer-heading">
       <h2 id="functions-heading" class="designer-panel-heading">Pick 3 Capabilities</h2>
-      <button hidden type="button" id="reset-abilities">Reset abilities</button>
+      <button class="tertiary" hidden type="button" id="reset-abilities">Reset abilities</button>
     </div>
     <section class="function-designer" aria-labelledby="functions-heading">
       <div class="function-list">${robotFunctions.map(item => `
         <div class="function-item">
           <div class="function-row"><div><h3 id="function-label-${item.id}">${item.label}</h3>
             <p class="sr-only" id="function-description-${item.id}">${item.description}</p></div>
-            <button type="button" role="switch" id="function-${item.id}" data-function="${item.id}" aria-checked="false"
+            <button class="secondary" type="button" role="switch" id="function-${item.id}" data-function="${item.id}" aria-checked="false"
               aria-labelledby="function-label-${item.id}" aria-describedby="function-description-${item.id} function-swap-${item.id}">
               <span class="switch-track" aria-hidden="true"><span></span></span><span class="switch-state" aria-hidden="true">Disabled</span>
             </button></div>
@@ -73,13 +73,13 @@ export function mountAbilityDesigner(container: HTMLElement, onChange: (profile:
       <h2 id="accessories-heading" class="designer-panel-heading">Make it your own</h2>
       <p class="accessories-hint">Mix and match some finishing touches. Tap again to remove.</p>
       <div class="accessories-list">${robotAccessories.map(item => `
-        <button type="button" id="accessory-${item.id}" data-accessory="${item.id}" aria-pressed="false" aria-describedby="accessory-description-${item.id}">
+        <button class="secondary" type="button" id="accessory-${item.id}" data-accessory="${item.id}" aria-pressed="false" aria-describedby="accessory-description-${item.id}">
           <span>${item.label}</span><small class="accessory-state" aria-hidden="true">Add +</small>
         </button><p id="accessory-description-${item.id}" class="sr-only">${item.description}</p>`).join('')}</div>
-      <button type="button" id="clear-accessories" disabled>Remove all accessories</button>
+      <button class="tertiary" type="button" id="clear-accessories" disabled>Remove all accessories</button>
     </section>
     </div>
-    <div class="designer-step-actions"><button id="enter-city" class="primary-action" type="button" aria-controls="designer-tuning-panel">Next step</button></div>
+    <div class="designer-step-actions"><button id="enter-city" class="primary primary-action" type="button" aria-controls="designer-tuning-panel">Next step</button></div>
     <p id="designer-announcement" class="sr-only" role="status" aria-live="polite"></p>
   `;
 

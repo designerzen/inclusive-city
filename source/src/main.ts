@@ -60,10 +60,10 @@ await requireModels(app);
 app.innerHTML = `
   <main class="workshop attract-mode">
     <div class="sound-controls">
-      <button id="app-options" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-controls="options-dialog" aria-expanded="false"><span aria-hidden="true">☰</span><span class="settings-label">Settings</span></button>
+      <button class="tertiary" id="app-options" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-controls="options-dialog" aria-expanded="false"><span aria-hidden="true">☰</span><span class="settings-label">Settings</span></button>
     </div>
     <dialog id="options-dialog" class="options-dialog" aria-labelledby="options-title">
-      <div class="options-heading"><h2 id="options-title">Settings</h2><button id="options-close" type="button" aria-label="Close settings">✕</button></div>
+      <div class="options-heading"><h2 id="options-title">Settings</h2><button class="tertiary" id="options-close" type="button" aria-label="Close settings">✕</button></div>
       <section class="options-appearance" aria-labelledby="options-appearance-title"><h3 id="options-appearance-title">Appearance</h3><label for="app-theme">Colour mode</label><select id="app-theme"><option value="dark">Dark</option><option value="light">Light</option></select></section>
       <section id="physical-robot-controls" aria-label="Physical robot controls"></section>
       <section id="microcontroller-controls" aria-labelledby="options-microcontroller-title"></section>
@@ -86,12 +86,12 @@ app.innerHTML = `
       </section>
       <section id="accessibility-controls" aria-labelledby="options-accessibility-title"></section>
       <section class="options-audio" aria-labelledby="options-audio-title"><h3 id="options-audio-title">Sound</h3>
-      <button id="sound-mute" type="button" aria-pressed="false">Mute sound</button>
+      <button class="secondary" id="sound-mute" type="button" aria-pressed="false">Mute sound</button>
       <label for="sound-volume">Volume</label><input id="sound-volume" type="range" min="0" max="100" value="55" />
       <label class="speech-option" for="speech-enabled"><span>Spoken introductions & robot guidance</span><input id="speech-enabled" type="checkbox" role="switch" checked /></label>
       <div id="speech-voice-controls"></div>
       <p id="speech-status" class="accessibility-hint" role="status">Natural voices load when narration starts.</p>
-      <button id="speech-preview" type="button">Use natural voice</button>
+      <button class="secondary" id="speech-preview" type="button">Use natural voice</button>
       </section>
       <section aria-labelledby="options-monitor-title"><h3 id="options-monitor-title">Music monitor</h3><div id="music-monitor-controls" class="music-monitor-controls"></div></section>
       <section id="microphone-controls" aria-labelledby="options-microphone-title"></section>
@@ -111,31 +111,31 @@ app.innerHTML = `
       <form id="rename-bot"><div class="rename-controls">
         <label for="bot-name-input">Robot name</label>
         <input id="bot-name-input" type="text" required maxlength="60" autocomplete="off" />
-        <button id="random-name" type="button">Random name</button>
+        <button class="tertiary" id="random-name" type="button">Random name</button>
       </div>
       <p id="name-error" role="status" aria-live="polite"></p>
       </form>
     </div>
     <div class="robot-carousel" role="group" aria-label="Art bot navigation">
-    <button id="previous-bot" type="button" aria-label="Previous robot" title="Previous robot" disabled><span aria-hidden="true">←</span></button>
+    <button class="tertiary" id="previous-bot" type="button" aria-label="Previous robot" title="Previous robot" disabled><span aria-hidden="true">←</span></button>
     <section class="stage" aria-label="Artbot preview">
       <canvas id="render-canvas" role="img" aria-label="A mint robot with four wheels on a circular workshop platform."></canvas>
-      <button id="rotation-toggle" type="button" aria-label="Pause rotation" title="Pause rotation" hidden disabled>Ⅱ</button>
+      <button class="tertiary" id="rotation-toggle" type="button" aria-label="Pause rotation" title="Pause rotation" hidden disabled>Ⅱ</button>
     </section>
-    <button id="randomise-design" type="button" aria-label="Next robot" title="Next robot"><span aria-hidden="true">→</span></button>
+    <button class="tertiary" id="randomise-design" type="button" aria-label="Next robot" title="Next robot"><span aria-hidden="true">→</span></button>
     </div>
-    <div class="designer-next"><button id="choose-existing" type="button">Browse ready-made robots</button></div>
+    <div class="designer-next"><button class="secondary" id="choose-existing" type="button">Browse ready-made robots</button></div>
     <p id="engine-status" class="sr-only" role="status">Loading preview…</p>
     </div><aside id="ability-designer" aria-label="Robot ability designer"></aside></div>
     </div>
     <section id="presets-screen" hidden aria-label="Choose an existing robot" aria-roledescription="carousel">
       <div class="preset-carousel">
-        <button id="preset-previous" class="preset-arrow" type="button" aria-label="Previous preset robot">←</button>
+        <button id="preset-previous" class="tertiary preset-arrow" type="button" aria-label="Previous preset robot">←</button>
         <div id="preset-stage" class="preset-stage" aria-label="Preset robot preview"></div>
-        <button id="preset-next" class="preset-arrow" type="button" aria-label="Next preset robot">→</button>
+        <button id="preset-next" class="tertiary preset-arrow" type="button" aria-label="Next preset robot">→</button>
       </div>
       <div class="preset-caption" aria-live="polite" aria-atomic="true"><span id="preset-position"></span><h1 id="preset-name"></h1><p id="preset-description"></p></div>
-      <button id="edit-robot" class="primary-action" type="button">Use this robot <span aria-hidden="true">→</span></button>
+      <button id="edit-robot" class="primary primary-action" type="button">Use this robot <span aria-hidden="true">→</span></button>
     </section>
     <section id="city-screen" hidden></section><section id="exhibition-screen" hidden aria-labelledby="exhibition-title"></section>
   </main>

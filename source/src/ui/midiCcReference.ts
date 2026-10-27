@@ -39,7 +39,7 @@ export function mountMidiCcReference(container: HTMLElement) {
   dialog.id = 'midi-cc-dialog';
   dialog.className = 'options-dialog midi-cc-dialog';
   dialog.setAttribute('aria-labelledby', 'midi-cc-title');
-  dialog.innerHTML = `<header class="midi-cc-heading"><div><p class="midi-cc-eyebrow">MIDI 1.0 · IMPLEMENTATION REFERENCE</p><h2 id="midi-cc-title">Control change codes</h2></div><button type="button" autofocus aria-label="Close MIDI CC reference">Close</button></header>
+  dialog.innerHTML = `<header class="midi-cc-heading"><div><p class="midi-cc-eyebrow">MIDI 1.0 · IMPLEMENTATION REFERENCE</p><h2 id="midi-cc-title">Control change codes</h2></div><button class="secondary" type="button" autofocus aria-label="Close MIDI CC reference">Close</button></header>
     <p>Send three bytes: <code>[0xB0 + (channel − 1), CC, value]</code>. Channels are 1–16; CC and value bytes are 0–127. For example, <code>[0xB0, 7, 100]</code> sets channel 1 volume to 100.</p>
     <p>CC 0–31 are coarse (MSB) controls; CC 32–63 supply their fine (LSB) values. Combine as <code>MSB × 128 + LSB</code> for 14-bit resolution. Select RPN with CC 101/100 or NRPN with CC 99/98, then use data entry CC 6/38. RPN 127/127 clears selection.</p>
     <p>Assignments and effect names depend on your instrument. Undefined codes have no standard function; check its MIDI implementation chart. CC 120–127 change channel modes. This app sends notes and uses CC 64, 123 and 120 when stopping playback.</p>

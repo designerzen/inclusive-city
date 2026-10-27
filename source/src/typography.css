@@ -1,0 +1,58 @@
+/* Shared by every entry point. Fonts ship with the app and work offline. */
+@font-face {
+  font-family: 'DM Sans';
+  src: url('./assets/fonts/dm-sans-variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  src: url('./assets/fonts/dm-sans-italic-variable.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
+:root {
+  --font-family: var(--reading-font, 'DM Sans', system-ui, sans-serif);
+  --text-caption: .75rem;
+  --text-small: .8125rem;
+  --text-control: .875rem;
+  --text-copy: .9375rem;
+  --text-body: 1rem;
+  --text-lead: 1.125rem;
+  --text-title-small: 1.25rem;
+  --text-title: 1.5rem;
+  --text-heading: clamp(1.75rem, 1.5rem + 1vw, 2.25rem);
+  --text-page-title: clamp(2rem, 1.5rem + 2vw, 3.5rem);
+  --text-display: clamp(2.5rem, min(5.4vw, 9vh), 5.25rem);
+  --leading-tight: 1.15;
+  --leading-heading: 1.25;
+  --leading-control: 1.4;
+  --leading-body: 1.6;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  font-family: var(--font-family);
+  font-size: calc(100% * var(--text-scale, 1));
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+body { font-size: var(--text-body); line-height: var(--leading-body); }
+button, input, select, textarea { font-family: inherit; font-size: var(--text-control); line-height: var(--leading-control); }
+button, summary { font-weight: var(--weight-semibold); }
+h1, h2, h3, h4 { font-family: inherit; font-weight: var(--weight-bold); line-height: var(--leading-heading); text-wrap: balance; }
+h1 { font-size: var(--text-page-title); letter-spacing: -.035em; }
+h2 { font-size: var(--text-title); letter-spacing: -.02em; }
+h3, h4 { font-size: var(--text-lead); letter-spacing: -.01em; }
+p, li, dd { text-wrap: pretty; }
+small { font-size: var(--text-caption); }
+strong, b { font-weight: var(--weight-bold); }
+code, pre, kbd, samp { font-family: inherit; font-variant-numeric: tabular-nums; }
+svg text { font-family: var(--font-family); }
+label, summary { line-height: var(--leading-control); }
+input, output, time { font-variant-numeric: tabular-nums; }

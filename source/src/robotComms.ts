@@ -10,7 +10,7 @@ let transport: BleRobotTransport | undefined, decoder = new CommsDecoder(), conn
 let pending: number | undefined, ackTimer: ReturnType<typeof setTimeout> | undefined, writing = false;
 const encoder = new TextEncoder();
 const buttons = commsMessages.map((name, code) => {
-  const button = document.createElement('button');
+  const button = document.createElement('button'); button.classList.add('secondary');
   button.innerHTML = `<span class="code">${code.toString(16).toUpperCase()} · ${code.toString(2).padStart(4, '0')}</span>${name}`;
   button.disabled = true;
   button.addEventListener('click', () => { void sendCommand(code); });

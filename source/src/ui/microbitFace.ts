@@ -79,7 +79,7 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
     reconnect: reconfigure,
     mountPair(host: HTMLElement, alwaysShowStatus = false) {
       const root = document.createElement('div'); root.className = 'microbit-pair';
-      const button = document.createElement('button'); button.type = 'button';
+      const button = document.createElement('button'); button.classList.add('primary'); button.type = 'button';
       const status = document.createElement('span'); status.className = 'sr-only'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
       button.addEventListener('click', pair); root.append(button, status); host.append(root);
       views.push({ root, pair: button, status, alwaysShowStatus }); render();

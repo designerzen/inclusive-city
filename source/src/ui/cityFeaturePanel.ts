@@ -31,23 +31,23 @@ export function mountCityFeaturePanel(container: HTMLElement, callbacks: {
     </div>
     <details class="city-robot-facts"><summary>Your robot</summary><dl id="city-robot-facts"></dl></details>
     <details class="city-feature-list" open><summary>City features <span>8 places to explore</span></summary>
-      <div class="feature-grid">${cityBarriers.map(b => `<button type="button" data-city-feature="${b.id}" aria-pressed="false">${mapIcon(icons[b.id])}<span>${featureNames[b.id]}</span></button>`).join('')}</div>
+      <div class="feature-grid">${cityBarriers.map(b => `<button class="secondary" type="button" data-city-feature="${b.id}" aria-pressed="false">${mapIcon(icons[b.id])}<span>${featureNames[b.id]}</span></button>`).join('')}</div>
     </details>
     <div class="feature-card" aria-labelledby="feature-heading">
       <h3 id="feature-heading">Choose a feature</h3><p id="feature-property">Choose any feature above to reveal its controls. You can edit before your robot moves.</p>
       <section id="city-robot-guide" class="robot-guide" aria-label="Your robot’s explanation" hidden></section>
       <div id="feature-edit-controls" hidden>
         <div id="feature-environment-choices" hidden></div>
-        <div class="feature-actions"><button id="feature-primary" type="button"></button><button id="feature-secondary" type="button" hidden></button></div>
+        <div class="feature-actions"><button class="primary" id="feature-primary" type="button"></button><button class="secondary" id="feature-secondary" type="button" hidden></button></div>
         <p id="feature-occupied" hidden>The robot is using this feature. You can change it when the robot has moved clear.</p>
-        <button id="feature-help" class="feature-help" type="button" aria-expanded="false" aria-controls="feature-hint">${mapIcon('eye')} Help me decide</button>
-        <div id="feature-hint" class="feature-hint" hidden><p id="feature-explanation"></p><button id="feature-suggestion" type="button">Apply suggestion</button></div>
+        <button id="feature-help" class="tertiary feature-help" type="button" aria-expanded="false" aria-controls="feature-hint">${mapIcon('eye')} Help me decide</button>
+        <div id="feature-hint" class="feature-hint" hidden><p id="feature-explanation"></p><button class="primary" id="feature-suggestion" type="button">Apply suggestion</button></div>
       </div>
     </div>
     <div id="city-edit-feedback" class="city-edit-feedback" hidden><span class="edit-feedback-icon" aria-hidden="true">✓</span><div><strong>City updated</strong><p id="city-edit-status" role="status" aria-live="polite" aria-atomic="true"></p></div></div>
-    <div class="city-edit-history"><button id="city-undo" type="button" disabled>${mapIcon('left')} Undo</button><button id="city-redo" type="button" disabled>${mapIcon('right')} Redo</button></div>
+    <div class="city-edit-history"><button class="tertiary" id="city-undo" type="button" disabled>${mapIcon('left')} Undo</button><button class="tertiary" id="city-redo" type="button" disabled>${mapIcon('right')} Redo</button></div>
     <p id="city-history-reason" class="city-edit-status" hidden></p>
-    <button id="city-edit-done" type="button">Start journey <span aria-hidden="true">→</span></button>
+    <button class="primary" id="city-edit-done" type="button">Start journey <span aria-hidden="true">→</span></button>
   `;
   const get = <T extends HTMLElement = HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
   const guide = mountRobotGuide(get('city-robot-guide'), speech, callbacks.guidePortrait);

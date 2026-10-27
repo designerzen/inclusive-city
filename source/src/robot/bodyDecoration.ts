@@ -2,20 +2,25 @@ import type { BaseBodyModel, BodyParameters, Point, Point3 } from './bodyNet';
 import { bodyFoldingPose } from './bodyFolding';
 import { bendAllowance, cardBendInPlane, makeBend, move } from './cardMaterial';
 import type { CardBend } from './cardMaterial';
+import { buildRoof, roofStyles } from './bodyRoof';
+import type { RoofStyle } from './bodyRoof';
 
 export const ornamentStyles = { plain: 'No appendages', crown: 'Folded crown', petals: 'Petal collar', accordion: 'Accordion ruffle', ears: 'Robot ears', fins: 'Swept fins', antenna: 'Antenna paddles', fork: 'Forked feelers', pennant: 'Pennant flags', wing: 'Jointed wings', horn: 'Articulated horns', bolt: 'Lightning blades', mixed: 'Mixed appendages' };
 export const appendageLayouts = { all: 'Every panel', alternate: 'Alternating panels', pair: 'Opposite pair', scattered: 'Scattered' };
 export const windowStyles = { none: 'No ornamental windows', diamond: 'Diamonds', hexagon: 'Honeycomb hexagons', star: 'Stars', porthole: 'Octagonal portholes', slash: 'Angled slashes', chevron: 'Chevron vents', visor: 'Visor windows' };
 export interface DecorationSettings {
+  roof: RoofStyle; roofRise: number;
   ornament: keyof typeof ornamentStyles; height: number; angle: number;
   windows: keyof typeof windowStyles; windowSize: number; rows: number; windowAngle: number;
   layout: keyof typeof appendageLayouts; variation: number; offset: number; span: number;
 }
-export const defaultDecoration: DecorationSettings = { ornament: 'plain', height: 30, angle: 45, windows: 'none', windowSize: 16, rows: 2, windowAngle: 0, layout: 'all', variation: 0, offset: 0, span: 58 };
+export const defaultDecoration: DecorationSettings = { roof: 'open', roofRise: 45, ornament: 'plain', height: 30, angle: 45, windows: 'none', windowSize: 16, rows: 2, windowAngle: 0, layout: 'all', variation: 0, offset: 0, span: 58 };
 export const decorationRanges = { height: [12, 120, 1], angle: [15, 85, 1], windowSize: [6, 70, 1], rows: [1, 4, 1], windowAngle: [-75, 75, 1], variation: [0, 100, 1], offset: [0, 11, 1], span: [25, 90, 1] } as const;
 export function normaliseDecoration(input: unknown): DecorationSettings {
   const data = input && typeof input === 'object' ? input as Partial<DecorationSettings> : {};
   const result = { ...defaultDecoration };
+  if (data.roof && Object.hasOwn(roofStyles, data.roof)) result.roof = data.roof;
+  if (typeof data.roofRise === 'number' && Number.isFinite(data.roofRise)) result.roofRise = Math.round(Math.max(15, Math.min(100, data.roofRise)));
   if (data.ornament && Object.hasOwn(ornamentStyles, data.ornament)) result.ornament = data.ornament;
   if (data.windows && Object.hasOwn(windowStyles, data.windows)) result.windows = data.windows;
   if (data.layout && Object.hasOwn(appendageLayouts, data.layout)) result.layout = data.layout;
@@ -49,7 +54,7 @@ export function buildDecorationGeometry(faces: { flat: Point[] }[], slots: Point
     const at = (x: number, y: number): Point => [topMiddle[0] + across[0] * x + up[0] * y, topMiddle[1] + across[1] * x + up[1] * y];
     const position = (face + settings.offset) % faces.length;
     const selected = settings.layout === 'all' || (settings.layout === 'alternate' && position % 2 === 0) || (settings.layout === 'pair' && (position === 0 || position === Math.floor(faces.length / 2))) || (settings.layout === 'scattered' && (position * 7 + 3) % 11 < 6);
-    if (settings.ornament !== 'plain' && selected) {
+    if (settings.roof === 'open' && settings.ornament !== 'plain' && selected) {
       const styles = ['wing', 'crown', 'horn', 'petals', 'bolt', 'accordion', 'ears', 'fins', 'antenna', 'fork', 'pennant'];
       const style = settings.ornament === 'mixed' ? styles[(face * 3 + settings.offset) % styles.length] : settings.ornament;
       const variety = settings.variation / 100, noise = ((face * 7 + settings.offset * 3) % 13) / 12;
@@ -103,7 +108,9 @@ export function buildDecorationGeometry(faces: { flat: Point[] }[], slots: Point
       windows.push({ face, flat: points });
     }
   });
-  return { settings, ornaments, windows, omittedWindows, materialValid };
+  const roof = material ? buildRoof(faces, material, settings.roof, settings.roofRise) : { facets: [], valid: settings.roof === 'open', reason: '' };
+  ornaments.push(...roof.facets);
+  return { settings, ornaments, windows, omittedWindows, materialValid: materialValid && roof.valid, roofReason: roof.reason };
 }
 /** Fold the free rim strip around its own creases, then carry it with its body face. */
 export function ornamentPoint(model: BaseBodyModel, facet: OrnamentFacet, flat: Point, fraction: number, pose = bodyFoldingPose(model, fraction), band = false): Point3 {

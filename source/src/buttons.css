@@ -1,0 +1,63 @@
+/* Action priority is explicit in markup. Component styles consume these same
+   colour variables so IDs and layout-specific selectors cannot undo priority. */
+:root {
+  --button-primary-background: var(--ui-primary, #b7ef87);
+  --button-primary-hover: var(--ui-primary-hover, #d1ffa7);
+  --button-primary-ink: var(--ui-primary-ink, #182c21);
+  --button-secondary-background: #29494a;
+  --button-secondary-hover: #365c5b;
+  --button-secondary-ink: #f0f6ed;
+  --button-secondary-border: #78988d;
+  --button-tertiary-ink: #c4d6ce;
+  --button-tertiary-hover: #78988d24;
+  --button-selected-background: #e1d4ff;
+  --button-selected-ink: #352452;
+  --button-selected-border: #bca0ed;
+}
+:root[data-theme='light'], #body-app, .configuration-page {
+  --button-primary-background: #285d36;
+  --button-primary-hover: #1b4828;
+  --button-primary-ink: #ffffff;
+  --button-secondary-background: #e3ece1;
+  --button-secondary-hover: #d1e0cd;
+  --button-secondary-ink: #244332;
+  --button-secondary-border: #829a7b;
+  --button-tertiary-ink: #3d5848;
+  --button-tertiary-hover: #426b5017;
+  --button-selected-background: #e6ddff;
+  --button-selected-ink: #443367;
+  --button-selected-border: #8369ac;
+}
+button.primary, a.primary {
+  --button-background: var(--button-primary-background);
+  --button-hover-background: var(--button-primary-hover);
+  --button-ink: var(--button-primary-ink);
+  --button-border: var(--button-primary-background);
+}
+button.secondary, a.secondary {
+  --button-background: var(--button-secondary-background);
+  --button-hover-background: var(--button-secondary-hover);
+  --button-ink: var(--button-secondary-ink);
+  --button-border: var(--button-secondary-border);
+}
+button.tertiary, a.tertiary {
+  --button-background: transparent;
+  --button-hover-background: var(--button-tertiary-hover);
+  --button-ink: var(--button-tertiary-ink);
+  --button-border: transparent;
+}
+:is(button, a):is(.primary, .secondary, .tertiary) {
+  background: var(--button-background);
+  color: var(--button-ink);
+  border-color: var(--button-border);
+}
+:is(button, a):is(.primary, .secondary, .tertiary):hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--button-hover-background);
+}
+/* Selection is a state, separate from an action's priority. */
+button:is(.primary, .secondary, .tertiary):is([aria-pressed='true'], [aria-checked='true'], [aria-selected='true'], [aria-expanded='true']) {
+  --button-background: var(--button-selected-background);
+  --button-hover-background: var(--button-selected-background);
+  --button-ink: var(--button-selected-ink);
+  --button-border: var(--button-selected-border);
+}

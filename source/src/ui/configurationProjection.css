@@ -40,8 +40,8 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 .robot-connection p { margin: 0 0 8px; font-size: var(--text-control); line-height: 1.5; }
 .robot-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .robot-actions button, .robot-actions a { box-sizing: border-box; min-width: 44px; min-height: 44px; padding: 10px 12px; border: 1px solid #c5cdd3; border-radius: 8px; font: inherit; font-size: var(--text-small); }
-.robot-actions button { cursor: pointer; background: #254d40; color: white; }
-.robot-actions button:disabled { cursor: default; background: #e9edef; color: #59636c; }
+.robot-actions button { cursor: pointer; background: var(--button-background, #254d40); color: var(--button-ink, white); }
+.robot-actions button:disabled { cursor: default; background: var(--button-background, #e9edef); color: var(--button-ink, #59636c); }
 .robot-actions a { display: inline-flex; align-items: center; color: #254d40; }
 .configuration-commands { border-top: 1px solid #d6dce0; margin-top: 12px; padding-top: 8px; }
 .configuration-commands h2 { font-size: var(--text-control); }
@@ -49,7 +49,7 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 .configuration-commands select { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: #fff; color: #252b30; }
 .configuration-dock { grid-row: 2; position: relative; box-sizing: border-box; border-top: 1px solid #d6dce0; background: #fff; padding: 4px 8px; }
 .configuration-dock-disclosure > summary { display: flex; align-items: center; width: fit-content; max-width: calc(100% - 166px); box-sizing: border-box; padding: 8px; cursor: pointer; font-size: var(--text-small); }
-.configuration-dock-move { position: absolute; top: 4px; right: 8px; box-sizing: border-box; width: 158px; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: #fff; color: #254d40; font: inherit; font-size: var(--text-small); cursor: pointer; }
+.configuration-dock-move { position: absolute; top: 4px; right: 8px; box-sizing: border-box; width: 158px; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: var(--button-background, #fff); color: var(--button-ink, #254d40); font: inherit; font-size: var(--text-small); cursor: pointer; }
 .configuration-dock-content { height: min(156px, 35dvh); overflow: auto; overscroll-behavior: contain; padding: 4px 8px; box-sizing: border-box; }
 .configuration-dock-disclosure:not([open]) > .configuration-dock-content { display: none; }
 .configuration-page[data-dock='top'] { grid-template-rows: auto minmax(0, 1fr); }
@@ -65,8 +65,8 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 .barcode-picker::backdrop { background: #17212b99; }
 .barcode-picker h2 { font-size: var(--text-title-small); margin: 0 0 16px; }
 .barcode-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.barcode-picker button { min-width: 44px; min-height: 44px; border: 1px solid #aab4bc; border-radius: 8px; padding: 8px 12px; background: #fff; color: #254d40; font: inherit; cursor: pointer; }
-.barcode-tabs [aria-selected='true'], .barcode-picker .barcode-done { background: #254d40; color: #fff; }
+.barcode-picker button { min-width: 44px; min-height: 44px; border: 1px solid #aab4bc; border-radius: 8px; padding: 8px 12px; background: var(--button-background, #fff); color: var(--button-ink, #254d40); font: inherit; cursor: pointer; }
+.barcode-tabs [aria-selected='true'], .barcode-picker .barcode-done { background: var(--button-background, #254d40); color: var(--button-ink, #fff); }
 .barcode-picker fieldset { border: 0; padding: 0; margin: 16px 0; min-width: 0; }
 .barcode-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin-top: 12px; }
 .barcode-values label { box-sizing: border-box; min-height: 52px; display: flex; align-items: center; gap: 6px; padding-right: 8px; border: 1px solid #c5cdd3; border-radius: 8px; cursor: pointer; }

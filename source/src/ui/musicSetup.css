@@ -4,7 +4,7 @@
 .music-setup h1 { margin: 28px 0 20px; font-size: var(--text-page-title); line-height: var(--leading-tight); }
 .music-setup p { line-height: 1.6; }
 #music-model-status { min-height: 3.2em; color: #c9d2cd; }
-#music-model-download { min-height: 52px; padding: 12px 24px; background: #9ce2c3; color: #171717; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+#music-model-download { min-height: 52px; padding: 12px 24px; background: var(--button-background, #9ce2c3); color: var(--button-ink, #171717); border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
 #music-model-download:disabled { opacity: .65; cursor: wait; }
 #music-model-progress { width: 100%; height: 16px; accent-color: #9ce2c3; }
 [data-theme='light'] .music-setup { background: #f3f0e9; color: #171717; }

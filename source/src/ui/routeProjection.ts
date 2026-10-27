@@ -18,7 +18,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   dialog.className = 'route-projection'; dialog.setAttribute('aria-label', 'Robot line projection');
   dialog.innerHTML = `<svg role="img" aria-label="Robot route with event barcodes" preserveAspectRatio="xMidYMid meet"></svg>
     <details class="projection-options"><summary>Settings</summary><div class="projection-options-content"></div></details>
-    <button class="projection-close" type="button" aria-label="Close projection" title="Close projection"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg></button>`;
+    <button class="tertiary projection-close" type="button" aria-label="Close projection" title="Close projection"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg></button>`;
   document.body.append(dialog);
   const svg = dialog.querySelector('svg')!;
   const options = dialog.querySelector<HTMLDetailsElement>('.projection-options')!;

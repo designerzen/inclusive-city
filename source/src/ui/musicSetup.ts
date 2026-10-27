@@ -19,7 +19,7 @@ export async function requireModels(app: HTMLElement): Promise<void> {
     <p>Both run on your device. The models are saved in this browser, so future visits skip this screen unless the saved files are cleared. Your microphone stays off until you choose to speak.</p>
     <progress id="music-model-progress" max="100" value="0" aria-label="Music and speech model setup progress" aria-describedby="music-model-status"></progress>
     <p id="music-model-status" role="status" aria-live="polite">Preparing model downloads…</p>
-    <button id="music-model-download" type="button" hidden>Retry model setup</button>
+    <button class="primary" id="music-model-download" type="button" hidden>Retry model setup</button>
     </section></main>`;
   const button = app.querySelector<HTMLButtonElement>('#music-model-download')!;
   const status = app.querySelector<HTMLElement>('#music-model-status')!;

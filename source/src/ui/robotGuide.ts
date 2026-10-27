@@ -11,7 +11,7 @@ export interface RobotGuidePortrait {
   resize(): void;
 }
 export function mountRobotGuide(container: HTMLElement, speech?: ScreenSpeech, portrait?: RobotGuidePortrait) {
-  container.innerHTML = `<div class="robot-guide-portrait"><span class="robot-guide-badge">YOUR ROBOT</span></div><div class="robot-guide-dialogue"><strong class="robot-guide-name"></strong><p class="robot-guide-copy" role="status" aria-live="polite" aria-atomic="true"></p><button class="robot-guide-replay" type="button" aria-label="Read robot explanation again">▶ Read aloud</button></div>`;
+  container.innerHTML = `<div class="robot-guide-portrait"><span class="robot-guide-badge">YOUR ROBOT</span></div><div class="robot-guide-dialogue"><strong class="robot-guide-name"></strong><p class="robot-guide-copy" role="status" aria-live="polite" aria-atomic="true"></p><button class="secondary robot-guide-replay" type="button" aria-label="Read robot explanation again">▶ Read aloud</button></div>`;
   const copy = container.querySelector<HTMLElement>('.robot-guide-copy')!;
   const replay = container.querySelector<HTMLButtonElement>('button')!;
   const reducedMotion = reducedMotionPreference();

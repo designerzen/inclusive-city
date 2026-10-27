@@ -14,7 +14,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
       <div class="attract-copy">
         <h1 id="attract-title">Inaccessible<br><span class="attract-title-bot">Robot City</span></h1>
         <p class="attract-tagline">Learn what life is like for a robot living in a city not designed for robots!</p>
-        <button id="attract-enter" class="attract-enter primary-action" type="button">Create your robot <span aria-hidden="true">→</span></button>
+        <button id="attract-enter" class="primary attract-enter primary-action" type="button">Create your robot <span aria-hidden="true">→</span></button>
       </div>
       <div class="attract-stage">
         <div class="attract-orbit attract-orbit-one" aria-hidden="true"></div>
@@ -40,8 +40,8 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <a href="${import.meta.env.BASE_URL}figure-eight.html">Figure of eight</a>
       </nav>
       <div class="attract-controls">
-        <button id="attract-music" type="button" aria-pressed="false"><span class="attract-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="attract-music-label">Play soundtrack</span></button>
-        <button id="attract-motion" type="button" aria-pressed="false">Pause animation</button>
+        <button class="secondary" id="attract-music" type="button" aria-pressed="false"><span class="attract-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="attract-music-label">Play soundtrack</span></button>
+        <button class="secondary" id="attract-motion" type="button" aria-pressed="false">Pause animation</button>
       </div>
     </footer>`;
   const motion = reducedMotionPreference();

@@ -15,7 +15,7 @@ export function mountAccessibilityControls(container: HTMLElement) {
     <div class="accessibility-field"><label for="accessibility-motion">Motion</label>
       <select id="accessibility-motion" aria-describedby="motion-hint"><option value="system">Device setting</option><option value="reduce">Reduced</option></select>
       <p class="accessibility-hint" id="motion-hint">Reduce decorative animation, robot dancing and camera transitions. Your robot still travels through the city.</p></div>
-    <button id="accessibility-reset" type="button">Reset accessibility settings</button>
+    <button class="tertiary" id="accessibility-reset" type="button">Reset accessibility settings</button>
     <p class="accessibility-hint" id="accessibility-status" role="status" aria-live="polite"></p>`;
   const size = container.querySelector<HTMLSelectElement>('#accessibility-text-size')!;
   const typeface = container.querySelector<HTMLSelectElement>('#accessibility-typeface')!;

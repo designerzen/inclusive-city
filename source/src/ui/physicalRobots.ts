@@ -17,7 +17,7 @@ export function mountPhysicalRobots(host: HTMLElement, getJourney: () => Planned
   const panel = document.createElement('details'); panel.className = 'physical-robots';
   panel.innerHTML = `<summary>Physical robots</summary>
     <label>Robot connection<select data-profile><option value="settings">Microcontroller from Settings</option><option value="custom">Custom BLE override</option></select></label>
-    <button type="button" data-action="connect">Connect another robot</button>
+    <button class="primary" type="button" data-action="connect">Connect another robot</button>
     <p data-bluetooth-warning role="status" hidden></p>
     <p>Each robot has its own connection, commands and sensor readings. Changing the microcontroller in Settings reconnects robots using that profile. Custom BLE overrides stay independent.</p>
     <details><summary>BLE and command settings</summary>
@@ -28,11 +28,11 @@ export function mountPhysicalRobots(host: HTMLElement, getJourney: () => Planned
       <label>Command ending<select data-ending><option value="newline">New line</option><option value="none">None</option></select></label>
       <p>Use the commands your robots already accept. The micro:bit must expose its Bluetooth UART service.</p>
     </details>
-    <details><summary>Existing gateway connection</summary><label>Robot WebSocket endpoint<input data-gateway type="url" placeholder="wss://gateway/robot-id" /></label><button type="button" data-action="gateway">Connect through gateway</button></details>
+    <details><summary>Existing gateway connection</summary><label>Robot WebSocket endpoint<input data-gateway type="url" placeholder="wss://gateway/robot-id" /></label><button class="secondary" type="button" data-action="gateway">Connect through gateway</button></details>
     <label>Millimetres per city unit (for map tracking)<input data-scale type="number" min="0.01" max="10000" step="0.01" /></label>
     <p>Use “Track on city route” to connect received distance and barcode readings to this game. It opens the line in a separate projector window. Command sending works without route tracking.</p>
     <p data-status role="status" aria-live="polite"></p><div data-robots></div>
-    <button type="button" data-action="disconnect">Disconnect all robots</button>`;
+    <button class="secondary" type="button" data-action="disconnect">Disconnect all robots</button>`;
   host.append(panel);
   const status = panel.querySelector<HTMLElement>('[data-status]')!, cards = panel.querySelector<HTMLElement>('[data-robots]')!;
   const profile = panel.querySelector<HTMLSelectElement>('[data-profile]')!;
@@ -129,10 +129,10 @@ export function mountPhysicalRobots(host: HTMLElement, getJourney: () => Planned
         const output = document.createElement('p'); output.setAttribute('aria-live', 'polite'); card.append(output);
         const actions = document.createElement('div'); actions.className = 'physical-actions';
         for (const [action, text] of [['track', 'Track on city route'], ['start', 'Start'], ['hold', 'Hold'], ['resume', 'Resume'], ['stop', 'Stop'], ['save', 'Save run and readings'], ['remove', 'Disconnect robot']]) {
-          const button = document.createElement('button'); button.type = 'button'; button.textContent = text; button.dataset.action = action; button.dataset.robot = session.id; actions.append(button);
+          const button = document.createElement('button'); button.classList.add('secondary'); button.type = 'button'; button.textContent = text; button.dataset.action = action; button.dataset.robot = session.id; actions.append(button);
         }
         const label = document.createElement('label'); label.textContent = 'Custom command'; const input = document.createElement('input'); input.dataset.custom = ''; input.maxLength = 512; label.append(input);
-        const send = document.createElement('button'); send.type = 'button'; send.textContent = 'Send command'; send.dataset.action = 'send'; send.dataset.robot = session.id;
+        const send = document.createElement('button'); send.classList.add('secondary'); send.type = 'button'; send.textContent = 'Send command'; send.dataset.action = 'send'; send.dataset.robot = session.id;
         const log = document.createElement('pre'); log.className = 'physical-sensor-log'; log.setAttribute('aria-label', `${session.name} sensor readings`);
         const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 300; canvas.hidden = true;
         canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', `${session.name}'s journey painting`);

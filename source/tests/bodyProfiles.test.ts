@@ -27,7 +27,7 @@ test('sculpted presets retain a connected fabrication net and distinct silhouett
     { section: 3, sides: 5, diameter: 240, height: 280, taper: 85, aspect: 110, lean: 0, rim: 1, ridge: 25 },
   ].entries()) {
     const model = makeBody({ ...defaultBody, ...p }, defaultExposure, { ...defaultDecoration, ornament: (['wing', 'horn', 'bolt'] as const)[index], height: 100, angle: index === 0 ? 80 : 45, span: 75, layout: 'pair', offset: 1, windows: (['slash', 'chevron', 'visor'] as const)[index], windowSize: 45, windowAngle: index === 0 ? 30 : 0 });
-    assert.ok(model.valid, `${JSON.stringify(p)}: ${model.exposure.reason} components ${model.exposure.net.length}`); assert.ok(model.fits); assert.equal(model.exposure.net.length, 1);
+    assert.ok(model.geometryValid, `${JSON.stringify(p)}: ${model.exposure.reason} components ${model.exposure.net.length}`); assert.ok(model.fits); assert.equal(model.exposure.net.length, 1);
     silhouettes.add(JSON.stringify(model.faces.map(f => f.solid)));
   }
   assert.equal(silhouettes.size, 3);

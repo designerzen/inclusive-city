@@ -5,6 +5,8 @@ import type { DecorationSettings } from './bodyDecoration';
 import { profiledFaces } from './bodyProfiles';
 import { bendAllowance, developCardWalls, embedCard, makeBend, move, neutralRadius } from './cardMaterial';
 import { bodyFoldingPose } from './bodyFolding';
+import { roofInstructions } from './bodyRoof';
+import { checkBodyStructure } from './bodyStructure';
 /** Millimetres throughout. Rigid planar walls, cut at one closing generator. */
 export interface BodyParameters {
   sides: number; diameter: number; height: number; taper: number; tabs: number;
@@ -116,7 +118,7 @@ function makeBodyBase(input: BodyParameters, details?: DecorationSettings) {
   for(let j=1;j<p.tabs;j++)slots[j]=slots[0].map(([x,y])=>[x,y+j*edge/(p.tabs+1)]);
   boundary.push(...faces.slice().reverse().flatMap(f=>[f.flat[2],f.flat[3]]));
   const decoration = buildDecorationGeometry(faces, slots, details, p);
-  const allPoints = [...boundary, ...decoration.ornaments.flatMap(facet => facet.flat)];
+  const allPoints = [...boundary, ...decoration.ornaments.flatMap(facet => [...facet.flat, ...facet.hinges.at(-1)!.flat])];
   const xs = allPoints.map(v => v[0]), ys = allPoints.map(v => v[1]);
   const bounds = { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
   // A conservative circle around the rectangular envelope fits inside every facet.
@@ -131,7 +133,8 @@ function makeBodyBase(input: BodyParameters, details?: DecorationSettings) {
 export type BaseBodyModel = ReturnType<typeof makeBodyBase>;
 export function makeBody(input: BodyParameters, settings?: ExposureSettings, details?: DecorationSettings) {
   const base = makeBodyBase(input, details), exposure = buildBodyExposure(base, settings);
-  return { ...base, valid: base.valid && exposure.valid, exposure };
+  const structure = checkBodyStructure(base, exposure);
+  return { ...base, geometryValid: base.valid && exposure.valid, valid: base.valid && exposure.valid && structure.valid, exposure, structure };
 }
 export type BodyModel = ReturnType<typeof makeBody>;
 /** Convex half-plane clipping lets the preview cut the very same slot apertures. */
@@ -171,7 +174,7 @@ export function bodySvg(model: BodyModel, annotated = false): string {
   const bendGuide=annotated?`<g id="BEND_GUIDE" fill="#e5be66" fill-opacity="0.45" stroke="none" fill-rule="evenodd">${bendPolygons.map(polygon=>`<path d="${polygon.map(ring=>`M ${ring.map(p=>p.map(number).join(' ')).join(' L ')} Z`).join(' ')}"/>`).join('')}</g>`:'';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${number(b.width + margin * 2)}mm" height="${number(b.height + margin * 2)}mm" viewBox="${number(b.x - margin)} ${number(b.y - margin)} ${number(b.width + margin * 2)} ${number(b.height + margin * 2)}">
   <title>Robot body: ${p.sides} panels, ${p.diameter} mm base across flats, ${p.height} mm high, ${p.taper}% top</title>
-  <desc>One connected sheet. Red CUT: outline, slots and windows. Blue SCORE: light crease only, never through-cut. Units mm; 1:1 scale. Open top and bottom. Calibrated finite-bend model. Card thickness ${p.thickness} mm; inside bend radius ${p.bendRadius} mm; neutral axis ${p.neutralAxis}%; slot clearance ${p.slotClearance} mm; seam relief ${model.material.seamGap.toFixed(3)} mm. Bend allowance = absolute angle in radians times neutral radius; reverse folds use the opposite sheet side. Calibrate on a crease and slot coupon before cutting the full net. Section ${p.section}; width/depth ${p.aspect}%; lean ${p.lean} mm; roofline ${p.rim}, depth ${p.ridge}%. Ornament: ${model.decoration.settings.ornament}; ornamental windows: ${model.decoration.settings.windows}; ornament fold ${model.decoration.settings.angle} degrees outward, alternate reverse folds for accordion. Exposure profile is photo-estimated; verify alignment on hardware. Protected: ${exposure.zones.map(z => z.key).join(', ') || 'none'}. Test card and slot fit before fabrication.</desc>
+  <desc>One connected sheet. Red CUT: outline, slots and windows. Blue SCORE: light crease only, never through-cut. Units mm; 1:1 scale. Open bottom. Roof: ${model.decoration.settings.roof}. ${roofInstructions[model.decoration.settings.roof]} Calibrated finite-bend model. Card thickness ${p.thickness} mm; inside bend radius ${p.bendRadius} mm; neutral axis ${p.neutralAxis}%; slot clearance ${p.slotClearance} mm; seam relief ${model.material.seamGap.toFixed(3)} mm. Bend allowance = absolute angle in radians times neutral radius; reverse folds use the opposite sheet side. Calibrate on a crease and slot coupon before cutting the full net. Section ${p.section}; width/depth ${p.aspect}%; lean ${p.lean} mm; roofline ${p.rim}, depth ${p.ridge}%. Ornament: ${model.decoration.settings.ornament}; ornamental windows: ${model.decoration.settings.windows}; ornament fold ${model.decoration.settings.angle} degrees outward, alternate reverse folds for accordion. Exposure profile is photo-estimated; verify alignment on hardware. Protected: ${exposure.zones.map(z => z.key).join(', ') || 'none'}. Test card and slot fit before fabrication.</desc>
   ${bendGuide}
   <g id="CUT" fill="none" stroke="#d12626" stroke-width="0.1">${cutPaths}</g>
   <g id="SCORE" fill="none" stroke="#245bd6" stroke-width="0.1"${annotated ? ' stroke-dasharray="2 1"' : ''}>${exposure.folds.map(f => `<polyline points="${points(f)}"/>`).join('')}</g>

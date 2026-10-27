@@ -5,7 +5,7 @@ export function mountBarcodePicker(svg: SVGElement, title: string, getValue: () 
   const dialog = document.createElement('dialog');
   dialog.className = 'barcode-picker';
   dialog.setAttribute('aria-labelledby', 'barcode-picker-title');
-  dialog.innerHTML = `<h2 id="barcode-picker-title">${title} barcode</h2><div class="barcode-tabs" role="tablist" aria-label="Number of bits"></div><p>Choose the value to draw. Changes save automatically.</p><div id="barcode-values" role="tabpanel"></div><button type="button" class="barcode-done">Done</button>`;
+  dialog.innerHTML = `<h2 id="barcode-picker-title">${title} barcode</h2><div class="barcode-tabs" role="tablist" aria-label="Number of bits"></div><p>Choose the value to draw. Changes save automatically.</p><div id="barcode-values" role="tabpanel"></div><button type="button" class="primary barcode-done">Done</button>`;
   document.body.append(dialog);
   const tabs = dialog.querySelector<HTMLElement>('.barcode-tabs')!;
   const values = dialog.querySelector<HTMLElement>('#barcode-values')!;
@@ -22,7 +22,7 @@ export function mountBarcodePicker(svg: SVGElement, title: string, getValue: () 
     });
   }
   for (let bits = 1; bits <= 8; bits++) {
-    const tab = document.createElement('button');
+    const tab = document.createElement('button'); tab.classList.add('tertiary');
     tab.type = 'button'; tab.role = 'tab'; tab.id = `barcode-tab-${bits}`;
     tab.dataset.bits = String(bits); tab.textContent = `${bits} bit`;
     tab.setAttribute('aria-controls', 'barcode-values');

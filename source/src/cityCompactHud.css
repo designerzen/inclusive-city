@@ -46,8 +46,8 @@
 .city-issue p { margin: 8px 0 12px; line-height: 1.5; font-size: var(--text-copy); }
 .city-issue p:empty { display: none; }
 #city-screen .city-issue button { display: block; width: 100%; min-height: 48px; white-space: normal; font-size: var(--text-copy); }
-#city-screen #city-issue-action:enabled { background: var(--ui-primary); color: var(--ui-primary-ink); border-color: var(--ui-primary); font-weight: 700; }
-#city-screen #city-issue-action:hover:enabled { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); }
+#city-screen #city-issue-action:enabled { background: var(--button-background, var(--ui-primary)); color: var(--button-ink, var(--ui-primary-ink)); border-color: var(--button-border, var(--ui-primary)); font-weight: 700; }
+#city-screen #city-issue-action:hover:enabled { background: var(--button-hover-background, var(--ui-primary-hover)); border-color: var(--button-border, var(--ui-primary-hover)); }
 #city-ask-robot { margin-top: 8px; }
 .city-interaction-hud:has(#city-issue:not([hidden])) > .city-controls-hud { border-top: 1px solid var(--ui-border); }
 .city-controls-hud > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: var(--text-small); font-weight: 700; }
@@ -86,7 +86,7 @@
 /* Two primary actions, with a quiet but full-sized way back. */
 #city-screen .city-toolbar { align-items: center; padding-left: 50px; }
 :root:not([data-text-size='100']) #city-screen #back-to-designer,
-#city-screen #back-to-designer { position: absolute; grid-row: auto; grid-column: auto; top: 12px; left: 12px; width: 44px; height: 44px; padding: 0; font-size: 0; background: transparent; border-color: transparent; opacity: .55; }
+#city-screen #back-to-designer { position: absolute; grid-row: auto; grid-column: auto; top: 12px; left: 12px; width: 44px; height: 44px; padding: 0; font-size: 0; background: var(--button-background, transparent); border-color: var(--button-border, transparent); opacity: .55; }
 #city-screen #back-to-designer::before { margin: 0; }
 #city-screen #back-to-designer:is(:hover, :focus-visible) { opacity: 1; }
 #city-screen .city-tools button { width: auto; height: auto; min-height: 44px; flex: 0 0 auto; font-size: var(--text-small); padding: 8px 10px; }
@@ -132,7 +132,7 @@
 #city-screen .city-interaction-hud { background: #252525; scrollbar-gutter: stable; scroll-padding-block: 12px; }
 .city-assistant-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px; border-bottom: 1px solid #7775; }
 .city-assistant-heading strong { font-size: var(--text-small); }
-#city-screen #city-assistant-toggle { background: transparent; border-color: transparent; padding: 6px 8px; }
+#city-screen #city-assistant-toggle { background: var(--button-background, transparent); border-color: var(--button-border, transparent); padding: 6px 8px; }
 #city-screen #city-assistant-toggle::before { display: none; }
 #city-screen .city-interaction-hud[data-collapsed] > :not(.city-assistant-heading):not(.city-journey-actions) { display: none; }
 #city-screen .city-interaction-hud .city-journey-actions { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
@@ -145,7 +145,7 @@
 #city-screen .city-reply-heading p { margin: 4px 0 8px; line-height: 1.45; }
 #city-screen :is(.city-map-zoom, .city-map-fit-control, .city-map-move) { padding: 0; border: 0; background: transparent; }
 #city-screen .city-view-tools { padding: 2px; border-color: #7775; gap: 2px; }
-#city-screen :is(.city-view-tools, .city-navigation-tools) button { border-color: transparent; }
+#city-screen :is(.city-view-tools, .city-navigation-tools) button { border-color: var(--button-border, transparent); }
 #city-screen .city-toolbar button { padding-block: 6px; }
 [data-theme='light'] #city-screen .city-interaction-hud { background: #fafafa; }
 @media (max-width: 700px) {

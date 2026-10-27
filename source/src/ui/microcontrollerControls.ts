@@ -18,10 +18,10 @@ export function mountMicrocontrollerControls(host: HTMLElement, connection: Retu
       <label>Write mode<select data-mcu="writeMode"><option value="auto">Automatic</option><option value="with-response">With response</option><option value="without-response">Without response</option></select></label>
       <label>Maximum packet size (bytes)<input data-mcu="chunkSize" type="number" min="1" max="512" value="20" /></label>
       <p class="accessibility-hint">Use UUIDs and packet limits from your firmware. Leave notifications empty for command-only physical robots. Start with 20-byte packets. Bluetooth Classic modules such as HC-05 need a gateway.</p>
-      <button type="button" data-mcu-apply>Apply Bluetooth profile and reconnect</button>
+      <button class="primary" type="button" data-mcu-apply>Apply Bluetooth profile and reconnect</button>
     </details>
     <p data-mcu-status role="status" aria-live="polite"></p>
-    <div data-mcu-pair></div><button type="button" data-mcu-disconnect>Disconnect robot face</button>`;
+    <div data-mcu-pair></div><button class="secondary" type="button" data-mcu-disconnect>Disconnect robot face</button>`;
   const board = host.querySelector<HTMLSelectElement>('#app-microcontroller')!;
   const status = host.querySelector<HTMLElement>('[data-mcu-status]')!;
   function render() {

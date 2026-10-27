@@ -34,17 +34,17 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
         <p>Tap an instrument or press its key. Play a melody, then ask for an answer.</p>
         <div class="jam-instruments" role="group" aria-label="Play instruments">
           <div class="jam-drum-kit" role="group" aria-label="Drums">
-            ${jamPads.map(pad => `<button type="button" class="jam-instrument jam-${pad.key}" data-drum="${pad.midi}" aria-label="${pad.name}, key ${pad.key.toUpperCase()}" aria-keyshortcuts="${pad.key.toUpperCase()}"><span class="jam-drum" aria-hidden="true"><kbd>${pad.key.toUpperCase()}</kbd></span><span>${pad.name}</span></button>`).join('')}
+            ${jamPads.map(pad => `<button type="button" class="secondary jam-instrument jam-${pad.key}" data-drum="${pad.midi}" aria-label="${pad.name}, key ${pad.key.toUpperCase()}" aria-keyshortcuts="${pad.key.toUpperCase()}"><span class="jam-drum" aria-hidden="true"><kbd>${pad.key.toUpperCase()}</kbd></span><span>${pad.name}</span></button>`).join('')}
           </div>
           <div class="jam-keyboard" role="group" aria-label="Melody keyboard">
-            ${Array.from('asdfghjk', (key, index) => `<button type="button" class="jam-instrument jam-piano-key" data-note="${index}" aria-label="Melody ${index + 1}, key ${key.toUpperCase()}" aria-keyshortcuts="${key.toUpperCase()}"><span class="jam-key-face" aria-hidden="true"><kbd>${key.toUpperCase()}</kbd></span></button>`).join('')}
+            ${Array.from('asdfghjk', (key, index) => `<button type="button" class="secondary jam-instrument jam-piano-key" data-note="${index}" aria-label="Melody ${index + 1}, key ${key.toUpperCase()}" aria-keyshortcuts="${key.toUpperCase()}"><span class="jam-key-face" aria-hidden="true"><kbd>${key.toUpperCase()}</kbd></span></button>`).join('')}
           </div>
         </div>
         <p class="duet-key-legend"><span>Robot: green keys</span><span>You: blue keys</span><span>Together: purple keys</span></p>
         <div class="jam-controls">
-          <button type="button" id="exhibition-extend">Add 3 minutes</button>
-          <button type="button" id="exhibition-answer" disabled>Ask robot to answer</button>
-          <details class="jam-midi"><summary>MIDI</summary><p>Connect a keyboard or drum pads (channel 10 for drums).</p><button type="button" id="exhibition-midi">Connect MIDI input</button>
+          <button class="secondary" type="button" id="exhibition-extend">Add 3 minutes</button>
+          <button class="secondary" type="button" id="exhibition-answer" disabled>Ask robot to answer</button>
+          <details class="jam-midi"><summary>MIDI</summary><p>Connect a keyboard or drum pads (channel 10 for drums).</p><button class="secondary" type="button" id="exhibition-midi">Connect MIDI input</button>
           <label>MIDI input <select id="exhibition-midi-input" disabled><option>No input connected</option></select></label></details>
         </div>
         <p id="exhibition-jam-status" role="status">Three extra minutes of backing music. Join in whenever you like.</p>
@@ -54,9 +54,9 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       </div>
       <div class="performance-actions">
         <div class="performance-buttons">
-          <button id="exhibition-play" class="performance-icon-button" type="button" aria-label="Start playback" title="Start playback"><span class="sr-only">Start</span></button>
-          <button id="exhibition-stop" class="performance-icon-button" type="button" aria-label="Stop playback" title="Stop playback" disabled><span class="sr-only">Stop</span></button>
-          <button id="exhibition-rewind" class="performance-icon-button" type="button" aria-label="Rewind to beginning" title="Rewind to beginning"><span class="sr-only">Rewind</span></button>
+          <button id="exhibition-play" class="primary performance-icon-button" type="button" aria-label="Start playback" title="Start playback"><span class="sr-only">Start</span></button>
+          <button id="exhibition-stop" class="secondary performance-icon-button" type="button" aria-label="Stop playback" title="Stop playback" disabled><span class="sr-only">Stop</span></button>
+          <button id="exhibition-rewind" class="tertiary performance-icon-button" type="button" aria-label="Rewind to beginning" title="Rewind to beginning"><span class="sr-only">Rewind</span></button>
           <span id="exhibition-time">0:00 / 0:00</span>
         </div>
         <div class="performance-secondary-actions">
@@ -67,12 +67,12 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
           <details class="performance-save">
             <summary>Save</summary>
             <div class="performance-save-options">
-              <button id="exhibition-download" type="button">Save painting</button>
-              <button id="exhibition-download-mp3" type="button">Save song (MP3)</button>
+              <button class="secondary" id="exhibition-download" type="button">Save painting</button>
+              <button class="secondary" id="exhibition-download-mp3" type="button">Save song (MP3)</button>
               <p>The MP3 contains the backing song. Live playing and replies are not recorded.</p>
             </div>
           </details>
-          <button id="exhibition-attract" type="button">Start Again</button>
+          <button class="tertiary" id="exhibition-attract" type="button">Start Again</button>
         </div>
       </div>
     </aside>

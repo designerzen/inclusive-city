@@ -7,7 +7,7 @@ export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (ligh
   const section = document.createElement('section');
   section.className = 'configuration-robot';
   section.ariaLabel = 'Robot traffic lights';
-  section.innerHTML = `<div class="robot-connection"><p role="status" aria-live="polite"></p><div class="robot-actions"><button type="button" data-pair>Pair robot & start</button><button type="button" data-stop disabled>Stop & disconnect</button><a href="./robot-comms.html" target="_blank" rel="noopener">Bluetooth code & testing</a></div></div>`;
+  section.innerHTML = `<div class="robot-connection"><p role="status" aria-live="polite"></p><div class="robot-actions"><button class="primary" type="button" data-pair>Pair robot & start</button><button class="secondary" type="button" data-stop disabled>Stop & disconnect</button><a href="./robot-comms.html" target="_blank" rel="noopener">Bluetooth code & testing</a></div></div>`;
   parent.append(section);
   const pair = section.querySelector<HTMLButtonElement>('[data-pair]')!;
   const stop = section.querySelector<HTMLButtonElement>('[data-stop]')!;
