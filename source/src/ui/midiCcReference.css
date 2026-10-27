@@ -5,12 +5,12 @@
 .midi-cc-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .midi-cc-heading h2 { margin: 4px 0 12px; font-size: 1.4rem; }
 .midi-cc-heading button { flex-shrink: 0; padding: 8px 12px; }
-.midi-cc-eyebrow { margin: 0; font-size: .65rem; letter-spacing: .12em; opacity: .75; }
-.midi-cc-dialog > p { font-size: .8125rem; line-height: 1.6; }
+.midi-cc-eyebrow { margin: 0; font-size: var(--text-caption); letter-spacing: .12em; opacity: .75; }
+.midi-cc-dialog > p { font-size: var(--text-small); line-height: 1.6; }
 .midi-cc-dialog code { font-size: .9em; overflow-wrap: anywhere; }
 .midi-cc-table-wrap { max-height: 48dvh; overflow: auto; border: 1px solid #ffffff30; border-radius: 8px; }
 .midi-cc-table-wrap:focus-visible { outline: 3px solid #ffe6a5; outline-offset: 3px; }
-.midi-cc-dialog table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: .8125rem; line-height: 1.5; }
+.midi-cc-dialog table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: var(--text-small); line-height: 1.5; }
 .midi-cc-dialog caption { text-align: left; padding: 12px; font-weight: 600; }
 .midi-cc-dialog :is(th, td) { padding: 10px 12px; text-align: left; vertical-align: top; border-top: 1px solid #ffffff20; }
 .midi-cc-dialog thead th { position: sticky; top: 0; background: #26353a; z-index: 1; }
@@ -28,5 +28,5 @@
   .midi-cc-dialog { padding: 16px; }
   .midi-cc-heading h2 { font-size: 1.1rem; }
   .midi-cc-dialog :is(th, td) { padding: 8px 6px; }
-  .midi-cc-dialog table { font-size: .75rem; }
+  .midi-cc-dialog table { font-size: var(--text-caption); }
 }

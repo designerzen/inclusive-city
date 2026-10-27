@@ -9,7 +9,7 @@
   background: #173e45;
   color: #fff4cc;
   box-shadow: 0 5px 18px #0005;
-  font: 600 14px/1.4 system-ui, sans-serif;
+  font: var(--weight-semibold) var(--text-control)/var(--leading-control) var(--font-family);
   text-align: center;
   overflow-wrap: anywhere;
   pointer-events: none;
@@ -38,7 +38,7 @@
   background: #202b30;
   color: #ffd8d2;
   box-shadow: 0 2px 8px #0005;
-  font: 600 12px/1.3 system-ui, sans-serif;
+  font: var(--weight-semibold) var(--text-caption)/var(--leading-control) var(--font-family);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;

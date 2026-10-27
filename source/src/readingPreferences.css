@@ -5,14 +5,14 @@
 .options-heading { align-items: flex-start; position: sticky; top: -24px; padding: 8px 0; background: inherit; z-index: 2; }
 .options-dialog section { min-width: 0; }
 .options-dialog .attract-controls button { max-width: 100%; }
-.options-dialog :is(select, button) { font-family: inherit; }
-.options-dialog select { max-width: 100%; width: 100%; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: .875rem; color: var(--ui-ink); background: var(--ui-surface); }
+.options-dialog :is(select, button) { font-family: var(--font-family); }
+.options-dialog select { max-width: 100%; width: 100%; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: var(--text-control); color: var(--ui-ink); background: var(--ui-surface); }
 .options-dialog label { line-height: 1.5; }
 #accessibility-controls { display: grid; gap: 16px; }
 #accessibility-controls h3 { margin: 0; }
 .accessibility-field { display: grid; gap: 8px; min-width: 0; }
-.options-dialog .accessibility-hint { margin: 0; font-size: .8125rem; line-height: 1.6; color: var(--ui-muted); }
-.accessibility-preview { margin: 0; padding: 16px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: 1rem; line-height: 1.6; }
+.options-dialog .accessibility-hint { margin: 0; font-size: var(--text-small); line-height: 1.6; color: var(--ui-muted); }
+.accessibility-preview { margin: 0; padding: 16px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: var(--text-body); line-height: 1.6; }
 #accessibility-status:empty { display: none; }
 
 /* Raised specificity overrides component typography without changing hit targets. */
@@ -55,6 +55,6 @@
 @media (max-width: 600px) {
   .options-dialog { padding: 20px 16px; }
   .options-heading { top: -20px; gap: 8px; }
-  :root:not([data-text-size='100']) .options-heading h2 { font-size: 1rem; }
+  :root:not([data-text-size='100']) .options-heading h2 { font-size: var(--text-body); }
   .options-dialog .attract-controls button { flex: 1 1 100%; }
 }

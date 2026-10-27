@@ -19,13 +19,13 @@
 .performance-actions { justify-content: space-between; flex-wrap: wrap; column-gap: 16px; }
 .performance-buttons, .performance-secondary-actions { flex-wrap: wrap; }
 .performance-secondary-actions { position: relative; margin-left: auto; gap: 8px; }
-#exhibition-screen .performance-hud :is(button, summary) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 10px 12px; font-size: .875rem; line-height: 1.3; border: 0; border-radius: 4px; color: #fff; background: transparent; cursor: pointer; }
+#exhibition-screen .performance-hud :is(button, summary) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 10px 12px; font-size: var(--text-control); line-height: 1.3; border: 0; border-radius: 4px; color: #fff; background: transparent; cursor: pointer; }
 #exhibition-screen .performance-hud :is(button:enabled, summary):hover { background: #ffffff1f; }
 #exhibition-screen .performance-hud button::before { margin: 0; }
 #exhibition-screen .performance-hud button:disabled { opacity: .45; cursor: default; }
 #exhibition-screen .performance-hud .performance-icon-button { width: 44px; height: 44px; flex: 0 0 44px; padding: 12px; }
 #exhibition-screen #exhibition-attract { font-weight: 500; }
-#exhibition-screen #exhibition-time { margin: 0 0 0 8px; color: #fff; font-size: .8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#exhibition-screen #exhibition-time { margin: 0 0 0 8px; color: #fff; font-size: var(--text-small); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #exhibition-screen #exhibition-playback-status { margin: 0; min-height: 0; }
 .performance-save { position: static; }
 .performance-save summary { list-style: none; }
@@ -73,14 +73,14 @@
   .performance-caption { right: 48%; }
   #exhibition-screen .performance-caption h1 { max-width: 100%; }
   .duet-story { left: 27%; width: calc(54% - 24px); }
-  .duet-story span { font-size: .75rem; }
+  .duet-story span { font-size: var(--text-caption); }
   #exhibition-screen .performance-hud { left: auto; top: 0; width: 46%; max-height: 100%; padding-inline: 12px; }
   #exhibition-screen .exhibition-performer { left: 0; right: 46%; bottom: 12px; }
   #exhibition-screen .performance-artwork { left: 4%; right: 48%; bottom: 12px; }
 }
 .performance-hud { max-height: 65%; overflow-y: auto; }
 @media (max-width: 600px) {
-  .performance-jam p { font-size: .75rem; }
+  .performance-jam p { font-size: var(--text-caption); }
   .jam-controls { gap: 4px; }
   .jam-controls label { width: 100%; }
   .jam-controls select { flex: 1; min-width: 44px; width: 44px; }
@@ -95,18 +95,18 @@
 .jam-x .jam-drum { border-style: double; border-width: 5px; }
 .jam-c .jam-drum { height: 26px; margin-block: 9px; background: #957630; border-color: #e6cd86; box-shadow: 0 4px 0 #695722; }
 .jam-v .jam-drum { border-color: #9dcbd7; background: #345c6a; }
-#exhibition-screen .jam-instrument > span:last-child:not(.jam-key-face) { font-size: .75rem; }
+#exhibition-screen .jam-instrument > span:last-child:not(.jam-key-face) { font-size: var(--text-caption); }
 .jam-keyboard { display: grid; grid-template-columns: repeat(8, minmax(44px, 1fr)); gap: 4px; padding: 6px; border-radius: 8px; background: #071a1d; }
 #exhibition-screen .performance-hud .jam-piano-key { min-height: 80px; padding: 0; border-radius: 0 0 5px 5px; }
 .jam-key-face { display: flex; align-items: end; justify-content: center; position: relative; width: 100%; height: 80px; padding-bottom: 10px; box-sizing: border-box; border-radius: 0 0 5px 5px; background: #f0eee3; color: #183537; box-shadow: inset 0 -5px #b7c4bc; }
 .jam-piano-key:not(:nth-child(3n)) .jam-key-face::before { content: ''; position: absolute; top: 0; right: -4px; z-index: 1; width: 9px; height: 34px; border-radius: 0 0 2px 2px; background: #203438; pointer-events: none; }
-.performance-jam .jam-instrument kbd { font: 700 1rem ui-monospace, monospace; opacity: 1; }
+.performance-jam .jam-instrument kbd { font: var(--weight-bold) var(--text-body)/var(--leading-control) var(--font-family); opacity: 1; }
 .jam-midi { position: relative; }
 .jam-midi[open] { flex-basis: 100%; }
 .jam-midi label { margin-block: 6px; }
 .duet-story { padding: 6px 12px; width: min(420px, calc(100% - 32px)); border-radius: 10px; }
-.duet-story strong { font-size: 1rem; }
-.duet-story span { font-size: .75rem; margin-top: 2px; }
+.duet-story strong { font-size: var(--text-body); }
+.duet-story span { font-size: var(--text-caption); margin-top: 2px; }
 @media (max-width: 760px) {
   .jam-instruments { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .jam-keyboard { grid-template-columns: repeat(8, minmax(44px, 1fr)); }

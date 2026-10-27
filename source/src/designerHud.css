@@ -5,24 +5,24 @@
 #designer-screen .stage { position: absolute; inset: 0; z-index: -1; border: 0; border-radius: 0; background: transparent; overflow: visible; }
 #designer-screen #render-canvas { width: 100%; height: 100%; border: 0; border-radius: 0; }
 #designer-screen .designer-introduction { position: absolute; top: 20px; left: 24px; margin: 0; }
-#designer-screen .designer-introduction h1 { margin: 0; font-size: 1rem; }
-#designer-screen .shape-hint { margin: 4px 0; font-size: .8125rem; }
+#designer-screen .designer-introduction h1 { margin: 0; font-size: var(--text-body); }
+#designer-screen .shape-hint { margin: 4px 0; font-size: var(--text-small); }
 #designer-screen .bot-identity { position: absolute; bottom: 88px; left: max(24px, calc((100% - 880px) / 2)); width: min(520px, calc(100% - 420px)); margin: 0; }
 #designer-screen .rename-controls { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; }
 #designer-screen #rename-bot label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-#designer-screen #bot-name-input { width: 100%; box-sizing: border-box; height: 44px; padding: 6px 12px; font-size: 1rem; background: var(--ui-surface); }
+#designer-screen #bot-name-input { width: 100%; box-sizing: border-box; height: 44px; padding: 6px 12px; font-size: var(--text-body); background: var(--ui-surface); }
 #designer-screen #random-name { width: 44px; height: 44px; max-width: none; padding: 0; font-size: 0; background: var(--ui-surface); }
 #designer-screen #random-name::before { margin: 0; }
 #designer-screen .robot-carousel > button { position: absolute; top: 48%; width: 44px; height: 44px; padding: 0; background: var(--ui-surface); }
 #designer-screen #previous-bot { left: 24px; }
 #designer-screen #randomise-design { right: 384px; }
 #designer-screen .designer-next { position: absolute; left: 24px; right: 384px; bottom: 24px; display: flex; justify-content: center; gap: 12px; margin: 0; }
-#designer-screen .designer-next button { width: auto; min-height: 48px; padding: 10px 16px; font-size: .875rem; }
+#designer-screen .designer-next button { width: auto; min-height: 48px; padding: 10px 16px; font-size: var(--text-control); }
 #designer-screen #choose-existing { background: var(--ui-surface); }
 #designer-screen #ability-designer { position: absolute; right: 24px; top: 24px; max-height: calc(100dvh - 48px); width: 320px; box-sizing: border-box; padding: 14px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; overflow-y: auto; overscroll-behavior: contain; }
 #designer-screen #ability-designer { container: robot-settings / inline-size; }
 #designer-screen .designer-hud-views { display: grid; grid-template-columns: repeat(4, minmax(44px, 1fr)); gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--ui-border); }
-#designer-screen .designer-hud-views button { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 6px 4px; border: 0; border-radius: 0; background: transparent; color: var(--ui-muted); font-size: .75rem; }
+#designer-screen .designer-hud-views button { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 6px 4px; border: 0; border-radius: 0; background: transparent; color: var(--ui-muted); font-size: var(--text-caption); }
 #designer-screen .designer-hud-views .map-icon { display: block; width: 22px; height: 22px; flex: 0 0 22px; }
 #designer-screen .designer-tab-label { white-space: nowrap; }
 @container robot-settings (max-width: 32rem) {
@@ -39,31 +39,31 @@
 #designer-screen .designer-step-actions button { width: 100%; min-height: 48px; padding: 10px 16px; background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-primary-ink); }
 #designer-screen [data-settings-panel] { display: flow-root; }
 /* Every settings panel uses the same heading hierarchy, typography and spacing. */
-#designer-screen .designer-panel-heading { display: block; margin: 4px 0 12px; font-size: 1.125rem; font-weight: 700; line-height: 1.4; color: var(--ui-ink); }
+#designer-screen .designer-panel-heading { display: block; margin: 4px 0 12px; font-size: var(--text-lead); font-weight: 700; line-height: 1.4; color: var(--ui-ink); }
 #designer-screen .designer-heading { margin: 0; }
 #designer-screen .function-item { padding: 6px 0; }
 #designer-screen .function-row { flex-wrap: nowrap; gap: 8px; }
 #designer-screen .function-row > div { flex: 1; }
-#designer-screen .function-row h3 { font-size: .875rem; }
+#designer-screen .function-row h3 { font-size: var(--text-control); }
 #designer-screen .function-row button { min-height: 44px; padding: 4px; gap: 6px; }
-#designer-screen .switch-state { font-size: .75rem; }
+#designer-screen .switch-state { font-size: var(--text-caption); }
 #designer-screen .function-announcement { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
 #designer-screen .ability-list { margin: 0; padding: 0; border: 0; }
 #designer-screen .ability-pair { padding: 4px 0; }
-#designer-screen .pair-values { font-size: .8125rem; }
+#designer-screen .pair-values { font-size: var(--text-small); }
 #designer-screen .ability-list .control-hint, #designer-screen .artist-intro, #designer-screen .artist-note { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
 #designer-screen .artist-designer { margin: 0; padding: 0; border: 0; }
 #designer-screen .artist-designer label { margin: 10px 0 4px; }
 #designer-screen .artist-designer select { padding: 6px 8px; }
 #designer-screen #artist-preview { height: 90px; width: 100%; object-fit: cover; margin: 8px 0; }
-#designer-screen .artist-designer p { font-size: .75rem; margin: 6px 0; }
-#designer-screen .accessories-hint { font-size: .8125rem; color: var(--ui-muted); }
+#designer-screen .artist-designer p { font-size: var(--text-caption); margin: 6px 0; }
+#designer-screen .accessories-hint { font-size: var(--text-small); color: var(--ui-muted); }
 #designer-screen .accessories-list { display: grid; gap: 8px; margin: 12px 0; }
-#designer-screen .accessories-list button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 10px 12px; font-size: .875rem; }
+#designer-screen .accessories-list button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 10px 12px; font-size: var(--text-control); }
 #designer-screen .accessories-list button[aria-pressed='true'] { border-color: var(--ui-primary); color: var(--ui-primary); }
 #designer-screen .accessories-list button::before { display: none; }
-#designer-screen .accessory-state { font-size: .75rem; }
-#designer-screen #clear-accessories { width: 100%; min-height: 44px; padding: 8px; font-size: .8125rem; }
+#designer-screen .accessory-state { font-size: var(--text-caption); }
+#designer-screen #clear-accessories { width: 100%; min-height: 44px; padding: 8px; font-size: var(--text-small); }
 @media (max-width: 700px) {
   #designer-screen { display: grid; grid-template-rows: minmax(280px, 42dvh) max-content max-content max-content; align-content: start; gap: 12px; padding: 12px; overflow-y: auto; }
   #designer-screen .designer-introduction { top: 12px; left: 12px; }
@@ -74,7 +74,7 @@
   #designer-screen .function-item { padding: 0; }
   #designer-screen .designer-panel-heading { margin: 0 0 4px; }
   #designer-screen .designer-next { position: static; grid-row: 4; gap: 8px; }
-  #designer-screen .designer-next button { flex: 1; padding: 8px; font-size: .8125rem; }
+  #designer-screen .designer-next button { flex: 1; padding: 8px; font-size: var(--text-small); }
   #designer-screen .designer-next button::before { display: none; }
   #designer-screen .robot-carousel > button { top: 160px; }
   #designer-screen #previous-bot { left: 12px; }
@@ -82,8 +82,8 @@
   #designer-screen .ability-pair { padding: 0; }
   #designer-screen .ability-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
   #designer-screen .ability-list > .designer-panel-heading { grid-column: 1 / -1; }
-  #designer-screen .pair-values { flex-direction: column; gap: 0; font-size: .75rem; line-height: 1.2; }
-  #designer-screen .pair-values output { font-size: .75rem; }
+  #designer-screen .pair-values { flex-direction: column; gap: 0; font-size: var(--text-caption); line-height: 1.2; }
+  #designer-screen .pair-values output { font-size: var(--text-caption); }
   #designer-screen #artist-preview { display: none; }
   #designer-screen #artist-musician-hint { display: none; }
 }
