@@ -65,6 +65,7 @@ app.innerHTML = `
     <dialog id="options-dialog" class="options-dialog" aria-labelledby="options-title">
       <div class="options-heading"><h2 id="options-title">Settings</h2><button id="options-close" type="button" aria-label="Close settings">✕</button></div>
       <section class="options-appearance" aria-labelledby="options-appearance-title"><h3 id="options-appearance-title">Appearance</h3><label for="app-theme">Colour mode</label><select id="app-theme"><option value="dark">Dark</option><option value="light">Light</option></select></section>
+      <section id="physical-robot-controls" aria-label="Physical robot controls"></section>
       <section id="microcontroller-controls" aria-labelledby="options-microcontroller-title"></section>
       <section aria-labelledby="options-route-title"><h3 id="options-route-title">Line-following curves</h3>
         <label for="app-turn-radius">Minimum turn radius</label>
@@ -203,15 +204,18 @@ const sounds = new CitySounds();
 mountMidiControls(document.querySelector<HTMLElement>('#midi-controls')!, sounds.midi);
 const optionsDialog = document.querySelector<HTMLDialogElement>('#options-dialog')!;
 const optionsButton = document.querySelector<HTMLButtonElement>('#app-options')!;
-optionsButton.addEventListener('click', () => {
+let optionsOpener: HTMLElement = optionsButton;
+function openSettings(opener: HTMLElement) {
+  optionsOpener = opener;
   refreshTurnRadiusSettings();
   void microphoneControls.refresh();
-  optionsDialog.showModal(); optionsButton.setAttribute('aria-expanded', 'true');
-});
+  optionsDialog.showModal(); opener.setAttribute('aria-expanded', 'true');
+}
+optionsButton.addEventListener('click', () => openSettings(optionsButton));
 document.querySelector('#options-close')!.addEventListener('click', () => optionsDialog.close());
 optionsDialog.addEventListener('close', () => {
-  optionsButton.setAttribute('aria-expanded', 'false');
-  optionsButton.focus();
+  optionsOpener.setAttribute('aria-expanded', 'false');
+  optionsOpener.focus();
 });
 optionsDialog.addEventListener('click', event => {
   if (event.target !== optionsDialog) return;
@@ -318,12 +322,10 @@ const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, 
     } catch (error) { cityScreen.resume(); console.error('Exhibition could not open:', error); }
     finally { openingExhibition = false; }
   })();
-}, screenSpeech);
+}, document.querySelector<HTMLElement>('#physical-robot-controls')!, screenSpeech);
 const microbitFaceConnection = createMicrobitFaceConnection(() => cityScreen.faceJourney);
 const disposeMicrocontrollerControls = mountMicrocontrollerControls(document.querySelector<HTMLElement>('#microcontroller-controls')!, microbitFaceConnection);
 import.meta.hot?.dispose(disposeMicrocontrollerControls);
-microbitFaceConnection.mountPair(attractContainer.querySelector<HTMLElement>('.attract-microbit')!);
-microbitFaceConnection.mountPair(cityContainer.querySelector<HTMLElement>('.city-toolbar')!);
 import.meta.hot?.dispose(() => microbitFaceConnection.dispose());
 let designStorage: Storage | undefined;
 try { designStorage = window.localStorage; } catch { /* The designer works without storage. */ }

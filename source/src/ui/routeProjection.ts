@@ -36,7 +36,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
       const projection = routeProjection(journey, settings);
       renderProjection(svg, projection, settings);
       settingsPanel.querySelector('.projection-legend')!.replaceChildren(...projection.markers.map(marker => {
-        const item = document.createElement('li'); item.textContent = `${marker.code.toString(2).padStart(4, '0')} — ${marker.node}: ${marker.label}`; return item;
+        const item = document.createElement('li'); item.textContent = `${marker.code.toString(2).padStart(marker.bits, '0')} — ${marker.node}: ${marker.label}`; return item;
       }));
       status.textContent = projection.scale < 1 ? `Bar lengths and gaps within each barcode fitted to ${Math.round(projection.scale * 100)}% of the settings.` : '';
       return true;
@@ -72,7 +72,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   function changeSettings() {
     if (physicalLocked) { status.textContent = 'Close the physical projection and reconnect the robots before changing its settings.'; return false; }
     try {
-      settings = readProjectionSettings(settingsPanel);
+      settings = readProjectionSettings(settingsPanel, settings);
       saveProjectionSettings(settings);
       status.textContent = ''; refresh(); return true;
     } catch (reason) { status.textContent = reason instanceof Error ? reason.message : 'Check the projection settings.'; return false; }

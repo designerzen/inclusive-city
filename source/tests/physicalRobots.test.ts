@@ -144,8 +144,8 @@ test('optional sequence numbers suppress duplicates and malformed sensors do not
 });
 test('tracking is optional and hardware reports, not frame timing, advance a physical run', () => {
   const j = journey(), markers = [
-    { code: 8, node: 'start', nodeId: j.world.start, routeIndex: 0, milestone: 0, label: 'music', distance: 1, endDistance: 2, bars: [] },
-    { code: 12, node: 'goal', nodeId: j.world.destination, routeIndex: j.route.length - 1, milestone: j.trajectory.length, label: 'arrival', distance: j.trajectory.length - 3, endDistance: j.trajectory.length - 2, bars: [] },
+    { code: 8, bits: 4, eventCode: 8, node: 'start', nodeId: j.world.start, routeIndex: 0, milestone: 0, label: 'music', distance: 1, endDistance: 2, bars: [] },
+    { code: 12, bits: 4, eventCode: 12, node: 'goal', nodeId: j.world.destination, routeIndex: j.route.length - 1, milestone: j.trajectory.length, label: 'arrival', distance: j.trajectory.length - 3, endDistance: j.trajectory.length - 2, bars: [] },
   ];
   const run = new PhysicalJourney(j, 10, markers, 100);
   j.update(1000); assert.equal(j.metrics.distance, 0);
@@ -157,4 +157,14 @@ test('tracking is optional and hardware reports, not frame timing, advance a phy
   run.freeze(); const distance = j.metrics.distance; run.observe({ distanceMm: 150 }, 3000); j.update(1000); assert.equal(j.metrics.distance, distance);
   run.activate(); run.observe({ event: 'marker', markerIndex: 1, code: 12 }, 3500); assert.equal(j.complete, false);
   run.observe({ event: 'arrived', status: 'stopped' }, 4000); assert.equal(j.complete, true);
+});
+
+
+test('a crossing barcode using a discovery value retains its crossing meaning', () => {
+  const j = journey();
+  const markers = [{ code: 8, bits: 4, eventCode: 4, node: 'start', nodeId: j.world.start, routeIndex: 0,
+    milestone: 0, label: 'crossing', distance: 1, endDistance: 2, bars: [] }];
+  const run = new PhysicalJourney(j, 10, markers, 100);
+  run.observe({ event: 'marker', markerIndex: 0, code: 8, status: 'following' }, 1000);
+  assert.equal(j.metrics.pickups, 0);
 });

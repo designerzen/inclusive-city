@@ -19,8 +19,8 @@ export function projectionSettingsMarkup(settings: ProjectionSettings) {
     <p id="projection-setting-status" role="status" aria-live="polite"></p>
     <details><summary>Barcode event legend</summary><ol class="projection-legend"></ol></details>`;
 }
-export function readProjectionSettings(panel: HTMLElement) {
-  const settings = { ...defaultProjectionSettings };
+export function readProjectionSettings(panel: HTMLElement, current: ProjectionSettings = loadProjectionSettings()) {
+  const settings = { ...current };
   for (const key of ['mirror', 'mirrorVertical', 'autoFit'] as const) {
     const id = { mirror: 'mirror', mirrorVertical: 'mirror-vertical', autoFit: 'auto-fit' }[key];
     settings[key] = panel.querySelector<HTMLInputElement>(`#projection-${id}`)!.checked;
@@ -31,7 +31,7 @@ export function readProjectionSettings(panel: HTMLElement) {
 
 export interface ProjectionDrawing {
   points: readonly { x: number; z: number }[];
-  markers: readonly { code: number; bars: readonly { x: number; z: number; width: number; angle: number }[] }[];
+  markers: readonly { code: number; bits?: number; bars: readonly { x: number; z: number; width: number; angle: number }[] }[];
   lineWidth: number;
   barcodeWidth: number;
   viewBox: string;
@@ -40,5 +40,5 @@ export function renderProjection(svg: SVGElement, projection: ProjectionDrawing,
   svg.setAttribute('viewBox', projection.viewBox);
   svg.style.transform = `scale(${settings.mirror ? -1 : 1}, ${settings.mirrorVertical ? -1 : 1})`;
   svg.innerHTML = `<polyline points="${projection.points.map(p => `${p.x},${p.z}`).join(' ')}" fill="none" stroke="#000" stroke-width="${projection.lineWidth}" stroke-linejoin="round" stroke-linecap="round"/>` +
-    projection.markers.map(marker => `<g data-code="${marker.code.toString(2).padStart(4, '0')}">${marker.bars.map(bar => `<rect x="${-projection.barcodeWidth / 2}" y="${-bar.width / 2}" width="${projection.barcodeWidth}" height="${bar.width}" fill="#000" transform="translate(${bar.x} ${bar.z}) rotate(${bar.angle})"/>`).join('')}</g>`).join('');
+    projection.markers.map(marker => `<g data-code="${marker.code.toString(2).padStart(marker.bits ?? 4, '0')}">${marker.bars.map(bar => `<rect x="${-projection.barcodeWidth / 2}" y="${-bar.width / 2}" width="${projection.barcodeWidth}" height="${bar.width}" fill="#000" transform="translate(${bar.x} ${bar.z}) rotate(${bar.angle})"/>`).join('')}</g>`).join('');
 }

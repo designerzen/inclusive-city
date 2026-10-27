@@ -1,3 +1,4 @@
+import { mountBarcodePicker, renderBarcodeTargets } from './barcodePicker';
 import { configurationProjection, type ProjectionConfiguration } from '../city/configurationProjection';
 import { loadProjectionSettings, projectionSettingsMarkup, readProjectionSettings, renderProjection, saveProjectionSettings } from './projectionShared';
 import '../accessibility.css';
@@ -30,20 +31,25 @@ const commands = mountConfigurationCommands(panel, configuration);
 const status = panel.querySelector<HTMLElement>('#projection-setting-status')!;
 function render() {
   try {
+    let barcodeTarget = 0;
+    let signalTarget = 3.6;
     let projection = configurationProjection(configuration, settings);
     // SVG user units scale with its viewBox. Reserve at least 46 rendered CSS px
-    // for each interactive light, and include that target in track clearance.
+    // for each interactive light and barcode, including clearance between targets.
     for (let i = 0; i < 40; i++) {
       const [, , width, height] = projection.viewBox.split(' ').map(Number);
       const scale = Math.min(svg.clientWidth / width!, svg.clientHeight / height!);
-      if (!scale || projection.signals[0]!.target * scale >= 46) break;
-      projection = configurationProjection(configuration, settings, 46.1 / scale);
+      if (!scale) break;
+      if (signalTarget * scale >= 46 && barcodeTarget * scale >= 46) break;
+      signalTarget = 46.1 / scale; barcodeTarget = 46.1 / scale;
+      projection = configurationProjection(configuration, settings, signalTarget, barcodeTarget);
     }
     renderProjection(svg, projection, settings);
+    renderBarcodeTargets(svg, projection, barcodeTarget);
     renderConfigurationSignals(svg, projection);
     panel.querySelector('.projection-legend')!.replaceChildren(...projection.markers.map(marker => {
       const item = document.createElement('li');
-      item.textContent = `${marker.code.toString(2).padStart(4, '0')} — ${marker.label}`;
+      item.textContent = `${marker.code.toString(2).padStart(marker.bits, '0')} — ${marker.label}`;
       return item;
     }));
     status.textContent = projection.scale < 1 ? `Bar lengths and gaps fitted to ${Math.round(projection.scale * 100)}% of the settings.` : '';
@@ -56,13 +62,18 @@ function render() {
 }
 function updateSettings() {
   try {
-    settings = readProjectionSettings(panel);
+    settings = readProjectionSettings(panel, settings);
     saveProjectionSettings(settings);
     render();
   } catch (reason) { status.textContent = reason instanceof Error ? reason.message : 'Check the settings.'; }
 }
 panel.addEventListener('input', updateSettings);
 panel.addEventListener('change', updateSettings);
+const barcodeKey = configuration === 'traffic-light' ? 'crossingCode' : 'junctionCode';
+mountBarcodePicker(svg, configuration === 'traffic-light' ? 'Crossing' : 'Junction (both approaches)', () => settings[barcodeKey], value => {
+  settings = { ...settings, [barcodeKey]: value };
+  saveProjectionSettings(settings); render();
+});
 render();
 const robot = mountConfigurationRobot(document.querySelector<HTMLElement>('.configuration-page')!, (light, barcodeStop, enabled) => updateConfigurationSignals(svg, light, barcodeStop, enabled), commands);
 mountConfigurationDock(document.querySelector<HTMLElement>('.configuration-page')!);

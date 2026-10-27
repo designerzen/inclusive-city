@@ -15,9 +15,6 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <h1 id="attract-title">Inaccessible<br><span class="attract-title-bot">Robot City</span></h1>
         <p class="attract-tagline">Learn what life is like for a robot living in a city not designed for robots!</p>
         <button id="attract-enter" class="attract-enter primary-action" type="button">Create your robot <span aria-hidden="true">→</span></button>
-        <div class="attract-microbit" role="group" aria-label="micro:bit robot">
-          <a class="microbit-firmware-download" href="${import.meta.env.BASE_URL}firmware/microbit-face/city-face.hex" download="city-face.hex" title="Copy this file to the MICROBIT USB drive to flash your board">Download micro:bit firmware (.hex)</a>
-        </div>
       </div>
       <div class="attract-stage">
         <div class="attract-orbit attract-orbit-one" aria-hidden="true"></div>
@@ -37,7 +34,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
           <img src="${import.meta.env.BASE_URL}assets/logos/rix-qr.svg" alt="QR code for the Rix Inclusive Research website" width="120" height="120" />
         </a>
       </div>
-      <nav class="attract-projection-links" aria-label="Line projections">
+      <nav class="attract-projection-links" aria-label="More options">
         <a href="${import.meta.env.BASE_URL}robot-body.html">Robot body designer</a>
         <a href="${import.meta.env.BASE_URL}traffic-light.html">Traffic light</a>
         <a href="${import.meta.env.BASE_URL}figure-eight.html">Figure of eight</a>

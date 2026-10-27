@@ -156,5 +156,6 @@ export function createCityCamera(engine: Engine, scene: Scene, robotPose: () => 
     },
     setPerformanceTime(seconds: number) { performanceTime = Math.max(0, seconds); },
     get arrivalComplete() { return !!arrival && arrival.elapsed >= 8; },
+    get isZoomedIn() { return (zoomTransition?.to ?? zoom) < 1 - 1e-6; },
     get view() { return view; } };
 }

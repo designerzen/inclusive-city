@@ -1,3 +1,4 @@
+import { reducedMotionPreference } from '../app/accessibilityPreferences';
 import { AsyncPaintingRenderer } from '../art/AsyncPaintingRenderer';
 import { ProceduralPainting } from '../art/ProceduralPainting';
 import { musicDuration } from '../art/finishedJourney';
@@ -30,14 +31,21 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     <aside class="performance-hud" aria-label="Performance controls">
       <details class="performance-jam" open>
         <summary>Play with your robot</summary>
-        <p>Drums: Z X C V. Melody: A S D F G H J K. Play a phrase, then ask your robot to answer. MIDI works too (channel 10 for drums).</p>
+        <p>Tap an instrument or press its key. Play a melody, then ask for an answer.</p>
+        <div class="jam-instruments" role="group" aria-label="Play instruments">
+          <div class="jam-drum-kit" role="group" aria-label="Drums">
+            ${jamPads.map(pad => `<button type="button" class="jam-instrument jam-${pad.key}" data-drum="${pad.midi}" aria-label="${pad.name}, key ${pad.key.toUpperCase()}" aria-keyshortcuts="${pad.key.toUpperCase()}"><span class="jam-drum" aria-hidden="true"><kbd>${pad.key.toUpperCase()}</kbd></span><span>${pad.name}</span></button>`).join('')}
+          </div>
+          <div class="jam-keyboard" role="group" aria-label="Melody keyboard">
+            ${Array.from('asdfghjk', (key, index) => `<button type="button" class="jam-instrument jam-piano-key" data-note="${index}" aria-label="Melody ${index + 1}, key ${key.toUpperCase()}" aria-keyshortcuts="${key.toUpperCase()}"><span class="jam-key-face" aria-hidden="true"><kbd>${key.toUpperCase()}</kbd></span></button>`).join('')}
+          </div>
+        </div>
         <p class="duet-key-legend"><span>Robot: green keys</span><span>You: blue keys</span><span>Together: purple keys</span></p>
         <div class="jam-controls">
-          ${jamPads.map(pad => `<button type="button" data-drum="${pad.midi}">${pad.name} <kbd>${pad.key.toUpperCase()}</kbd></button>`).join('')}
           <button type="button" id="exhibition-extend">Add 3 minutes</button>
           <button type="button" id="exhibition-answer" disabled>Ask robot to answer</button>
-          <button type="button" id="exhibition-midi">Connect MIDI input</button>
-          <label>MIDI input <select id="exhibition-midi-input" disabled><option>No input connected</option></select></label>
+          <details class="jam-midi"><summary>MIDI</summary><p>Connect a keyboard or drum pads (channel 10 for drums).</p><button type="button" id="exhibition-midi">Connect MIDI input</button>
+          <label>MIDI input <select id="exhibition-midi-input" disabled><option>No input connected</option></select></label></details>
         </div>
         <p id="exhibition-jam-status" role="status">Three extra minutes of backing music. Join in whenever you like.</p>
       </details>
@@ -127,6 +135,19 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     duet?.reset();
     answerButton.disabled = true; answerButton.textContent = 'Ask robot to answer';
   }
+  const instrumentAnimations = new Map<HTMLButtonElement, Animation>();
+  const flashInstrument = (button: HTMLButtonElement | null) => {
+    if (!button) return;
+    instrumentAnimations.get(button)?.cancel();
+    const reduced = reducedMotionPreference().matches;
+    const face = button.querySelector<HTMLElement>('.jam-drum, .jam-key-face')!;
+    const animation = face.animate([
+      { backgroundColor: '#72d9ff', color: '#102629', boxShadow: '0 0 18px #72d9ff', transform: reduced ? 'none' : 'translateY(3px)' },
+      { backgroundColor: getComputedStyle(face).backgroundColor, color: getComputedStyle(face).color, boxShadow: '0 0 0 transparent', transform: 'none' },
+    ], { duration: reduced ? 160 : 320, easing: 'ease-out' });
+    instrumentAnimations.set(button, animation);
+    animation.onfinish = () => instrumentAnimations.delete(button);
+  };
   const hit = (note: number, velocity = 100, percussion = false, keyboardIndex?: number) => {
     if (!active || document.hidden || container.closest('[inert]') || document.querySelector('dialog[open]')) return;
     sounds.unlock();
@@ -140,6 +161,11 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     }
     const played = sounds.play(jamEffect(note, velocity, percussion), percussion ? 'percussion' : 'keyboard');
     if (!played) return;
+    const melodyIndex = keyboardIndex ?? Array.from({ length: 8 }, (_, index) => index)
+      .find(index => jamKeyboardNote(index, jamHarmony(journey!.score, at)) === note);
+    flashInstrument(container.querySelector<HTMLButtonElement>(percussion
+      ? `[data-drum="${jamPads.find(pad => pad.midi === note)?.midi ?? 45}"]`
+      : `[data-note="${melodyIndex}"]`));
     duet?.hear(played, percussion); updateStory();
     if (!percussion) {
       userNotes.push({ pitch: note, at: played.at }); userNotes = userNotes.slice(-128);
@@ -193,6 +219,13 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     button.disabled = !sounds.supported;
     button.addEventListener('click', () => hit(Number(button.dataset.drum), 100, true));
   });
+  container.querySelectorAll<HTMLButtonElement>('[data-note]').forEach(button => {
+    button.disabled = !sounds.supported;
+    button.addEventListener('click', () => hit(60, 100, false, Number(button.dataset.note)));
+  });
+  const clearInstrumentAnimations = () => {
+    instrumentAnimations.forEach(animation => animation.cancel()); instrumentAnimations.clear();
+  };
   const onKey = (event: KeyboardEvent) => {
     if (!active || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.target instanceof HTMLElement && event.target.closest('input, select, textarea, summary, [contenteditable]')) return;
     const key = event.key.toLowerCase(), drum = jamPads.find(pad => pad.key === key);
@@ -381,7 +414,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       performerContainer.hidden = !performer;
     },
     enter() { active = true; fitStage(); mp3Download.disabled = !canExportSong(); performer?.enter(performerContainer); playMusic(); },
-    leave() { active = false; disconnectInput(); cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
-    dispose() { active = false; stageLayout.disconnect(); disconnectInput(); window.removeEventListener('keydown', onKey); cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
+    leave() { clearInstrumentAnimations(); active = false; disconnectInput(); cancelSongExport(); stopMusic(); renderer?.dispose(); renderer = null; performer?.dispose(); performer = null; },
+    dispose() { clearInstrumentAnimations(); active = false; stageLayout.disconnect(); disconnectInput(); window.removeEventListener('keydown', onKey); cancelSongExport(); stopMusic(); renderer?.dispose(); performer?.dispose(); document.removeEventListener('visibilitychange', onVisibility); },
   };
 }

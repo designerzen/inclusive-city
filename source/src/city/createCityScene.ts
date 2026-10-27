@@ -89,6 +89,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   function box(name: string, x: number, y: number, z: number, w: number, h: number, d: number, mat: StandardMaterial) {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene); mesh.position.set(x, y, z); mesh.material = mat; mesh.isPickable = false; return mesh;
   }
+  const mapBounds = { width: 58, depth: 48 };
   const groundMesh = box('ground', 0, -.12, 0, 1, .15, 1, ground); solids.push(groundMesh);
   const river = createRiver(scene, world.riverX);
   const riverMesh = river.mesh;
@@ -294,9 +295,12 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     }
     const extentX = Math.max(28, ...world.nodes.map(n => Math.abs(n.x) + 5), ...world.buildings.map(b => Math.abs(b.x) + b.w / 2 + 4), Math.abs(world.bicycleGarage?.x ?? 0) + 6);
     const extentZ = Math.max(22, ...world.nodes.map(n => Math.abs(n.z) + 5), ...world.buildings.map(b => Math.abs(b.z) + b.d / 2 + 4), Math.abs(world.bicycleGarage?.z ?? 0) + 6);
-    // Carry the landscape beyond the streets so the river remains a continuous waterway.
-    groundMesh.scaling.set((extentX + 90) * 2, 1, (extentZ + 90) * 2);
-    riverMesh.scaling.z = (extentZ + 90) * 2;
+    // Fit the inhabited city, independently of the extended landscape.
+    mapBounds.width = extentX * 2;
+    mapBounds.depth = extentZ * 2;
+    // Keep banks and water beyond the viewport even when zoomed out or rotated.
+    groundMesh.scaling.set(Math.max(2048, (extentX + 90) * 2), 1, Math.max(2048, (extentZ + 90) * 2));
+    riverMesh.scaling.z = groundMesh.scaling.z;
     syncSignals();
     physics?.sync();
   }
@@ -368,7 +372,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);
   instruments.root.scaling.set(bot.appearance.width * .5, .5, .5);
   robot.robot.getChildMeshes().forEach(m => { m.renderingGroupId = 2; m.isPickable = false; });
-  const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }), () => ({ width: groundMesh.scaling.x, depth: groundMesh.scaling.z }));
+  const camera = createCityCamera(engine, scene, () => ({ position: robot.robot.position.clone(), heading: journey.heading, eyeHeight: (1.05 + 2.25 * bot.appearance.height) * .5 }), () => mapBounds);
   let dance: JourneyDance | null = null, musicClock: (() => number) | null = null;
   const musicalObjects = createMusicalObjects(scene, world);
   const rig = scene.getTransformNodeByName('character-rig')!;
@@ -580,5 +584,6 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     stopDancing() { musicClock = null; instruments.update(0, false, true); },
     get arrivalComplete() { return camera.arrivalComplete; },
     setView: camera.setView, rotateCity: camera.rotateCity,
+    get isZoomedIn() { return camera.isZoomedIn; },
     get view() { return camera.view; } };
 }

@@ -1,5 +1,5 @@
 import './robotComms.css';
-import { BleRobotTransport, bluetoothAvailable, microbitUart } from './robot/physical/transport';
+import { BleRobotTransport, bluetoothAvailable, bluetoothUnavailableReason, microbitUart } from './robot/physical/transport';
 import { CommsDecoder, commsMessages, encodeCommand, messagePixels, parseCommsFrame } from './robot/commsProtocol';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -87,6 +87,6 @@ autoOn.addEventListener('click', () => { void write('AUTO:1\n'); });
 autoOff.addEventListener('click', () => { void write('AUTO:0\n'); });
 element('clear').addEventListener('click', () => log.replaceChildren());
 window.addEventListener('pagehide', () => transport?.disconnect());
-if (!window.isSecureContext) element('support').textContent = 'Web Bluetooth requires HTTPS or localhost. Open this page from a secure address.';
-else if (!bluetoothAvailable()) element('support').textContent = 'Web Bluetooth is unavailable here. Open this page in a supported Chrome or Edge browser with Bluetooth enabled.';
+const unsupported = bluetoothUnavailableReason();
+if (unsupported) element('support').textContent = unsupported;
 updateControls();

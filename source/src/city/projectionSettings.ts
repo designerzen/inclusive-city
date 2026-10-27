@@ -9,9 +9,11 @@ export const projectionFields = [
   { key: 'bendClearance', label: 'Clearance from bends', value: .4, min: .05, max: 5 },
 ] as const;
 export type ProjectionDimension = typeof projectionFields[number]['key'];
-export type ProjectionSettings = Record<ProjectionDimension, number> & { autoFit: boolean; mirror: boolean; mirrorVertical: boolean };
+export type BarcodeValue = { bits: number; value: number };
+export type ProjectionSettings = Record<ProjectionDimension, number> & { autoFit: boolean; mirror: boolean; mirrorVertical: boolean; crossingCode: BarcodeValue; junctionCode: BarcodeValue };
 export const defaultProjectionSettings = Object.fromEntries([
   ...projectionFields.map(field => [field.key, field.value]), ['autoFit', true], ['mirror', false], ['mirrorVertical', false],
+  ['crossingCode', { bits: 4, value: 4 }], ['junctionCode', { bits: 4, value: 13 }],
 ]) as ProjectionSettings;
 
 export function validateProjectionSettings(value: ProjectionSettings): ProjectionSettings {
@@ -25,5 +27,15 @@ export function validateProjectionSettings(value: ProjectionSettings): Projectio
   if (typeof value.autoFit !== 'boolean') throw new Error('Choose whether barcodes can shrink to fit.');
   if (typeof value.mirror !== 'boolean') throw new Error('Choose whether to mirror the route.');
   if (typeof value.mirrorVertical !== 'boolean') throw new Error('Choose whether to reflect the route vertically.');
-  return { ...value };
+  for (const key of ['crossingCode', 'junctionCode'] as const) {
+    const code = value[key];
+    if (!code || !Number.isInteger(code.bits) || code.bits < 1 || code.bits > 8
+      || !Number.isInteger(code.value) || code.value < 0 || code.value >= 2 ** code.bits)
+      throw new Error('Choose a barcode with 1–8 bits and a value within its range.');
+  }
+  return { ...value, crossingCode: { ...value.crossingCode }, junctionCode: { ...value.junctionCode } };
+}
+
+export function eventBarcode(eventCode: number, settings: ProjectionSettings): BarcodeValue {
+  return eventCode === 4 ? settings.crossingCode : eventCode === 13 ? settings.junctionCode : { bits: 4, value: eventCode };
 }

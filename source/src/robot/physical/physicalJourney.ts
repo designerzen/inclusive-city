@@ -39,7 +39,7 @@ export class PhysicalJourney {
     this.journey.observePhysical(this.lastDistance, this.status === 'following' ? (report.speedMmS ?? 0) / this.mmPerUnit : 0, seconds, this.status);
     for (const index of this.confirmed) {
       const marker = this.markers[index]!;
-      if (!this.pickups.has(index) && this.lastDistance >= marker.milestone && marker.code >= 8 && marker.code <= 11) {
+      if (!this.pickups.has(index) && this.lastDistance >= marker.milestone && marker.eventCode >= 8 && marker.eventCode <= 11) {
         this.pickups.add(index); this.journey.physicalPickup(marker.nodeId);
       }
     }

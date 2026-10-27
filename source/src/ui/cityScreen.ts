@@ -47,8 +47,9 @@ import { mountCityMusicVisuals } from './cityMusicVisuals';
 import './cityMusicVisuals.css';
 import { journeyInspiration, inspirationItem, type JourneyInspiration } from './journeyInspirations';
 import './journeyInspirations.css';
+import { cityOverlayPosition, type OverlayRect } from './cityOverlayPosition';
 
-export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney, continuationClock?: () => number) => void, speech?: ScreenSpeech) {
+export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engine: Engine | null, canvas: HTMLCanvasElement, onPresent: (journey: FinishedJourney, continuationClock?: () => number) => void, physicalControls: HTMLElement, speech?: ScreenSpeech) {
   container.innerHTML = `
     <h1 class="sr-only">Get your ArtBot to the studio</h1>
     <header class="city-toolbar">
@@ -66,10 +67,26 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     </header>
     <div class="city-map">
       <div id="city-robot-name" class="city-robot-name" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-      <div id="city-goal" class="city-goal-marker"><strong>⚑ GOAL</strong><span>Duet studio</span><small>Use Show goal</small></div>
+      <div id="city-goal" class="city-goal-marker"><strong>⚑ GOAL</strong><span>Duet studio</span><small>Use Fit map in viewport</small></div>
       <p id="city-hover" class="city-hover" hidden></p>
     </div>
+      <div class="city-navigation-tools" role="group" aria-label="Map navigation">
+        <div class="city-map-zoom" role="group" aria-label="Map zoom">
+          <button type="button" data-map="zoom-in">Zoom in</button>
+          <button type="button" data-map="zoom-out">Zoom out</button>
+        </div>
+        <div class="city-map-fit-control">
+          <button id="city-map-fit" type="button">Fit map in viewport</button>
+        </div>
+        <div id="city-map-move" class="city-map-move" role="group" aria-label="Move map" hidden>
+          <button type="button" data-map="left">Move left</button>
+          <button type="button" data-map="up">Move up</button>
+          <button type="button" data-map="down">Move down</button>
+          <button type="button" data-map="right">Move right</button>
+        </div>
+      </div>
     <div class="city-interaction-hud">
+    <div class="city-assistant-heading"><strong>Robot companion</strong><button id="city-assistant-toggle" type="button" aria-expanded="true" aria-controls="city-reply journey-inspirations city-controls-hud city-issue">Minimise</button></div>
     <details id="journey-inspirations" class="journey-inspirations">
       <summary>Journey inspirations · <span id="inspiration-count">0</span></summary>
       <div class="inspiration-content">
@@ -117,15 +134,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <button type="button" data-view="robot-eye" aria-pressed="false">Robot eye</button>
         <button id="city-fullscreen" type="button" aria-pressed="false">Enter fullscreen</button>
         <button id="city-project-line" type="button">Project robot line</button>
-        <button id="city-map-fit" type="button">Show goal</button>
-        <div class="city-navigation-tools" role="group" aria-label="Zoom and track the city">
-          <button type="button" data-map="zoom-in">Zoom in</button>
-          <button type="button" data-map="zoom-out">Zoom out</button>
-          <button type="button" data-map="left">Move left</button>
-          <button type="button" data-map="up">Move up</button>
-          <button type="button" data-map="down">Move down</button>
-          <button type="button" data-map="right">Move right</button>
-        </div>
+
       </div>
       <p class="city-eyebrow" id="city-phase">YOUR LINE. YOUR CITY.</p>
       <h2 id="city-heading" tabindex="-1">Reach the goal</h2>
@@ -168,13 +177,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         <div id="city-projection-settings"></div>
       </details>
       <details class="city-music-options"><summary>Music monitor settings</summary><div id="city-music-monitor-controls" class="music-monitor-controls"></div></details>
-      <details class="city-map-options"><summary>Zoom and move the map <span class="disclosure-chevron" aria-hidden="true">⌄</span></summary>
-        <div class="city-map-buttons" role="group" aria-label="Zoom and pan controls">
-          <button type="button" data-map="zoom-in">Zoom in</button><button type="button" data-map="zoom-out">Zoom out</button>
-          <button type="button" data-map="up">Move up</button><button type="button" data-map="down">Move down</button>
-          <button type="button" data-map="left">Move left</button><button type="button" data-map="right">Move right</button>
-        </div>
-      </details>
       <details class="city-art"><summary><span>Journey artwork</span><span id="painting-strokes">0 marks</span><span class="disclosure-chevron" aria-hidden="true">⌄</span></summary><canvas id="journey-art" role="img" width="800" height="400" aria-label="Your painting grows as the robot travels."></canvas><p id="painting-action">Every step leaves paint.</p><button id="city-art-window" type="button">Open live painting window</button></details>
       <section aria-label="City difficulty">
         <label for="city-barrier-amount">Barriers per city</label>
@@ -203,9 +205,17 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   plan.querySelector('.city-route-stats')!.after(plan.querySelector('.city-robot-states')!);
   const controlsHud = get<HTMLDetailsElement>('city-controls-hud');
   const interactionHud = controlsHud.parentElement!;
+  const assistantToggle = get<HTMLButtonElement>('city-assistant-toggle');
+  function setAssistantCollapsed(collapsed: boolean) {
+    interactionHud.toggleAttribute('data-collapsed', collapsed);
+    assistantToggle.setAttribute('aria-expanded', String(!collapsed));
+    assistantToggle.textContent = collapsed ? 'Expand' : 'Minimise';
+  }
+  setAssistantCollapsed(window.matchMedia('(max-width: 700px)').matches);
+  assistantToggle.addEventListener('click', () => setAssistantCollapsed(!interactionHud.hasAttribute('data-collapsed')));
   const map = container.querySelector<HTMLElement>('.city-map')!;
   const musicVisuals = mountCityMusicVisuals(map, container.querySelector<HTMLElement>('.city-object-music')!);
-  map.append(container.querySelector('.city-view-tools')!);
+  map.append(container.querySelector('.city-view-tools')!, container.querySelector('.city-navigation-tools')!);
   const cityActions = container.querySelector<HTMLElement>('.city-new-actions')!;
   cityActions.setAttribute('role', 'group');
   cityActions.setAttribute('aria-label', 'Restart or change city');
@@ -220,7 +230,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', button.textContent!); button.title = button.getAttribute('aria-label')!;
   }
   const statusHud = document.createElement('div'); statusHud.className = 'city-status-hud';
-  statusHud.innerHTML = '<p id="city-hud-status" role="status" aria-live="polite"></p>'; map.append(statusHud);
+  statusHud.innerHTML = '<p id="city-hud-status" role="status" aria-live="polite"></p>'; container.querySelector('.city-journey-actions')!.prepend(statusHud);
   const pause = get<HTMLButtonElement>('city-pause'), streetSelect = get<HTMLSelectElement>('city-street');
   const fastForward = get<HTMLButtonElement>('city-fast-forward');
   let fastForwarding = false;
@@ -299,17 +309,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     feedback(message); setText('city-hud-status', message);
   });
   const projection = mountRouteProjection(container, () => city?.journey);
-  const physicalRobots = mountPhysicalRobots(plan, () => city?.journey, projection, feedback, () => creation ?? undefined);
-  const microbitFace = mountMicrobitFaceSetup(plan);
-  const physicalOpen = document.createElement('button'); physicalOpen.type = 'button'; physicalOpen.textContent = 'Physical robots';
-  physicalOpen.title = 'Physical robots';
-  physicalOpen.addEventListener('click', () => { controlsHud.open = true; interactionHud.hidden = false; physicalRobots.open(); });
-  container.querySelector('.city-toolbar')!.append(physicalOpen);
+  const physicalRobots = mountPhysicalRobots(physicalControls, () => city?.journey, projection, feedback, () => creation ?? undefined);
+  const microbitFace = mountMicrobitFaceSetup(physicalControls);
   const physicalStop = document.createElement('button'); physicalStop.type = 'button';
   physicalStop.textContent = 'Stop physical robots'; physicalStop.disabled = true;
   physicalStop.title = 'Stop physical robots';
   physicalStop.addEventListener('click', () => physicalRobots.halt('Operator stopped the fleet.'));
-  container.querySelector('.city-toolbar')!.append(physicalStop);
+  physicalControls.prepend(physicalStop);
   const voicePanel = mountCityVoicePanel(get('city-reply'), {
     interpret: text => city ? interpretCityReply(text, city.journey) : { message: 'Open the city to reply to your robot.' },
     choices: () => city ? citySpokenChoices(city.journey) : [],
@@ -471,12 +477,13 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     container.dataset.journeyState = j.complete ? 'complete' : j.blocked ? 'blocked' : j.ready ? 'ready' : j.paused ? 'paused' : j.waiting ? 'waiting' : 'travelling';
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
     const alert = cityRobotAlert(j);
-    voicePanel.sentence(robotSpeech ?? alert ?? `Tell me what you would like to change, or hold the mic to speak.`);
+    voicePanel.sentence(robotSpeech ?? alert ?? `What would you like to change?`);
     setText('city-robot-name', alert ?? j.bot.name);
     nameTag.classList.toggle('is-alert', !!alert);
     const alertKey = alert ? `${j.blocked!.id}:${alert}` : null;
     if (alertKey !== lastAlert && !voiceCapturing) {
       lastAlert = alertKey;
+      if (alert) setAssistantCollapsed(false);
       if (alert && active && !document.hidden) {
         sayRobot(alert, true);
       }
@@ -520,6 +527,10 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       button.setAttribute('aria-pressed', String(button.dataset.view === city.view));
     }
     const canPan = city.view === 'overhead' || city.view === 'angled';
+    const moveControls = get('city-map-move');
+    const showMove = canPan && city.isZoomedIn && !j.complete;
+    if (!showMove && moveControls.contains(document.activeElement)) get('city-map-fit').focus();
+    moveControls.hidden = !showMove;
     const isometricOptions = get('city-isometric-options');
     const isometricOpen = city.view === 'angled';
     if (!isometricOpen && isometricOptions.contains(document.activeElement)) {
@@ -722,6 +733,38 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     }
     const mood = j.complete ? 'celebrating' : j.blocked ? 'sad' : 'curious';
     if (mood !== lastMood) lastMood = mood;
+    positionInteractionOverlay(robotBounds);
+  }
+  function positionInteractionOverlay(robotBounds: OverlayRect | null) {
+    if (container.hasAttribute('data-studio-performance') || !container.getClientRects().length) return;
+    const viewport = canvas.getBoundingClientRect(), root = container.getBoundingClientRect();
+    const localRect = (element: Element): OverlayRect => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left - viewport.left, right: rect.right - viewport.left, top: rect.top - viewport.top, bottom: rect.bottom - viewport.top };
+    };
+    const obstacles = [...container.querySelectorAll('.city-toolbar, .city-view-tools, .city-navigation-tools'), ...document.querySelectorAll('.city-mode > .sound-controls')]
+      .filter(element => element.getBoundingClientRect().width > 0).map(localRect);
+    if (robotBounds) obstacles.push(robotBounds);
+    const nameTag = get('city-robot-name');
+    if (!nameTag.hidden) obstacles.push(localRect(nameTag));
+    const goal = get('city-goal');
+    if (!goal.hidden) obstacles.push(localRect(goal));
+    const heightLimit = viewport.width <= 700 ? viewport.height * .48 : Math.min(560, viewport.height - 100);
+    const wasHidden = interactionHud.hidden;
+    interactionHud.hidden = false;
+    const placement = cityOverlayPosition(viewport.width, viewport.height, obstacles, Math.min(interactionHud.scrollHeight + 2, heightLimit), wasHidden ? undefined : localRect(interactionHud));
+    // At extreme camera zoom there may be no clear space, even for one full-size control.
+    // The map zoom and view controls remain available to restore a wider view.
+    if (!placement && interactionHud.contains(document.activeElement)) container.querySelector<HTMLButtonElement>('[data-map="zoom-out"]')?.focus({ preventScroll: true });
+    interactionHud.hidden = !placement;
+    if (!placement) return;
+    const styles = {
+      left: `${placement.left + viewport.left - root.left}px`, top: `${placement.top + viewport.top - root.top}px`,
+      right: 'auto', bottom: 'auto', width: `${placement.right - placement.left}px`, maxHeight: `${placement.bottom - placement.top}px`,
+    };
+    for (const [property, value] of Object.entries(styles)) {
+      if (interactionHud.style[property as keyof typeof styles] !== value) interactionHud.style[property as keyof typeof styles] = value;
+    }
   }
   function newCity(reset = false, savedWorld?: ProceduralCity) {
     faceSpeech = undefined;
@@ -848,7 +891,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     refresh();
   });
   get('city-map-fit').addEventListener('click', () => { city?.fit(); refresh(); });
-  for (const button of container.querySelectorAll<HTMLButtonElement>('.city-view-tools [data-map]')) button.addEventListener('click', () => {
+  for (const button of container.querySelectorAll<HTMLButtonElement>('.city-navigation-tools [data-map]')) button.addEventListener('click', () => {
     navigateMap(button);
   });
   for (const button of container.querySelectorAll<HTMLButtonElement>('[data-rotate-city]')) button.addEventListener('click', () => {
@@ -888,10 +931,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       city.pan(x * right.x - z * right.z, z * right.x + x * right.z);
     }
   }
-  plan.querySelector('.city-map-buttons')!.addEventListener('click', event => {
-    const button = event.target && 'closest' in event.target ? (event.target as Element).closest<HTMLButtonElement>('button[data-map]') : null;
-    if (button) navigateMap(button);
-  });
   get('city-exhibition').addEventListener('click', () => { if (finished && city?.arrivalComplete) { performancePresented = true; onPresent(structuredClone(finished)); } });
   const pointers = new Map<number, { x: number; y: number }>();
   let drawing = false, moved = false, origin = { x: 0, y: 0 }, savedRoute: readonly string[] = [], pinch = 0;
@@ -1023,6 +1062,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       if (engine && !renderLoopStarted) { renderLoopStarted = true; engine.runRenderLoop(renderCity); }
       newCity();
     },
-    dispose() { microbitFace.dispose(); musicVisuals.dispose(); physicalRobots.dispose(); projection.dispose(); controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
+    dispose() { microbitFace.dispose(); physicalStop.remove(); musicVisuals.dispose(); physicalRobots.dispose(); projection.dispose(); controlsWindow.dispose(); window.clearTimeout(speechTimer); displayControls.dispose(); disposeMonitorControls(); musicMonitorChanges.removeEventListener('change', syncMusicMonitor); voicePanel.dispose(); active = false; window.clearInterval(musicTimer); observer.disconnect(); window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', visibilityChanged); renderer?.dispose(); city?.journey.leave(); city?.scene.dispose(); engine?.stopRenderLoop(renderCity); },
   };
 }

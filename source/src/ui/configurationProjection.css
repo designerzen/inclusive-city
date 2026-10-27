@@ -56,3 +56,22 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 .configuration-page[data-dock='top'] .configuration-dock { grid-row: 1; border-top: 0; border-bottom: 1px solid #d6dce0; }
 @media (max-width: 480px) { .robot-connection p { font-size: 12px; } .robot-actions { gap: 4px; } .robot-actions button, .robot-actions a { padding-inline: 8px; font-size: 12px; } }
 @media (prefers-reduced-motion: reduce) { .track-signal circle { transition: none; } }
+
+.track-barcode { cursor: pointer; pointer-events: all; }
+.track-barcode:focus-visible { outline: none; }
+.track-barcode:focus-visible .barcode-target { stroke: #526b7c; stroke-width: .18; }
+.barcode-picker { box-sizing: border-box; width: min(660px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 20px; border: 1px solid #aab4bc; border-radius: 16px; color: #252b30; background: #fff; overflow: auto; }
+.barcode-picker::backdrop { background: #17212b99; }
+.barcode-picker h2 { font-size: 20px; margin: 0 0 16px; }
+.barcode-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.barcode-picker button { min-width: 44px; min-height: 44px; border: 1px solid #aab4bc; border-radius: 8px; padding: 8px 12px; background: #fff; color: #254d40; font: inherit; cursor: pointer; }
+.barcode-tabs [aria-selected='true'], .barcode-picker .barcode-done { background: #254d40; color: #fff; }
+.barcode-picker fieldset { border: 0; padding: 0; margin: 16px 0; min-width: 0; }
+.barcode-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin-top: 12px; }
+.barcode-values label { box-sizing: border-box; min-height: 52px; display: flex; align-items: center; gap: 6px; padding-right: 8px; border: 1px solid #c5cdd3; border-radius: 8px; cursor: pointer; }
+.barcode-values label:has(:checked) { background: #e4f1e9; border-color: #254d40; }
+.barcode-values input { appearance: none; box-sizing: border-box; width: 44px; height: 44px; flex: 0 0 44px; margin: 0; display: grid; place-content: center; cursor: pointer; }
+.barcode-values input::before { content: ''; width: 16px; height: 16px; border: 1px solid #52616c; border-radius: 50%; }
+.barcode-values input:checked::before { background: #254d40; box-shadow: inset 0 0 0 4px white; }
+.barcode-values small { display: block; font-family: monospace; }
+.barcode-picker :is(button, input):focus-visible { outline: 3px solid #526b7c; outline-offset: 2px; }

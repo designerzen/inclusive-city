@@ -1,4 +1,4 @@
-import { BleRobotTransport, bluetoothAvailable, type BleSettings } from '../robot/physical/transport';
+import { BleRobotTransport, bluetoothUnavailableReason, type BleSettings } from '../robot/physical/transport';
 import { getMicrocontrollerSettings, microcontrollerChanges } from '../robot/physical/microcontroller';
 import { MicrobitFace, journeyFace, type FaceJourney } from '../robot/microbitFace';
 import './microbitFace.css';
@@ -6,9 +6,9 @@ import './microbitFace.css';
 export function mountMicrobitFaceSetup(host: HTMLElement) {
   const panel = document.createElement('details'); panel.className = 'microbit-face';
   panel.innerHTML = `<summary>micro:bit robot face</summary>
-    <p>Power on your flashed micro:bit, then use Pair micro:bit face on the splash screen or city top bar. Its 5 × 5 LEDs mirror your robot’s mood. When it speaks, the mouth moves and its city message scrolls across the display.</p>
+    <p>Power on your flashed micro:bit, then use Pair micro:bit face in Settings. Its 5 × 5 LEDs mirror your robot’s mood. When it speaks, the mouth moves and its city message scrolls across the display.</p>
     <p><a href="${import.meta.env.BASE_URL}firmware/microbit-face/city-face.hex" download>Download city face firmware (.hex)</a> · Copy it to the MICROBIT USB drive, then keep the board powered by USB or battery.</p>
-    <p>After a power cycle or disconnection, the pairing button returns to the city top bar.</p>`;
+    <p>After a power cycle or disconnection, the pairing button is available in Settings.</p>`;
   host.append(panel);
   return { dispose() { panel.remove(); } };
 }
@@ -16,9 +16,9 @@ export function mountMicrobitFaceSetup(host: HTMLElement) {
 /** One connection survives the splash → designer → city navigation. */
 export function createMicrobitFaceConnection(getJourney: () => FaceJourney | undefined,
   connect = (settings: BleSettings) => BleRobotTransport.connect(settings)) {
-  const available = window.isSecureContext && bluetoothAvailable();
-  const unsupported = 'Pairing needs HTTPS or localhost and a Web Bluetooth browser such as Chrome or Edge.';
-  let message = available ? 'Power on your microcontroller, then choose Pair to connect over Bluetooth.' : unsupported;
+  const unsupported = bluetoothUnavailableReason();
+  const available = unsupported === undefined;
+  let message = unsupported ?? 'Power on your microcontroller, then choose Pair to connect over Bluetooth.';
   let face: MicrobitFace | undefined, disposed = false, generation = 0, busy = false, connected = false;
   let showMessage = !available;
   const views: { root: HTMLElement; pair: HTMLButtonElement; status: HTMLElement; alwaysShowStatus: boolean }[] = [];
@@ -70,7 +70,7 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
   document.addEventListener('visibilitychange', tick);
   const disconnect = () => reset('Microcontroller disconnected. Pair again when ready.');
   const reconfigure = () => {
-    reset(available ? 'Microcontroller changed. Reconnecting Bluetooth…' : unsupported);
+    reset(unsupported ?? 'Microcontroller changed. Reconnecting Bluetooth…');
     if (available && !disposed) void pair();
   };
   microcontrollerChanges.addEventListener('change', reconfigure);

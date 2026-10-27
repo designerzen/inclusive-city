@@ -4,7 +4,7 @@ import { streetBetween } from '../city/proceduralCity';
 
 export const cityStartNarration = "Here we go! I'll follow our route to the Duet studio. Let's make art and music along the way!";
 export const cityResumeNarration = "Ready, adventure buddy? Let's keep going to the Duet studio!";
-export const cityIntroduction = (name: string) => `Hello, adventure buddy! I'm ${name}. Help me reach the Duet studio! Places we pass inspire my painting and song. Discoveries are optional. Open Journey inspirations to see what we find.`;
+export const cityIntroduction = (name: string) => `I'm ${name}. Help me reach the Duet studio! Places we pass inspire my painting and song.`;
 export const cityAlertNarration = [
   'The robot cannot get across this bridge ramp. Add elevators to continue.',
   'A ramp must be brought out before I can board the train.',

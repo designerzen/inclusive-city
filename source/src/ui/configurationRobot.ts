@@ -1,4 +1,4 @@
-import { BleRobotTransport, bluetoothAvailable } from '../robot/physical/transport';
+import { BleRobotTransport, bluetoothUnavailableReason } from '../robot/physical/transport';
 import { getMicrocontrollerSettings } from '../robot/physical/microcontroller';
 import { RobotTrafficLight } from '../robot/physical/trafficLight';
 import type { TrafficLightCommands } from '../robot/physical/trafficLightCommands';
@@ -12,14 +12,15 @@ export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (ligh
   const pair = section.querySelector<HTMLButtonElement>('[data-pair]')!;
   const stop = section.querySelector<HTMLButtonElement>('[data-stop]')!;
   const status = section.querySelector('p')!;
-  const supported = window.isSecureContext && bluetoothAvailable();
+  const unsupported = bluetoothUnavailableReason();
+  const supported = unsupported === undefined;
   let controller: RobotTrafficLight | undefined, connecting = false, generation = 0;
   function refresh() {
     const phase = controller?.phase ?? 'disconnected';
     pair.disabled = !supported || connecting || phase !== 'disconnected';
     pair.textContent = connecting ? 'Pairing…' : 'Pair robot & start';
     stop.disabled = phase === 'disconnected' && !connecting;
-    status.textContent = connecting ? 'Choose your robot. It will start following the line when connected.' : controller?.message ?? (supported ? 'Pair your robot to start following the line.' : 'Pairing needs HTTPS or localhost and a Bluetooth browser such as Chrome or Edge.');
+    status.textContent = connecting ? 'Choose your robot. It will start following the line when connected.' : controller?.message ?? unsupported ?? 'Pair your robot to start following the line.';
     const light = phase === 'following' ? 'green' : ['waiting', 'resuming', 'fault'].includes(phase) ? 'red' : 'off';
     lightChanged(light, controller?.barcodeStop ?? -1, controller?.canFulfill ?? false);
   }

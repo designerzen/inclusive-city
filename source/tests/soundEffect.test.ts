@@ -15,8 +15,8 @@ test('every workshop and city button has a registered musical signature', () => 
     for (const [tag] of source.matchAll(/<button\b[^>]*>/g)) {
       // Customizable select buttons are inert faces of the select, not separate actions.
       if (tag.includes('data-select-trigger')) continue;
-      // Drum pads play their instrument voice directly rather than a UI cue.
-      if (tag.includes('data-drum=')) continue;
+      // Drum pads and melody keys play their instrument voice directly rather than a UI cue.
+      if (tag.includes('data-drum=') || tag.includes('data-note=')) continue;
       if (tag.includes('data-accessory=')) {
         for (const item of robotAccessories) assert.ok(isButtonSound(`accessory-${item.id}`));
         continue;

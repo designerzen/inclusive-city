@@ -20,9 +20,19 @@
 .city-mode .settings-label { display: none; }
 .city-mode #app-options { width: 44px; height: 44px; padding: 0; justify-content: center; }
 #city-screen .city-view-tools { position: absolute; top: 12px; left: 12px; bottom: auto; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 24px); margin: 0; padding: 4px; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525ee; z-index: 4; }
-#city-screen .city-view-tools button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; font-size: 0; }
-#city-screen .city-view-tools button::before { margin: 0; }
-#city-screen .city-navigation-tools { display: flex; flex: 1 0 100%; width: 0; min-width: 0; flex-wrap: wrap; gap: 4px; }
+#city-screen :is(.city-view-tools, .city-navigation-tools) button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; font-size: 0; }
+#city-screen :is(.city-view-tools, .city-navigation-tools) button::before { margin: 0; }
+#city-screen .city-navigation-tools { position: absolute; bottom: 12px; left: 12px; z-index: 4; display: flex; flex-wrap: wrap; align-items: end; gap: 8px; max-width: calc(100% - 24px); }
+#city-screen :is(.city-map-zoom, .city-map-fit-control, .city-map-move) { display: flex; flex: 0 0 auto; gap: 4px; padding: 4px; border: 1px solid var(--ui-border); border-radius: 12px; background: #252525ee; }
+#city-screen .city-map-move[hidden] { display: none; }
+[data-theme='light'] #city-screen :is(.city-map-zoom, .city-map-fit-control, .city-map-move) { background: #fafafaf5; }
+#city-screen .city-navigation-tools button { flex-shrink: 0; }
+#city-screen:has(#studio-track:not([hidden])) .city-navigation-tools { display: none; }
+#city-screen .city-status-hud { bottom: 128px; }
+@media (max-width: 700px) {
+  #city-screen .city-navigation-tools { bottom: 8px; left: 8px; max-width: calc(100% - 16px); }
+  #city-screen .city-interaction-hud { bottom: 136px; max-height: calc(100dvh - 300px); }
+}
 #city-screen .city-view-tools button[data-rotate-city] { font-size: 24px; }
 #city-screen .city-view-tools button[hidden] { display: none; }
 .city-isometric-menu { display: contents; }
@@ -102,4 +112,52 @@
 @media (max-width: 360px) {
   /* Leave room for the map toolbar when its full-size buttons wrap. */
   .city-interaction-hud { max-height: calc(100dvh - 400px); }
+}
+
+/* Let the landscape fill the viewport, with the controls floating above it. */
+#city-screen { padding: 0; }
+#city-screen .city-map { position: absolute; inset: 0; grid-area: auto; width: 100%; height: 100%; border: 0; border-radius: 0; }
+#city-screen .city-toolbar { position: absolute; top: 12px; left: 0; right: 72px; padding-left: 62px; }
+#city-screen #back-to-designer { top: 0; }
+#city-screen .city-view-tools { top: 72px; }
+@media (max-width: 700px) {
+  #city-screen .city-view-tools { top: 124px; }
+}
+@media (max-width: 360px) {
+  /* Reset and New City wrap onto separate rows at narrow widths. */
+  #city-screen .city-view-tools { top: 174px; }
+}
+
+/* Keep the companion bounded; overflow stays reachable instead of being clipped. */
+#city-screen .city-interaction-hud { background: #252525; scrollbar-gutter: stable; scroll-padding-block: 12px; }
+.city-assistant-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px; border-bottom: 1px solid #7775; }
+.city-assistant-heading strong { font-size: .8125rem; }
+#city-screen #city-assistant-toggle { background: transparent; border-color: transparent; padding: 6px 8px; }
+#city-screen #city-assistant-toggle::before { display: none; }
+#city-screen .city-interaction-hud[data-collapsed] > :not(.city-assistant-heading):not(.city-journey-actions) { display: none; }
+#city-screen .city-interaction-hud .city-journey-actions { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+#city-screen .city-journey-actions #city-pause { width: auto; flex: 1; }
+#city-screen .city-journey-actions .city-status-hud { position: static; width: auto; max-width: 45%; padding: 0; border: 0; background: transparent; }
+#city-screen .journey-inspirations > summary { display: list-item; padding: 8px 12px; font-size: .8125rem; }
+#city-screen .city-object-music { padding: 4px 12px; }
+#city-screen .city-object-music p { margin: 2px 0; }
+#city-screen .city-reply { padding: 4px 12px 12px; font-size: .875rem; }
+#city-screen .city-reply-heading p { margin: 4px 0 8px; line-height: 1.45; }
+#city-screen :is(.city-map-zoom, .city-map-fit-control, .city-map-move) { padding: 0; border: 0; background: transparent; }
+#city-screen .city-view-tools { padding: 2px; border-color: #7775; gap: 2px; }
+#city-screen :is(.city-view-tools, .city-navigation-tools) button { border-color: transparent; }
+#city-screen .city-toolbar button { padding-block: 6px; }
+[data-theme='light'] #city-screen .city-interaction-hud { background: #fafafa; }
+@media (max-width: 700px) {
+  #city-screen .city-toolbar { right: 60px; padding-left: 54px; gap: 4px; }
+  #city-screen .city-toolbar .city-tools { flex-wrap: wrap; }
+  #city-screen .city-new-actions { gap: 4px; }
+  #city-screen .city-toolbar .city-new-actions button { padding: 4px 6px; }
+}
+@media (max-width: 480px) {
+  #city-screen .city-toolbar { max-width: none; }
+  #city-screen .city-toolbar .city-tools button,
+  #city-screen .city-toolbar .city-new-actions button { width: 44px; height: 44px; padding: 0; font-size: 0; gap: 0; }
+  #city-screen .city-toolbar .city-tools button::before { display: inline-block; margin: 0; }
+  #city-screen .city-view-tools { top: 64px; }
 }

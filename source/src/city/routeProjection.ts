@@ -2,7 +2,7 @@ import type { PlannedJourney } from '../simulation/plannedJourney';
 import { isAccessibilityBarrier } from './accessibilityBarriers';
 import { streetBetween, streetNames } from './proceduralCity';
 import type { RouteTrajectory } from './routeTrajectory';
-import { defaultProjectionSettings, validateProjectionSettings, type ProjectionSettings } from './projectionSettings';
+import { defaultProjectionSettings, eventBarcode, validateProjectionSettings, type ProjectionSettings } from './projectionSettings';
 
 // Half, single and double tape widths, as in the RIX line-reader format.
 export const barcodeUnit = .08;
@@ -11,9 +11,9 @@ export const barcodeSpan = 1.44;
 export const projectionLineWidth = .16;
 export const projectionCodes = ['Start journey', 'Raised curb', 'Bridge / steps', 'Narrow passage', 'Pelican crossing', 'Route cues', 'Train boarding', 'Bicycle', 'Music discovery', 'Art discovery', 'Harmony discovery', 'Colour discovery', 'Studio arrival', 'Junction reached', 'Access support'] as const;
 
-export function barcodeWidths(code: number, settings: ProjectionSettings = defaultProjectionSettings) {
-  if (!Number.isInteger(code) || code < 0 || code > 15) throw new RangeError('Barcode must be a four-bit integer.');
-  return [settings.markerLength, ...code.toString(2).padStart(4, '0').split('').map(bit => bit === '1' ? settings.longLength : settings.shortLength), settings.markerLength];
+export function barcodeWidths(code: number, settings: ProjectionSettings = defaultProjectionSettings, bits = 4) {
+  if (!Number.isInteger(bits) || bits < 1 || bits > 8 || !Number.isInteger(code) || code < 0 || code >= 2 ** bits) throw new RangeError('Barcode must fit its 1–8 bit range.');
+  return [settings.markerLength, ...code.toString(2).padStart(bits, '0').split('').map(bit => bit === '1' ? settings.longLength : settings.shortLength), settings.markerLength];
 }
 
 /** Merge only collinear segments; short curve facets cannot fit a barcode. */
@@ -38,12 +38,15 @@ export function straightSections(trajectory: Pick<RouteTrajectory, 'points' | 'd
 export function routeProjection(journey: PlannedJourney, preferences: ProjectionSettings = defaultProjectionSettings, stoppingClearance = 0) {
   const settings = validateProjectionSettings(preferences);
   const trajectory = journey.trajectory;
-  const markers: { code: number; node: string; nodeId: string; routeIndex: number; milestone: number; label: string; distance: number; endDistance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
+  const markers: { code: number; bits: number; eventCode: number; node: string; nodeId: string; routeIndex: number; milestone: number; label: string; distance: number; endDistance: number; bars: { x: number; z: number; angle: number; width: number }[] }[] = [];
   const junctions = journey.route.map((id, index) => {
     const node = journey.world.nodes.find(node => node.id === id)!;
     const street = streetBetween(journey.world, id, journey.route[index + 1]!);
-    const events: { code: number; label: string; node: string }[] = [];
-    const add = (code: number, label: string = projectionCodes[code]!) => events.push({ code, label, node: node.label });
+    const events: { code: number; bits: number; eventCode: number; label: string; node: string }[] = [];
+    const add = (eventCode: number, label: string = projectionCodes[eventCode]!) => {
+      const { value: code, bits } = eventBarcode(eventCode, settings);
+      events.push({ code, bits, eventCode, label, node: node.label });
+    };
     if (index === 0) add(0);
     if (street) {
       const code = isAccessibilityBarrier(street.kind) ? 14 : { clear: -1, curb: 1, bridge: 2, stairs: 2, width: 3, crossing: 4, guidance: 5 }[street.kind];
@@ -58,7 +61,7 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
     return { events, milestone, nodeId: id, routeIndex: index };
   }).filter(junction => junction.events.length);
   const events = junctions.flatMap(junction => junction.events.map(event => ({ ...event, milestone: junction.milestone, nodeId: junction.nodeId, routeIndex: junction.routeIndex,
-    length: barcodeWidths(event.code, settings).reduce((a, b) => a + b, 0) + settings.barGap * 5 })));
+    length: barcodeWidths(event.code, settings, event.bits).reduce((a, b) => a + b, 0) + settings.barGap * (event.bits + 1) })));
   const sections = straightSections(trajectory, settings.bendClearance);
   const reversedSections = [...sections].reverse();
   let scale = 1;
@@ -86,7 +89,7 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
       for (const section of sections) {
         const low = Math.max(section.start, previousEnd), high = Math.min(section.end - length, latest[i]!);
         if (high < low) continue;
-        const hold = stoppingClearance > 0 && event.code >= 1 && event.code <= 7;
+        const hold = stoppingClearance > 0 && event.eventCode >= 1 && event.eventCode <= 7;
         const target = event.milestone - (hold ? stoppingClearance + length / 2 : 0);
         const distance = Math.max(low, Math.min(high, target - length / 2));
         const score = Math.abs(distance + length / 2 - target);
@@ -101,13 +104,13 @@ export function routeProjection(journey: PlannedJourney, preferences: Projection
   events.forEach((event, index) => {
     const placement = placements[index]!;
     let distance = placement.distance;
-    const bars = barcodeWidths(event.code, settings).map(unscaledWidth => {
+    const bars = barcodeWidths(event.code, settings, event.bits).map(unscaledWidth => {
       const width = unscaledWidth * scale;
       const sample = trajectory.sample(distance + width / 2);
       distance += width + settings.barGap * scale;
       return { x: sample.position.x, z: sample.position.z, angle: -placement.heading * 180 / Math.PI, width };
     });
-    markers.push({ code: event.code, node: event.node, nodeId: event.nodeId, routeIndex: event.routeIndex, milestone: event.milestone, label: event.label, distance: placement.distance, endDistance: distance - settings.barGap * scale, bars });
+    markers.push({ code: event.code, bits: event.bits, eventCode: event.eventCode, node: event.node, nodeId: event.nodeId, routeIndex: event.routeIndex, milestone: event.milestone, label: event.label, distance: placement.distance, endDistance: distance - settings.barGap * scale, bars });
   });
   const points = trajectory.points;
   const xs = points.map(p => p.x), zs = points.map(p => p.z), padding = Math.max(settings.barcodeWidth, settings.lineWidth) + .5;

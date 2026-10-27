@@ -1,4 +1,4 @@
-import { BleRobotTransport, GatewayRobotTransport, bluetoothAvailable, nordicUart } from '../robot/physical/transport';
+import { BleRobotTransport, GatewayRobotTransport, bluetoothAvailable, bluetoothUnavailableReason, nordicUart } from '../robot/physical/transport';
 import { getMicrocontrollerSettings, microcontrollerChanges } from '../robot/physical/microcontroller';
 import { RobotFleet, defaultCommands } from '../robot/physical/session';
 import type { RobotSession, RobotAction, CommandSettings } from '../robot/physical/session';
@@ -18,6 +18,7 @@ export function mountPhysicalRobots(host: HTMLElement, getJourney: () => Planned
   panel.innerHTML = `<summary>Physical robots</summary>
     <label>Robot connection<select data-profile><option value="settings">Microcontroller from Settings</option><option value="custom">Custom BLE override</option></select></label>
     <button type="button" data-action="connect">Connect another robot</button>
+    <p data-bluetooth-warning role="status" hidden></p>
     <p>Each robot has its own connection, commands and sensor readings. Changing the microcontroller in Settings reconnects robots using that profile. Custom BLE overrides stay independent.</p>
     <details><summary>BLE and command settings</summary>
       <label>Service UUID<input data-uuid="service" /></label><label>Command characteristic UUID<input data-uuid="write" /></label>
@@ -37,7 +38,11 @@ export function mountPhysicalRobots(host: HTMLElement, getJourney: () => Planned
   const profile = panel.querySelector<HTMLSelectElement>('[data-profile]')!;
   const connect = panel.querySelector<HTMLButtonElement>('[data-action="connect"]')!;
   connect.disabled = !bluetoothAvailable();
-  status.textContent = bluetoothAvailable() ? 'No robots connected.' : 'Open this app in Chrome or Edge for direct Bluetooth, or use an existing gateway.';
+  status.textContent = 'No robots connected.';
+  const unsupported = bluetoothUnavailableReason();
+  const warning = panel.querySelector<HTMLElement>('[data-bluetooth-warning]')!;
+  warning.hidden = !unsupported;
+  warning.textContent = unsupported ? `${unsupported} You can also use an existing gateway.` : '';
   for (const input of panel.querySelectorAll<HTMLInputElement>('[data-command]')) input.value = defaultCommands[input.dataset.command as RobotAction];
   function applyProfile() {
     for (const input of panel.querySelectorAll<HTMLInputElement>('[data-uuid]')) input.readOnly = profile.value !== 'custom';

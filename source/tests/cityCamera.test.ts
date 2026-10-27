@@ -210,3 +210,52 @@ test('camera changes can be interrupted and reduced motion skips transitions', (
     assert.equal(controls.camera.mode, Camera.PERSPECTIVE_CAMERA);
   } finally { scene.dispose(); engine.dispose(); }
 });
+
+
+test('zoomed-in state follows queued zoom, fit and view resets', () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }));
+  try {
+    assert.equal(controls.isZoomedIn, false);
+    controls.setZoom(.8);
+    assert.equal(controls.isZoomedIn, true);
+    controls.setZoom(1.25);
+    assert.equal(controls.isZoomedIn, false);
+    controls.update(.3);
+    controls.setZoom(1.25);
+    assert.equal(controls.isZoomedIn, false);
+    controls.setZoom(.5);
+    assert.equal(controls.isZoomedIn, true);
+    controls.fit();
+    assert.equal(controls.isZoomedIn, false);
+    controls.focus(3, 4);
+    assert.equal(controls.isZoomedIn, true);
+    controls.setView('angled');
+    assert.equal(controls.isZoomedIn, false);
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+
+test('fit restores the initial city framing in landscape and portrait viewports', () => {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    const engine = new NullEngine({ renderWidth: width!, renderHeight: height!, textureSize: 512, deterministicLockstep: false, lockstepMaxSteps: 4 });
+    const scene = new Scene(engine);
+    const bounds = { width: 90, depth: 70 };
+    const controls = createCityCamera(engine, scene, () => ({ position: Vector3.Zero(), heading: 0, eyeHeight: 1.8 }), () => bounds);
+    try {
+      const initial = [controls.camera.orthoLeft, controls.camera.orthoRight, controls.camera.orthoBottom, controls.camera.orthoTop];
+      const visibleWidth = controls.camera.orthoRight! - controls.camera.orthoLeft!;
+      const visibleDepth = controls.camera.orthoTop! - controls.camera.orthoBottom!;
+      assert.ok(visibleWidth >= bounds.width - 1e-6);
+      assert.ok(visibleDepth >= bounds.depth - 1e-6);
+      assert.ok(Math.min(visibleWidth / bounds.width, visibleDepth / bounds.depth) < 1.01);
+      controls.pan(12, -9); controls.setZoom(.4); controls.update(2);
+      controls.setView('angled'); controls.rotateCity(1); controls.update(2);
+      controls.fit(); controls.update(2);
+      assert.equal(controls.view, 'overhead');
+      assert.equal(controls.isZoomedIn, false);
+      assert.ok(controls.camera.position.equalsWithEpsilon(new Vector3(0, 55, -.01)));
+      assert.deepEqual([controls.camera.orthoLeft, controls.camera.orthoRight, controls.camera.orthoBottom, controls.camera.orthoTop], initial);
+    } finally { scene.dispose(); engine.dispose(); }
+  }
+});

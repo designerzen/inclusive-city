@@ -15,11 +15,13 @@ export function mountCityVoicePanel(container: HTMLElement, options: {
 }) {
   container.innerHTML = `<div class="city-reply-heading">
     <p data-reply-sentence role="status" aria-live="polite">Tell me what you would like to change.</p>
+    </div>
+    <form class="city-prompt-row"><label class="sr-only" for="city-reply-text">City prompt</label>
+      <textarea id="city-reply-text" rows="2" maxlength="500" placeholder="Type a change…"></textarea><button type="submit" data-reply-send>Send</button>
     <button id="city-record-voice" type="button" data-reply-talk aria-label="Hold to talk" title="Hold to talk; release to finish" aria-pressed="false">
       <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-    </button></div>
-    <form class="city-prompt-row"><label class="sr-only" for="city-reply-text">City prompt</label>
-      <textarea id="city-reply-text" rows="1" maxlength="500" placeholder="Type a change, or hold the mic…"></textarea><button type="submit">Send</button></form>
+      <span>Hold to talk</span>
+    </button></form>
     <p data-reply-status role="status" aria-live="polite">Hold the mic to speak. Focus the prompt to dictate into it.</p>
     <p data-command-transcript aria-label="Spoken command transcript"></p>
     <div data-reply-proposal hidden><p data-reply-proposal-text></p><div class="city-reply-buttons"><button type="button" data-reply-confirm>Apply</button><button type="button" data-reply-dismiss>Discard</button></div></div>

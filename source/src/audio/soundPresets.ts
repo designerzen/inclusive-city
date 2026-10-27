@@ -121,6 +121,7 @@ const buttonSignatures = {
   'city-rotate-left': { root: 65, intervals: [0, 5, 9], pattern: 'down', stepBeats: .09 },
   'city-rotate-right': { root: 65, intervals: [0, 5, 9], pattern: 'up', stepBeats: .09 },
   'city-controls-window': { root: 71, intervals: [0, 5, 9], pattern: 'up', waveform: 'sine', stepBeats: .08 },
+  'city-assistant-toggle': { root: 69, intervals: [0, 4, 9], pattern: 'up', waveform: 'sine', stepBeats: .07 },
   'city-art-window': { root: 69, intervals: [0, 4, 9], pattern: 'up', waveform: 'sine', stepBeats: .09 },
   'options-close': { root: 62, intervals: [0, 7, 12], pattern: 'down', stepBeats: .08, gain: .1 },
   'function-communication': { root: 48, intervals: [0, 7, 12], pattern: 'up', waveform: 'triangle', stepBeats: 0.1 },

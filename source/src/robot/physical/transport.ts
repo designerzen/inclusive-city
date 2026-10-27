@@ -61,6 +61,11 @@ interface Device extends EventTarget {
   gatt?: { connected: boolean; connect(): Promise<{ getPrimaryService(uuid: string): Promise<{ getCharacteristic(uuid: string): Promise<Characteristic> }> }>; disconnect(): void };
 }
 export function bluetoothAvailable() { return !!(navigator as Navigator & { bluetooth?: unknown }).bluetooth; }
+export function bluetoothUnavailableReason(): string | undefined {
+  if (!window.isSecureContext) return 'Web Bluetooth requires a secure context. Open this page over HTTPS or localhost.';
+  if (!bluetoothAvailable()) return 'Warning: Web Bluetooth is unavailable in this browser, so direct robot pairing is disabled. Use Google Chrome or Microsoft Edge on Windows or macOS, or Google Chrome on Android or ChromeOS. Chrome and Edge on iPhone or iPad do not support Web Bluetooth; use a supported computer or Android device instead.';
+  return undefined;
+}
 export function withTimeout<T>(operation: Promise<T>, ms: number) {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Robot operation timed out.')), ms);

@@ -8,6 +8,8 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { createRobot } from '../robot/createRobot';
+import { defaultAbilities } from '../robot/abilities';
+import { createRobotProfile } from '../robot/functions';
 import { attractBpm } from '../audio/attractMusic';
 
 export function createAttractScene(engine: Engine, canvas: HTMLCanvasElement, isPaused: () => boolean) {
@@ -21,6 +23,8 @@ export function createAttractScene(engine: Engine, canvas: HTMLCanvasElement, is
   const rim = new PointLight('pink-rim', new Vector3(4, 4, 0), scene);
   rim.diffuse = Color3.FromHexString('#ff78c9'); rim.intensity = 1.4;
   const bot = createRobot(scene);
+  // The host hears the soundtrack and recorded welcome before a visitor chooses a robot.
+  bot.setProfile(createRobotProfile(defaultAbilities(), ['communication', 'vision', 'hearing']));
   bot.characterAnimation.react('pickup');
   const rig = scene.getTransformNodeByName('character-rig')!;
   const head = scene.getTransformNodeByName('head-rig')!;
