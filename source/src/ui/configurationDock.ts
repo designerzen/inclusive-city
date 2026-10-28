@@ -3,7 +3,8 @@ export function mountConfigurationDock(page: HTMLElement) {
   const dock = document.createElement('aside');
   dock.className = 'configuration-dock';
   dock.ariaLabel = 'Projection controls';
-  dock.innerHTML = `<details class="configuration-dock-disclosure" open><summary>Robot controls</summary><div class="configuration-dock-content"></div></details><button type="button" class="tertiary configuration-dock-move">Move controls to top</button>`;
+  dock.innerHTML = `<div class="configuration-dock-toolbar"><button type="button" class="tertiary configuration-dock-move">Move controls to top</button></div><details class="configuration-dock-disclosure" open><summary>Robot controls</summary><div class="configuration-dock-content"></div></details>`;
+  dock.querySelector('.configuration-dock-toolbar')!.prepend(page.querySelector('.projection-print')!);
   const content = dock.querySelector<HTMLElement>('.configuration-dock-content')!;
   content.append(page.querySelector('.configuration-header')!, page.querySelector('.configuration-robot')!);
   page.append(dock);

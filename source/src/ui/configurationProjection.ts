@@ -95,6 +95,7 @@ mountBarcodePicker(svg, configuration === 'traffic-light' ? 'Crossing' : 'Juncti
 render();
 const print = document.createElement('button');
 print.type = 'button'; print.className = 'projection-print'; print.textContent = 'Print track';
+print.title = 'Print only the track and barcodes';
 document.querySelector('.configuration-header')!.append(print);
 print.addEventListener('click', () => {
   try {

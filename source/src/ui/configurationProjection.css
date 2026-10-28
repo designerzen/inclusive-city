@@ -48,8 +48,9 @@ html, body { margin: 0; height: 100%; background: #fff; color: #252b30; font-fam
 .configuration-commands label { display: flex; flex-direction: column; gap: 4px; margin-block: 12px; }
 .configuration-commands select { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: #fff; color: #252b30; }
 .configuration-dock { grid-row: 2; position: relative; box-sizing: border-box; border-top: 1px solid #d6dce0; background: #fff; padding: 4px 8px; }
-.configuration-dock-disclosure > summary { display: flex; align-items: center; width: fit-content; max-width: calc(100% - 166px); box-sizing: border-box; padding: 8px; cursor: pointer; font-size: var(--text-small); }
-.configuration-dock-move { position: absolute; top: 4px; right: 8px; box-sizing: border-box; width: 158px; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: var(--button-background, #fff); color: var(--button-ink, #254d40); font: inherit; font-size: var(--text-small); cursor: pointer; }
+.configuration-dock-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.configuration-dock-disclosure > summary { display: flex; align-items: center; width: fit-content; box-sizing: border-box; padding: 8px; cursor: pointer; font-size: var(--text-small); }
+.configuration-dock-move { box-sizing: border-box; min-width: 44px; min-height: 44px; padding: 8px; border: 1px solid #c5cdd3; border-radius: 8px; background: var(--button-background, #fff); color: var(--button-ink, #254d40); font: inherit; font-size: var(--text-small); cursor: pointer; }
 .configuration-dock-content { height: min(156px, 35dvh); overflow: auto; overscroll-behavior: contain; padding: 4px 8px; box-sizing: border-box; }
 .configuration-dock-disclosure:not([open]) > .configuration-dock-content { display: none; }
 .configuration-page[data-dock='top'] { grid-template-rows: auto minmax(0, 1fr); }

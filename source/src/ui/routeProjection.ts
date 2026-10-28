@@ -28,6 +28,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   const options = dialog.querySelector<HTMLDetailsElement>('.projection-options')!;
   const print = document.createElement('button');
   print.type = 'button'; print.className = 'projection-print'; print.textContent = 'Print track';
+  print.title = 'Print only the track and barcodes';
   settingsPanel.prepend(print);
   print.addEventListener('click', () => {
     if (!changeSettings()) return;
@@ -83,9 +84,10 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     }
     if (!render()) return;
     key = ''; dialog.querySelector('.projection-options-content')!.append(settingsPanel);
+    dialog.append(print);
     dialog.showModal(); options.querySelector('summary')!.focus();
   }
-  function close() { if (dialog.open) { dialog.close(); settingsHome.insertBefore(settingsPanel, settingsAnchor.nextSibling); options.open = false; trigger.focus(); } }
+  function close() { if (dialog.open) { dialog.close(); settingsPanel.prepend(print); settingsHome.insertBefore(settingsPanel, settingsAnchor.nextSibling); options.open = false; trigger.focus(); } }
   function cancel(event: Event) { event.preventDefault(); close(); }
   function changeSettings() {
     if (physicalLocked) { status.textContent = 'Close the physical projection and reconnect the robots before changing its settings.'; return false; }
