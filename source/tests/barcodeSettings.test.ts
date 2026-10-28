@@ -17,7 +17,17 @@ test('all supported bit counts encode their full range with guards', () => {
     }
     assert.throws(() => barcodeWidths(2 ** bits, defaultProjectionSettings, bits));
   }
-  for (const code of [{ bits: 0, value: 0 }, { bits: 9, value: 0 }, { bits: 3, value: 8 }, { bits: 4, value: -1 }, { bits: 4, value: 1.5 }])
+  for (const bits of [9, 10, 11, 12, 13, 14, 15, 16]) {
+    for (const value of [0, 1, 2 ** bits - 1]) {
+      const settings = validateProjectionSettings({ ...defaultProjectionSettings, crossingCode: { bits, value } });
+      const widths = barcodeWidths(value, settings, bits);
+      assert.equal(widths.length, bits + 2);
+      assert.equal(widths.slice(1, -1).map(width => width === settings.longLength ? '1' : '0').join(''), value.toString(2).padStart(bits, '0'));
+      assert.equal(configurationProjection('traffic-light', settings).markers[0]!.bits, bits);
+    }
+    assert.throws(() => barcodeWidths(2 ** bits, defaultProjectionSettings, bits));
+  }
+  for (const code of [{ bits: 0, value: 0 }, { bits: 17, value: 0 }, { bits: 3, value: 8 }, { bits: 4, value: -1 }, { bits: 4, value: 1.5 }])
     assert.throws(() => validateProjectionSettings({ ...defaultProjectionSettings, crossingCode: code }));
 });
 

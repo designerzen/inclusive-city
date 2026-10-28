@@ -5,16 +5,35 @@ import type { RobotTransport } from '../src/robot/physical/transport';
 import { approachLight } from '../src/ui/configurationSignals';
 import { defaultTrafficLightCommands, validateTrafficLightCommands, type TrafficLightCommands } from '../src/robot/physical/trafficLightCommands';
 
-function fixture(commands?: () => TrafficLightCommands) {
+function fixture(commands?: () => TrafficLightCommands, log?: (event: string, data?: unknown) => void) {
   const sent: string[] = [];
   const transport: RobotTransport = {
     id: 'test', name: 'Test robot', onData() {}, onDisconnect() {},
     async send(bytes) { sent.push(new TextDecoder().decode(bytes)); }, disconnect() {},
   };
-  const controller = new RobotTrafficLight(transport, () => {}, commands);
+  const controller = new RobotTrafficLight(transport, () => {}, commands, log);
   const receive = (text: string) => transport.onData(new TextEncoder().encode(text));
   return { controller, transport, sent, receive };
 }
+
+test('event audit retains raw partial data, unknown frames, commands, timers, state changes and stop failures', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const events: { event: string; data?: unknown }[] = [];
+  const { controller, transport, receive } = fixture(undefined, (event, data) => events.push({ event, data }));
+  await controller.start();
+  receive('ACK:'); receive('1\nunknown\nSIG:2\n');
+  t.mock.timers.tick(trafficLightWaitMs);
+  receive('ACK:4\n');
+  assert.equal(events.filter(entry => entry.event === 'Bluetooth RX bytes').length, 3);
+  assert.ok(events.some(entry => entry.event === 'Bluetooth RX frame' && JSON.stringify(entry.data) === JSON.stringify({ text: 'unknown', frame: null })));
+  assert.equal(events.filter(entry => entry.event === 'Bluetooth TX command').length, 2);
+  assert.ok(events.some(entry => entry.event === 'Continue timer scheduled'));
+  assert.ok(events.some(entry => entry.event === 'Robot state' && (entry.data as { phase: string }).phase === 'waiting'));
+  transport.send = async () => { throw new Error('Link lost'); };
+  controller.close();
+  await Promise.resolve(); await Promise.resolve();
+  assert.ok(events.some(entry => entry.event === 'Bluetooth TX stop failed'));
+});
 
 test('pairing starts; complete stop signal waits two seconds and resumes only once; green requires ACK', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });

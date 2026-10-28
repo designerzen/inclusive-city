@@ -86,7 +86,7 @@
 /* Two primary actions, with a quiet but full-sized way back. */
 #city-screen .city-toolbar { align-items: center; padding-left: 50px; }
 :root:not([data-text-size='100']) #city-screen #back-to-designer,
-#city-screen #back-to-designer { position: absolute; grid-row: auto; grid-column: auto; top: 12px; left: 12px; width: 44px; height: 44px; padding: 0; font-size: 0; background: var(--button-background, transparent); border-color: var(--button-border, transparent); opacity: .55; }
+#city-screen #back-to-designer { position: absolute; grid-row: auto; grid-column: auto; top: 12px; left: 12px; width: 44px; height: 44px; padding: 0; font-size: 0; background: var(--button-background, transparent); border-color: var(--button-border, transparent); opacity: var(--button-opacity, .55); }
 #city-screen #back-to-designer::before { margin: 0; }
 #city-screen #back-to-designer:is(:hover, :focus-visible) { opacity: 1; }
 #city-screen .city-tools button { width: auto; height: auto; min-height: 44px; flex: 0 0 auto; font-size: var(--text-small); padding: 8px 10px; }

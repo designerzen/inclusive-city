@@ -16,6 +16,7 @@ import { worldArrangements } from '../art/worldMusicStyles';
 import type { WorldMusicStyle } from '../art/worldMusicStyles';
 import { ExhibitionDuet, duetStory } from '../robot/exhibitionDuet';
 import type { DuetPhase } from '../robot/exhibitionDuet';
+import { mountBeatSequencer } from './beatSequencer';
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
@@ -31,6 +32,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     <aside class="performance-hud" aria-label="Performance controls">
       <details class="performance-jam" open>
         <summary>Play with your robot</summary>
+        <section class="beat-sequencer" aria-label="Looping drum sequencer"></section>
         <p>Tap an instrument or press its key. Play a melody, then ask for an answer.</p>
         <div class="jam-instruments" role="group" aria-label="Play instruments">
           <div class="jam-drum-kit" role="group" aria-label="Drums">
@@ -69,7 +71,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
             <div class="performance-save-options">
               <button class="secondary" id="exhibition-download" type="button">Save painting</button>
               <button class="secondary" id="exhibition-download-mp3" type="button">Save song (MP3)</button>
-              <p>The MP3 contains the backing song. Live playing and replies are not recorded.</p>
+              <p>The MP3 contains the backing song. Your beat loop, live playing and replies are not recorded.</p>
             </div>
           </details>
           <button class="tertiary" id="exhibition-attract" type="button">Start Again</button>
@@ -130,6 +132,9 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
   const beatsPerBar = () => journey?.artist.musician === 'waltz' ? 3
     : worldArrangements[journey?.artist.musician as WorldMusicStyle]?.beats ?? 4;
   const musicNow = () => sounds.musicTime(journey!.bpm);
+  const sequencer = mountBeatSequencer(container.querySelector<HTMLElement>('.beat-sequencer')!, sounds, () => {
+    if (active && !playing) playMusic();
+  });
   function resetAnswer() {
     answerVersion++; userNotes = []; answerPlayback?.stop(); answerPlayback = undefined;
     duet?.reset();
@@ -280,6 +285,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     extendExhibitionSong(journey.score, journey.bpm, 180, beatsPerBar());
     duet?.setSong(journey.score);
     duration = musicDuration(journey.score); progress.max = String(duration); updateTime(position);
+    sequencer.setDuration(duration);
     if (resume) playMusic();
     jamStatus.textContent = 'Added another three minutes. Keep playing along!';
   });
@@ -316,6 +322,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     time.textContent = `${timestamp(position)} / ${timestamp(duration)}`;
   }
   function stopMusic(reset = true, keepMusic = false) {
+    sequencer.stop();
     resetAnswer();
     if (!reset && playback) updateTime(playback.elapsed());
     window.clearInterval(timer); timer = 0; playing = false;
@@ -341,6 +348,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
     playback = sounds.perform(journey.score, journey.score[0]?.at, position, journey.bpm);
     if (!playback) { status.textContent = 'Playback could not start. Please try again.'; return; }
     playing = true;
+    sequencer.start(() => playback?.elapsed() ?? position);
     performer?.play(() => playback?.elapsed() ?? 0);
     play.disabled = true; stop.disabled = false; container.classList.add('is-playing');
     updateStory();
@@ -391,6 +399,7 @@ export function mountExhibitionScreen(container: HTMLElement, sounds: CitySounds
       stopMusic(true, !!clock); continuationClock = clock; renderer?.dispose(); performer?.dispose(); performer = null; performerContainer.hidden = true; active = false;
       journey = structuredClone(value); duration = musicDuration(journey.score);
       extendExhibitionSong(journey.score, journey.bpm, 180, beatsPerBar()); duration = musicDuration(journey.score);
+      sequencer.configure(journey.bpm, beatsPerBar(), duration);
       duet = new ExhibitionDuet(journey.bpm, beatsPerBar(), journey.score); storyPhase = null; updateStory();
       container.querySelector<HTMLButtonElement>('#exhibition-extend')!.disabled = !journey.score.length;
       const inspirations = container.querySelector<HTMLDetailsElement>('#exhibition-inspirations')!;

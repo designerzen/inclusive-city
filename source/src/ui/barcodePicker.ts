@@ -1,11 +1,11 @@
-import type { BarcodeValue } from '../city/projectionSettings';
+import { barcodeBitCounts, barcodeCapacity, type BarcodeValue } from '../city/projectionSettings';
 import type { configurationProjection } from '../city/configurationProjection';
 
 export function mountBarcodePicker(svg: SVGElement, title: string, getValue: () => BarcodeValue, save: (value: BarcodeValue) => void) {
   const dialog = document.createElement('dialog');
   dialog.className = 'barcode-picker';
   dialog.setAttribute('aria-labelledby', 'barcode-picker-title');
-  dialog.innerHTML = `<h2 id="barcode-picker-title">${title} barcode</h2><div class="barcode-tabs" role="tablist" aria-label="Number of bits"></div><p>Choose the value to draw. Changes save automatically.</p><div id="barcode-values" role="tabpanel"></div><button type="button" class="primary barcode-done">Done</button>`;
+  dialog.innerHTML = `<h2 id="barcode-picker-title">${title} barcode</h2><div class="barcode-tabs" role="tablist" aria-label="Number of bits"></div><p>Each bit doubles the number of available values. Choose a capacity, then a value. Changes save automatically.</p><div id="barcode-values" role="tabpanel"></div><button type="button" class="primary barcode-done">Done</button>`;
   document.body.append(dialog);
   const tabs = dialog.querySelector<HTMLElement>('.barcode-tabs')!;
   const values = dialog.querySelector<HTMLElement>('#barcode-values')!;
@@ -14,33 +14,43 @@ export function mountBarcodePicker(svg: SVGElement, title: string, getValue: () 
   function renderValues() {
     const selection = getValue();
     values.setAttribute('aria-labelledby', `barcode-tab-${active}`);
-    values.innerHTML = `<fieldset><legend>${active} bit: 0–${2 ** active - 1}</legend><div class="barcode-values">${Array.from({ length: 2 ** active }, (_, value) => `<label><input type="radio" name="barcode-value" value="${value}" ${selection.bits === active && selection.value === value ? 'checked' : ''}><span>${value}<small>${value.toString(2).padStart(active, '0')}</small></span></label>`).join('')}</div></fieldset>`;
+    values.innerHTML = `<fieldset><legend>${barcodeCapacity(active)}</legend><label class="barcode-number">Encoded value<input type="number" min="0" max="${2 ** active - 1}" step="1" value="${selection.value}" data-barcode-number></label><output>${selection.value.toString(2).padStart(active, '0')}</output>${active <= 8 ? `<div class="barcode-values">${Array.from({ length: 2 ** active }, (_, value) => `<label><input type="radio" name="barcode-value" value="${value}" ${selection.value === value ? 'checked' : ''}><span>${value}<small>${value.toString(2).padStart(active, '0')}</small></span></label>`).join('')}</div>` : '<p>Enter a number above to choose from the full range.</p>'}</fieldset>`;
     tabs.querySelectorAll<HTMLButtonElement>('button').forEach(button => {
       const selected = Number(button.dataset.bits) === active;
       button.setAttribute('aria-selected', String(selected));
       button.tabIndex = selected ? 0 : -1;
     });
   }
-  for (let bits = 1; bits <= 8; bits++) {
+  function selectBits(bits: number) {
+    active = bits;
+    save({ bits, value: Math.min(getValue().value, 2 ** bits - 1) });
+    renderValues();
+  }
+  for (const bits of barcodeBitCounts) {
     const tab = document.createElement('button'); tab.classList.add('tertiary');
     tab.type = 'button'; tab.role = 'tab'; tab.id = `barcode-tab-${bits}`;
     tab.dataset.bits = String(bits); tab.textContent = `${bits} bit`;
     tab.setAttribute('aria-controls', 'barcode-values');
-    tab.addEventListener('click', () => { active = bits; renderValues(); });
+    tab.addEventListener('click', () => selectBits(bits));
     tab.addEventListener('keydown', event => {
       let next = bits;
-      if (event.key === 'ArrowRight') next = bits % 8 + 1;
-      else if (event.key === 'ArrowLeft') next = (bits + 6) % 8 + 1;
+      if (event.key === 'ArrowRight') next = bits % 16 + 1;
+      else if (event.key === 'ArrowLeft') next = (bits + 14) % 16 + 1;
       else if (event.key === 'Home') next = 1;
-      else if (event.key === 'End') next = 8;
+      else if (event.key === 'End') next = 16;
       else return;
-      event.preventDefault(); active = next; renderValues();
+      event.preventDefault(); selectBits(next);
       tabs.querySelector<HTMLButtonElement>(`[data-bits="${next}"]`)!.focus();
     });
     tabs.append(tab);
   }
   values.addEventListener('change', event => {
-    if (event.target instanceof HTMLInputElement) save({ bits: active, value: Number(event.target.value) });
+    if (event.target instanceof HTMLInputElement && event.target.checkValidity()) {
+      save({ bits: active, value: Number(event.target.value) });
+      values.querySelector('output')!.textContent = getValue().value.toString(2).padStart(active, '0');
+      values.querySelector<HTMLInputElement>('[data-barcode-number]')!.value = String(getValue().value);
+      values.querySelectorAll<HTMLInputElement>('[type="radio"]').forEach(input => { input.checked = Number(input.value) === getValue().value; });
+    }
   });
   dialog.querySelector('button.barcode-done')!.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => svg.querySelector<SVGGElement>(`[data-barcode-index="${origin}"]`)?.focus());

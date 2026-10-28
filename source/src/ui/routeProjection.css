@@ -23,3 +23,15 @@
 .projection-options:not([open]) .projection-options-content { display: none; }
 .route-projection .projection-options input { color: #000; background: #fff; }
 .route-projection .projection-options summary { color: #000; }
+.projection-barcode-settings { display: grid; gap: 12px; margin-block: 12px; }
+.projection-barcode-settings fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid #aab4bc; border-radius: 8px; }
+.projection-barcode-settings label, .barcode-number, .projection-print-margin { display: flex; flex-direction: column; gap: 6px; margin-block: 8px; }
+.projection-barcode-settings :is(select, input), .barcode-number input, .projection-print-margin select { box-sizing: border-box; width: 100%; min-width: 44px; min-height: 44px; padding: 8px; font: inherit; border: 1px solid #aab4bc; border-radius: 8px; background: #fff; color: #252b30; }
+.projection-barcode-settings output, .barcode-picker output { display: block; overflow-wrap: anywhere; font-family: monospace; }
+.projection-print, .projection-log button { box-sizing: border-box; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid #aab4bc; border-radius: 8px; background: var(--button-background, #fff); color: var(--button-ink, #254d40); font: inherit; cursor: pointer; }
+.projection-log { min-width: 0; max-width: 100%; }
+.projection-log[open] { flex-basis: 100%; width: 100%; }
+.projection-log > summary { box-sizing: border-box; min-width: 44px; min-height: 44px; display: flex; align-items: center; padding: 8px 12px; cursor: pointer; }
+.projection-log ol { max-height: 240px; overflow: auto; padding-left: 28px; font-family: monospace; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.projection-log li { white-space: pre-wrap; margin-block: 8px; }
+.projection-log:not([open]) > :not(summary) { display: none; }

@@ -30,7 +30,7 @@
 [data-theme='light'] input[type='range']::-moz-range-progress { background: #355d52; }
 [data-theme='light'] input[type='range']::-webkit-slider-thumb { background: #f8faf4; border-color: #355d52; box-shadow: none; }
 [data-theme='light'] input[type='range']::-moz-range-thumb { background: #f8faf4; border-color: #355d52; }
-[data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track { background: #355d52; }
+[data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track { background: var(--control-on); }
 [data-theme='light'] button[role='switch'][aria-checked='true'] .switch-track > span { background: #f8faf4; }
 [data-theme='light'] :is(.midi-settings select, #app-theme, #city-feature, #robot-preset) { color: #24494a; background: #e9efe8; border-color: #a5bbb1; }
 [data-theme='light'] :is(.stage, #ability-designer, .city-stage, .city-editor, .creative-studio, .catwalk-presentation, .city-instructions) { color: #203b3c; background: #f8faf4; border-color: #a5bbb1; }

@@ -2,8 +2,9 @@ import { BleRobotTransport, bluetoothUnavailableReason } from '../robot/physical
 import { getMicrocontrollerSettings } from '../robot/physical/microcontroller';
 import { RobotTrafficLight } from '../robot/physical/trafficLight';
 import type { TrafficLightCommands } from '../robot/physical/trafficLightCommands';
+import type { ProjectionLog } from './projectionLog';
 
-export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (light: string, barcodeStop: number, enabled: boolean) => void, commands: () => TrafficLightCommands) {
+export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (light: string, barcodeStop: number, enabled: boolean) => void, commands: () => TrafficLightCommands, log: ProjectionLog = () => {}) {
   const section = document.createElement('section');
   section.className = 'configuration-robot';
   section.ariaLabel = 'Robot traffic lights';
@@ -27,22 +28,25 @@ export function mountConfigurationRobot(parent: HTMLElement, lightChanged: (ligh
   pair.addEventListener('click', async () => {
     const attempt = ++generation;
     connecting = true; refresh();
+    log('Pairing requested');
     try {
       const settings = getMicrocontrollerSettings().ble;
       if (!settings.notify) throw new Error('A notification characteristic is required to receive the robot stop signal.');
       const transport = await BleRobotTransport.connect(settings);
       if (attempt !== generation) { transport.disconnect(); return; }
-      controller = new RobotTrafficLight(transport, refresh, commands);
+      log('Robot connected', { id: transport.id, name: transport.name });
+      controller = new RobotTrafficLight(transport, refresh, commands, log);
       connecting = false; refresh();
       await controller.start();
     } catch (error) {
-      if (attempt === generation) { connecting = false; refresh(); status.textContent = `Could not pair: ${error instanceof Error ? error.message : String(error)}`; }
+      if (attempt === generation) { connecting = false; refresh(); status.textContent = `Could not pair: ${error instanceof Error ? error.message : String(error)}`; log('Pairing failed', status.textContent); }
     } finally { if (attempt === generation) { connecting = false; } }
   });
-  function close() { generation++; connecting = false; controller?.close(); refresh(); }
+  function close() { generation++; connecting = false; log('Stop and disconnect requested'); controller?.close(); refresh(); }
   stop.addEventListener('click', close);
   window.addEventListener('pagehide', close);
   document.addEventListener('visibilitychange', () => { if (document.hidden) close(); });
   refresh();
+  log('Bluetooth availability', { supported, reason: unsupported });
   return { fulfill: (approach: number) => controller?.fulfill(approach) };
 }

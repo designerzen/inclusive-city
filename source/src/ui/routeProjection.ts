@@ -4,6 +4,8 @@ import { routeProjection } from '../city/routeProjection';
 import { type ProjectionSettings } from '../city/projectionSettings';
 import { loadProjectionSettings, saveProjectionSettings, projectionSettingsMarkup, readProjectionSettings, renderProjection } from './projectionShared';
 import './routeProjection.css';
+import { printProjection } from './projectionPrint';
+import { mountProjectionLog } from './projectionLog';
 
 export function mountRouteProjection(container: HTMLElement, getJourney: () => PlannedJourney | undefined) {
   const trigger = container.querySelector<HTMLButtonElement>('#city-project-line')!;
@@ -13,6 +15,8 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   settingsPanel.before(settingsAnchor);
   let settings = loadProjectionSettings();
   settingsPanel.innerHTML = projectionSettingsMarkup(settings);
+  const log = mountProjectionLog(settingsPanel);
+  log('Projection settings loaded', settings);
   const status = settingsPanel.querySelector<HTMLElement>('#projection-setting-status')!;
   const dialog = document.createElement('dialog');
   dialog.className = 'route-projection'; dialog.setAttribute('aria-label', 'Robot line projection');
@@ -22,6 +26,18 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   document.body.append(dialog);
   const svg = dialog.querySelector('svg')!;
   const options = dialog.querySelector<HTMLDetailsElement>('.projection-options')!;
+  const print = document.createElement('button');
+  print.type = 'button'; print.className = 'projection-print'; print.textContent = 'Print track';
+  settingsPanel.prepend(print);
+  print.addEventListener('click', () => {
+    if (!changeSettings()) return;
+    const journey = getJourney(); if (!journey) return;
+    try {
+      const marginMm = Number(settingsPanel.querySelector<HTMLSelectElement>('#projection-print-margin')!.value);
+      printProjection(routeProjection(journey, settings), settings, marginMm); log('Print requested', { settings, marginMm });
+    }
+    catch (reason) { status.textContent = String(reason); log('Print failed', String(reason)); }
+  });
   const closeButton = dialog.querySelector<HTMLButtonElement>('.projection-close')!;
   let key = '';
   let physicalWindow: Window | null = null;
@@ -35,6 +51,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
     try {
       const projection = routeProjection(journey, settings);
       renderProjection(svg, projection, settings);
+      log('Route rendered', { scale: projection.scale, markers: projection.markers, points: projection.points });
       settingsPanel.querySelector('.projection-legend')!.replaceChildren(...projection.markers.map(marker => {
         const item = document.createElement('li'); item.textContent = `${marker.code.toString(2).padStart(marker.bits, '0')} — ${marker.node}: ${marker.label}`; return item;
       }));
@@ -42,6 +59,7 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
       return true;
     } catch (reason) {
       status.textContent = reason instanceof Error ? reason.message : 'Unable to project this route.';
+      log('Projection failed', status.textContent);
       if (dialog.open) { options.open = true; return false; }
       const controls = container.querySelector<HTMLDetailsElement>('#city-controls-hud');
       if (controls) controls.open = true;
@@ -72,7 +90,9 @@ export function mountRouteProjection(container: HTMLElement, getJourney: () => P
   function changeSettings() {
     if (physicalLocked) { status.textContent = 'Close the physical projection and reconnect the robots before changing its settings.'; return false; }
     try {
-      settings = readProjectionSettings(settingsPanel, settings);
+      const next = readProjectionSettings(settingsPanel, settings);
+      if (JSON.stringify(next) !== JSON.stringify(settings)) log('Projection settings changed', next);
+      settings = next;
       saveProjectionSettings(settings);
       status.textContent = ''; refresh(); return true;
     } catch (reason) { status.textContent = reason instanceof Error ? reason.message : 'Check the projection settings.'; return false; }

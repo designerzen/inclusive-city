@@ -12,7 +12,7 @@ export const projectionLineWidth = .16;
 export const projectionCodes = ['Start journey', 'Raised curb', 'Bridge / steps', 'Narrow passage', 'Pelican crossing', 'Route cues', 'Train boarding', 'Bicycle', 'Music discovery', 'Art discovery', 'Harmony discovery', 'Colour discovery', 'Studio arrival', 'Junction reached', 'Access support'] as const;
 
 export function barcodeWidths(code: number, settings: ProjectionSettings = defaultProjectionSettings, bits = 4) {
-  if (!Number.isInteger(bits) || bits < 1 || bits > 8 || !Number.isInteger(code) || code < 0 || code >= 2 ** bits) throw new RangeError('Barcode must fit its 1–8 bit range.');
+  if (!Number.isInteger(bits) || bits < 1 || bits > 16 || !Number.isInteger(code) || code < 0 || code >= 2 ** bits) throw new RangeError('Barcode must fit its 1–16 bit range.');
   return [settings.markerLength, ...code.toString(2).padStart(bits, '0').split('').map(bit => bit === '1' ? settings.longLength : settings.shortLength), settings.markerLength];
 }
 

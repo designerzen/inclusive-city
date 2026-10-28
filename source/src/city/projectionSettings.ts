@@ -10,6 +10,10 @@ export const projectionFields = [
 ] as const;
 export type ProjectionDimension = typeof projectionFields[number]['key'];
 export type BarcodeValue = { bits: number; value: number };
+export const barcodeBitCounts = Array.from({ length: 16 }, (_, index) => index + 1);
+export function barcodeCapacity(bits: number) {
+  return `${bits} ${bits === 1 ? 'bit' : 'bits'} · ${2 ** bits} values (0–${2 ** bits - 1})`;
+}
 export type ProjectionSettings = Record<ProjectionDimension, number> & { autoFit: boolean; mirror: boolean; mirrorVertical: boolean; crossingCode: BarcodeValue; junctionCode: BarcodeValue };
 export const defaultProjectionSettings = Object.fromEntries([
   ...projectionFields.map(field => [field.key, field.value]), ['autoFit', true], ['mirror', false], ['mirrorVertical', false],
@@ -29,9 +33,9 @@ export function validateProjectionSettings(value: ProjectionSettings): Projectio
   if (typeof value.mirrorVertical !== 'boolean') throw new Error('Choose whether to reflect the route vertically.');
   for (const key of ['crossingCode', 'junctionCode'] as const) {
     const code = value[key];
-    if (!code || !Number.isInteger(code.bits) || code.bits < 1 || code.bits > 8
+    if (!code || !Number.isInteger(code.bits) || code.bits < 1 || code.bits > 16
       || !Number.isInteger(code.value) || code.value < 0 || code.value >= 2 ** code.bits)
-      throw new Error('Choose a barcode with 1–8 bits and a value within its range.');
+      throw new Error('Choose a barcode with 1–16 bits and a value within its range.');
   }
   return { ...value, crossingCode: { ...value.crossingCode }, junctionCode: { ...value.junctionCode } };
 }

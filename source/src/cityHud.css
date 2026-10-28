@@ -41,7 +41,7 @@ body:has(.city-mode) { overflow: hidden; }
 #city-seed { font-size: var(--text-caption); color: #c0c0c0; }
 .city-tools { display: flex; gap: 6px; }
 #city-screen button { min-height: 44px; padding: 10px 14px; border: 1px solid #777777; border-radius: 10px; background: var(--button-background, #333333); color: var(--button-ink, #eeeeee); font-size: var(--text-small); line-height: 1.3; }
-#city-screen button:disabled { opacity: .5; cursor: default; }
+#city-screen button:disabled { opacity: 1; cursor: default; }
 #city-screen button:hover:enabled { background: var(--button-hover-background, #555555); border-color: var(--button-border, #dddddd); }
 #city-screen button[aria-pressed='true'], #city-screen #city-pause, #city-screen #city-repair, #city-screen #city-exhibition { background: var(--button-background, #eeeeee); color: var(--button-ink, #171717); border-color: var(--button-border, #eeeeee); }
 #city-screen button[aria-pressed='true']:hover:enabled, #city-screen #city-pause:hover:enabled, #city-screen #city-repair:hover:enabled, #city-screen #city-exhibition:hover:enabled { background: var(--button-hover-background, #d0d0d0); }

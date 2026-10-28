@@ -1,50 +1,60 @@
 /* Action priority is explicit in markup. Component styles consume these same
    colour variables so IDs and layout-specific selectors cannot undo priority. */
 :root {
+  --control-disabled-background: #5a2024;
+  --control-disabled-ink: #ffdddd;
+  --control-disabled-border: #ef8e93;
+  --control-on: #62bc7a;
+  --control-off: #de6b75;
   --button-primary-background: var(--ui-primary, #b7ef87);
   --button-primary-hover: var(--ui-primary-hover, #d1ffa7);
   --button-primary-ink: var(--ui-primary-ink, #182c21);
-  --button-secondary-background: #29494a;
-  --button-secondary-hover: #365c5b;
-  --button-secondary-ink: #f0f6ed;
-  --button-secondary-border: #78988d;
-  --button-tertiary-ink: #c4d6ce;
-  --button-tertiary-hover: #78988d24;
-  --button-selected-background: #e1d4ff;
-  --button-selected-ink: #352452;
-  --button-selected-border: #bca0ed;
+  --button-secondary-background: #224b36;
+  --button-secondary-hover: #306547;
+  --button-secondary-ink: #e9f7e9;
+  --button-secondary-border: #78ad80;
+  --button-tertiary-ink: #b7e6ba;
+  --button-tertiary-hover: #78ad8024;
+  --button-selected-background: #285c3c;
+  --button-selected-ink: #e8ffe9;
+  --button-selected-border: #8cda8c;
 }
 :root[data-theme='light'], #body-app, .configuration-page {
+  --control-disabled-background: #fbe3e3;
+  --control-disabled-ink: #8a2028;
+  --control-disabled-border: #bc4a54;
+  --control-on: #28743d;
+  --control-off: #ad303d;
   --button-primary-background: #285d36;
   --button-primary-hover: #1b4828;
   --button-primary-ink: #ffffff;
-  --button-secondary-background: #e3ece1;
-  --button-secondary-hover: #d1e0cd;
-  --button-secondary-ink: #244332;
-  --button-secondary-border: #829a7b;
-  --button-tertiary-ink: #3d5848;
+  --button-secondary-background: #e1eee0;
+  --button-secondary-hover: #cee3cb;
+  --button-secondary-ink: #244b2f;
+  --button-secondary-border: #739b78;
+  --button-tertiary-ink: #31613b;
   --button-tertiary-hover: #426b5017;
-  --button-selected-background: #e6ddff;
-  --button-selected-ink: #443367;
-  --button-selected-border: #8369ac;
+  --button-selected-background: #d1e8d5;
+  --button-selected-ink: #18472a;
+  --button-selected-border: #376f43;
 }
 button.primary {
-  --button-background: var(--button-primary-background);
-  --button-hover-background: var(--button-primary-hover);
-  --button-ink: var(--button-primary-ink);
-  --button-border: var(--button-primary-background);
+  --button-background: var(--button-state-background, var(--button-primary-background));
+  --button-hover-background: var(--button-state-background, var(--button-primary-hover));
+  --button-ink: var(--button-state-ink, var(--button-primary-ink));
+  --button-border: var(--button-state-border, var(--button-primary-background));
 }
 button.secondary {
-  --button-background: var(--button-secondary-background);
-  --button-hover-background: var(--button-secondary-hover);
-  --button-ink: var(--button-secondary-ink);
-  --button-border: var(--button-secondary-border);
+  --button-background: var(--button-state-background, var(--button-secondary-background));
+  --button-hover-background: var(--button-state-background, var(--button-secondary-hover));
+  --button-ink: var(--button-state-ink, var(--button-secondary-ink));
+  --button-border: var(--button-state-border, var(--button-secondary-border));
 }
 button.tertiary {
-  --button-background: transparent;
-  --button-hover-background: var(--button-tertiary-hover);
-  --button-ink: var(--button-tertiary-ink);
-  --button-border: transparent;
+  --button-background: var(--button-state-background, transparent);
+  --button-hover-background: var(--button-state-background, var(--button-tertiary-hover));
+  --button-ink: var(--button-state-ink, var(--button-tertiary-ink));
+  --button-border: var(--button-state-border, transparent);
 }
 button:is(.primary, .secondary, .tertiary) {
   background: var(--button-background);
@@ -56,8 +66,65 @@ button:is(.primary, .secondary, .tertiary):hover:not(:disabled):not([aria-disabl
 }
 /* Selection is a state, separate from an action's priority. */
 button:is(.primary, .secondary, .tertiary):is([aria-pressed='true'], [aria-checked='true'], [aria-selected='true'], [aria-expanded='true']) {
-  --button-background: var(--button-selected-background);
-  --button-hover-background: var(--button-selected-background);
-  --button-ink: var(--button-selected-ink);
-  --button-border: var(--button-selected-border);
+  --button-background: var(--button-state-background, var(--button-selected-background));
+  --button-hover-background: var(--button-state-background, var(--button-selected-background));
+  --button-ink: var(--button-state-ink, var(--button-selected-ink));
+  --button-border: var(--button-state-border, var(--button-selected-border));
+}
+
+/* New/dynamic action buttons get the same available-state palette. This excludes
+   input-like switch controls and the browser's customizable-select trigger. */
+button:not([role='switch']):not(select button):not(.primary):not(.secondary):not(.tertiary) {
+  --button-background: var(--button-state-background, var(--button-secondary-background));
+  --button-hover-background: var(--button-state-background, var(--button-secondary-hover));
+  --button-ink: var(--button-state-ink, var(--button-secondary-ink));
+  --button-border: var(--button-state-border, var(--button-secondary-border));
+  background: var(--button-background);
+  color: var(--button-ink);
+  border-color: var(--button-border);
+}
+button:is(:disabled, [aria-disabled='true']) {
+  --button-opacity: 1;
+  --button-state-background: var(--control-disabled-background);
+  --button-state-ink: var(--control-disabled-ink);
+  --button-state-border: var(--control-disabled-border);
+  background: var(--control-disabled-background);
+  color: var(--control-disabled-ink);
+  border-color: var(--control-disabled-border);
+  opacity: 1;
+  cursor: not-allowed;
+}
+/* These are settings with explicit on/off semantics, not navigation tabs. */
+button:is([role='switch'][aria-checked='false'], .exposure-toggle[aria-pressed='false']) {
+  --button-state-background: var(--control-disabled-background);
+  --button-state-ink: var(--control-disabled-ink);
+  --button-state-border: var(--control-disabled-border);
+}
+input:is([type='checkbox'], [type='radio']) { accent-color: var(--control-on); }
+input:is([type='checkbox'], [type='radio']):is(:disabled, :not(:checked)) { accent-color: var(--control-off); }
+button[role='switch'] .switch-track { background: var(--control-off); }
+button[role='switch'][aria-checked='true'] .switch-track { background: var(--control-on); }
+button[role='switch']:is(:disabled, [aria-disabled='true']) .switch-track { background: var(--control-off); }
+/* The sequencer's nested pad face must also reflect unavailability. */
+#exhibition-screen .performance-hud .beat-pad:is(:disabled, [aria-disabled='true']) .beat-pad-face {
+  background: var(--control-disabled-background);
+  color: var(--control-disabled-ink);
+  border-color: var(--control-disabled-border);
+}
+
+/* Sequencer lights are on/off settings as well as clickable buttons. */
+#exhibition-screen .performance-hud .beat-pad {
+  --button-background: var(--button-state-background, var(--button-selected-background));
+  --button-ink: var(--button-state-ink, var(--button-selected-ink));
+  --button-border: var(--button-state-border, var(--button-selected-border));
+}
+#exhibition-screen .performance-hud .beat-pad[aria-pressed='false'] {
+  --button-state-background: var(--control-disabled-background);
+  --button-state-ink: var(--control-disabled-ink);
+  --button-state-border: var(--control-disabled-border);
+}
+#exhibition-screen .performance-hud .beat-pad .beat-pad-face {
+  background: var(--button-background);
+  color: var(--button-ink);
+  border-color: var(--button-border);
 }
