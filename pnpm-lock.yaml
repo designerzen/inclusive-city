@@ -148,7 +148,13 @@ importers:
       polygon-clipping:
         specifier: ^0.15.7
         version: 0.15.7
+      qrcode-generator:
+        specifier: 2.0.4
+        version: 2.0.4
     devDependencies:
+      jsqr:
+        specifier: 1.4.0
+        version: 1.4.0
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -1166,6 +1172,9 @@ packages:
   json-stringify-safe@5.0.1:
     resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
 
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
+
   kind-of@3.2.2:
     resolution: {integrity: sha512-NOW9QQXMoZGg/oqnVNoNTTIFEIid1627WCffUBJEdMxYApq7mNE7CpzucIPc+ZQg25Phej7IJSmX3hO+oblOtQ==}
     engines: {node: '>=0.10.0'}
@@ -1379,6 +1388,9 @@ packages:
   protobufjs@7.6.6:
     resolution: {integrity: sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==}
     engines: {node: '>=12.0.0'}
+
+  qrcode-generator@2.0.4:
+    resolution: {integrity: sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==}
 
   quote-stream@0.0.0:
     resolution: {integrity: sha512-m4VtvjAMx00wgAS6eOy50ZDat1EBQeFKBIrtF/oxUt0MenEI33y7runJcRiOihc+JBBIt2aFFJhILIh4e9shJA==}
@@ -2452,6 +2464,8 @@ snapshots:
 
   json-stringify-safe@5.0.1: {}
 
+  jsqr@1.4.0: {}
+
   kind-of@3.2.2:
     dependencies:
       is-buffer: 1.1.6
@@ -2662,6 +2676,8 @@ snapshots:
       '@protobufjs/utf8': 1.1.2
       '@types/node': 26.6.3
       long: 5.3.2
+
+  qrcode-generator@2.0.4: {}
 
   quote-stream@0.0.0:
     dependencies:
