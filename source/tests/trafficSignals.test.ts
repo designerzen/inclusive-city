@@ -74,14 +74,13 @@ test('countdowns appear while the player waits or crosses and disappear after de
   assert.equal(crossingInUse(street, j), false);
 });
 
-test('wandering robots activate only their own crossing in either direction', () => {
+test('a crossing stays quiet when only other robots are travelling', () => {
   const j = crossing(), street = j.world.streets[0]!;
-  const bot = (a: string, b: string) => ({ node: { id: a }, target: { id: b } });
-  assert.equal(crossingInUse(street, j, [bot('a', 'b')]), true);
-  assert.equal(crossingInUse(street, j, [bot('b', 'a')]), true);
-  assert.equal(crossingInUse(street, j, [bot('a', 'c')]), false);
-  assert.equal(crossingInUse(street, j, [bot('a', 'a')]), false);
-  assert.equal(crossingInUse(street, j, []), false);
+  j.nearbyRobots = () => [{ id: 'other', name: 'Other robot', buttonReach: 1, position: j.position }];
+  assert.equal(crossingInUse(street, j), false);
+  j.start();
+  assert.equal(crossingInUse(street, j), true);
+  assert.equal(crossingInUse({ ...street, id: 'elsewhere' }, j), false);
 });
 
 test('short green is a barrier based on the full crossing length; extending it resolves it', () => {

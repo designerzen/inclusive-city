@@ -161,3 +161,15 @@
   #city-screen .city-toolbar .city-tools button::before { display: inline-block; margin: 0; }
   #city-screen .city-view-tools { top: 64px; }
 }
+
+/* A selection reveals only its editor; ongoing issues have a single home. */
+#city-screen .city-interaction-hud[data-collapsed] > :is(.city-feature-editor, .city-issue):not([hidden]) { display: block; }
+#city-screen .city-feature-editor { padding: 12px; border-top: 1px solid var(--ui-border); }
+#city-screen .city-feature-editor > button:first-child { float: right; margin-left: 8px; }
+#city-screen .city-feature-editor > label { display: block; clear: both; }
+#city-screen .city-feature-editor h3 { margin: 12px 0 6px; font-size: var(--text-lead); }
+#city-screen .city-feature-editor p { font-size: var(--text-small); line-height: 1.45; }
+#city-screen .city-feature-editor :is(select, input[type='range']) { width: 100%; }
+#city-screen .city-feature-editor > button:not(:first-child) { margin-top: 8px; }
+#city-screen .city-chat > summary { padding: 8px 12px; cursor: pointer; }
+#city-screen .city-hover { width: max-content; max-width: min(240px, calc(100% - 16px)); box-sizing: border-box; z-index: 6; }

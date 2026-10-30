@@ -161,7 +161,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const housing = box(`signal-head-${street.id}-${i}`, x, 2.05, z, .6, .9, .4, flagBlack);
       housing.metadata = { street: street.id }; housing.isPickable = true;
       createCrossingCountdown(scene, housing, () => journey.signal(street), () => street.crossingSeconds,
-        () => crossingInUse(street, journey, autonomousBots?.bots));
+        () => crossingInUse(street, journey) && journey.route[journey.edge] === node.id);
       const lamp = (name: string, y: number) => {
         const mesh = MeshBuilder.CreateSphere(`${name}-${street.id}-${i}`, { diameter: .28, segments: 12 }, scene);
         mesh.position.set(x, y, z - .23); mesh.material = signalOff; mesh.isPickable = false; return mesh;
@@ -466,6 +466,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       antenna.rotation.z = pose.antenna;
       camera.setPerformanceTime(motion ? 4 : elapsed);
     }
+    updateEditFeedback(animationSeconds);
     camera.update(seconds, reducedMotionPreference().matches);
     if (speaking && !journey.complete && camera.view !== 'robot-eye') {
       // The face points along local -Z. Aim it at the viewer without turning the route.
@@ -515,10 +516,33 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
     return bicycle ?? scene.pick(x, y, m => !!m.metadata?.street)?.pickedMesh?.metadata.street as string | undefined;
   }
   let highlighted: typeof scene.meshes = [];
+  let changedMeshes: typeof scene.meshes = [];
+  let changeRemaining = 0;
+  function featureMeshes(id: string | null) {
+    if (!id) return [];
+    const street = id.replace(/^(width|crossing|signals|panel|humpback):/, '');
+    return scene.meshes.filter(m => m.metadata?.street === street || m.metadata?.dimension === id
+      || id.startsWith(`wall:${m.metadata?.building}:`) && (!m.metadata?.side || id.endsWith(`:${m.metadata.side}`)));
+  }
+  function clearOverlay(meshes: typeof scene.meshes) {
+    meshes.forEach(m => { m.renderOverlay = false; m.visibility = 1; });
+  }
+  function updateEditFeedback(seconds = 0) {
+    clearOverlay(changedMeshes);
+    changeRemaining = Math.max(0, changeRemaining - seconds);
+    if (!changeRemaining) changedMeshes = [];
+    highlighted.forEach(m => { m.renderOverlay = true; m.overlayColor = theme === 'dark' ? Color3.White() : Color3.Black(); m.overlayAlpha = .25; });
+    changedMeshes.forEach(m => {
+      m.renderOverlay = true; m.overlayColor = Color3.FromHexString('#75dfb0');
+      m.overlayAlpha = reducedMotionPreference().matches ? .35 : .45 * Math.min(1, changeRemaining / .4);
+    });
+  }
   function highlight(id: string | null) {
-    highlighted.forEach(m => { m.renderOverlay = false; m.visibility = 1; });
-    highlighted = id ? scene.meshes.filter(m => m.metadata?.street === id || m.metadata?.dimension === id || id.startsWith(`wall:${m.metadata?.building}:`) && (!m.metadata?.side || id.endsWith(`:${m.metadata.side}`))) : [];
-    highlighted.forEach(m => { m.renderOverlay = true; m.overlayColor = theme === 'dark' ? Color3.White() : Color3.Black(); m.overlayAlpha = .4; m.visibility = .7; });
+    clearOverlay(highlighted); highlighted = featureMeshes(id); updateEditFeedback();
+  }
+  function showEditFeedback(id: string) {
+    clearOverlay(changedMeshes); changedMeshes = featureMeshes(id);
+    changeRemaining = 1.2; updateEditFeedback();
   }
   function setTheme(value: Theme) {
     river.setTheme(value);
@@ -568,7 +592,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
       const point = inspirationPosition(id);
       inspirationLook = point ? { x: point.x, z: point.z, remaining: 1.4 } : null;
     },
-    get robotConditions() { return [{ name: journey.bot.name, state: journey.machine.state, condition: journey.machine.record.condition }, ...(autonomousBots?.bots.map((bot, i) => ({ name: `City robot ${i + 1}`, state: bot.stuck > 0 ? 'blocked' : bot.condition.speed > .01 ? 'following' : 'waiting', condition: bot.condition })) ?? [])]; }, nodeAt, streetAt, projectNode, projectRobotBounds, highlight,
+    get robotConditions() { return [{ name: journey.bot.name, state: journey.machine.state, condition: journey.machine.record.condition }, ...(autonomousBots?.bots.map((bot, i) => ({ name: `City robot ${i + 1}`, state: bot.stuck > 0 ? 'blocked' : bot.condition.speed > .01 ? 'following' : 'waiting', condition: bot.condition })) ?? [])]; }, nodeAt, streetAt, projectNode, projectRobotBounds, highlight, showEditFeedback,
     get musicPosition() { const p = physics?.position ?? journey.position; return { x: p.x, y: p.y, z: p.z }; },
     physicsReady, get physicsStatus() { return physicsStatus; },
     resizer, onResizeSelected(callback: (id: string) => void) { onResizeSelected = callback; },

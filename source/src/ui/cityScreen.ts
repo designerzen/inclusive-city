@@ -86,7 +86,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         </div>
       </div>
     <div class="city-interaction-hud">
-    <div class="city-assistant-heading"><strong>Robot companion</strong><button class="tertiary" id="city-assistant-toggle" type="button" aria-expanded="true" aria-controls="city-reply journey-inspirations city-controls-hud city-issue">Minimise</button></div>
+    <div class="city-assistant-heading"><strong>Your city</strong><button class="tertiary" id="city-assistant-toggle" type="button" aria-expanded="true" aria-controls="city-controls-hud">Minimise</button></div>
     <details id="journey-inspirations" class="journey-inspirations">
       <summary>Journey inspirations · <span id="inspiration-count">0</span></summary>
       <div class="inspiration-content">
@@ -101,7 +101,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       <p id="city-encounter-status" role="status" hidden></p>
     </section>
     <div class="city-journey-actions" role="group" aria-label="City journey controls"><button class="primary" id="city-pause" type="button">Start robot</button></div>
-    <section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section>
+    <details class="city-chat"><summary>Ask your robot</summary><section id="city-reply" class="city-reply" aria-label="Reply to your robot"></section></details>
     <section id="city-issue" class="city-issue" aria-label="Help your robot" hidden>
       <h2>Your robot is stuck</h2>
       <p id="city-issue-description" role="status" aria-live="polite"></p>
@@ -209,12 +209,30 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   function setAssistantCollapsed(collapsed: boolean) {
     interactionHud.toggleAttribute('data-collapsed', collapsed);
     assistantToggle.setAttribute('aria-expanded', String(!collapsed));
-    assistantToggle.textContent = collapsed ? 'Expand' : 'Minimise';
+    assistantToggle.textContent = collapsed ? 'More' : 'Less';
   }
-  setAssistantCollapsed(window.matchMedia('(max-width: 700px)').matches);
+  setAssistantCollapsed(true);
   assistantToggle.addEventListener('click', () => setAssistantCollapsed(!interactionHud.hasAttribute('data-collapsed')));
+  // Keep exploration, conversation and advanced settings behind deliberate disclosures.
+  plan.prepend(get('journey-inspirations'), container.querySelector('.city-chat')!);
+  get('city-instruments').append(container.querySelector('.city-object-music')!);
+  get('journey-inspirations').append(get('creative-building-status'));
+  const featureEditor = get('city-change-controls');
+  controlsHud.before(featureEditor);
+  featureEditor.classList.add('city-feature-editor');
+  featureEditor.append(get('city-feedback'));
+  const placeSelect = get('city-street');
+  plan.prepend(placeSelect.previousElementSibling!, placeSelect);
+  const closeEditor = document.createElement('button');
+  closeEditor.type = 'button'; closeEditor.className = 'tertiary';
+  closeEditor.textContent = 'Done'; closeEditor.setAttribute('aria-label', 'Close city editor');
+  featureEditor.prepend(closeEditor);
+  function dismissEditor() {
+    editing = false; selected = null; city?.highlight(null); get('city-hover').hidden = true; refresh();
+  }
+  closeEditor.addEventListener('click', () => { dismissEditor(); assistantToggle.focus({ preventScroll: true }); });
   const map = container.querySelector<HTMLElement>('.city-map')!;
-  const musicVisuals = mountCityMusicVisuals(map, container.querySelector<HTMLElement>('.city-object-music')!);
+  const musicVisuals = mountCityMusicVisuals(map);
   map.append(container.querySelector('.city-view-tools')!, container.querySelector('.city-navigation-tools')!);
   const cityActions = container.querySelector<HTMLElement>('.city-new-actions')!;
   cityActions.setAttribute('role', 'group');
@@ -297,8 +315,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   let keyCueCursor = 0;
   const reducedMotion = reducedMotionPreference();
   const setText = (id: string, value: string) => { if (get(id).textContent !== value) get(id).textContent = value; };
+  let editing = false;
+  let feedbackUntil = 0;
   function feedback(text: string) {
-    setText('city-feedback', text); setText('city-issue-feedback', text);
+    setText('city-feedback', text);
+    setText('city-issue-feedback', featureEditor.hidden && !!city?.journey.blocked ? text : '');
+    feedbackUntil = text ? performance.now() + 4000 : 0;
     if (active && text) faceMessage(text);
   }
   const controlsWindow = mountCityControlsWindow(controlsHud, get<HTMLButtonElement>('city-controls-window'), feedback, button => {
@@ -383,11 +405,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   function setMode(value: typeof mode) {
     if (!city) return;
     if (value === 'route' && !city.journey.ready) return;
+    editing = false; setAssistantCollapsed(false);
     city.resizer.finish(false); controlsHud.open = true; mode = value; plan.scrollTop = 0; city.highlight(null); get('city-hover').hidden = true; panelKey = ''; refresh();
   }
   function selectStreet(id: string) {
     if (!city) return;
-    selected = id; controlsHud.open = true;
+    editing = true; selected = id; controlsHud.open = false;
     mode = 'edit'; plan.scrollTop = 0; streetSelect.value = id; city.highlight(id); panelKey = ''; refresh();
   }
   function updateCityMusic() {
@@ -478,19 +501,18 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     const nameTag = get('city-robot-name'), robotBounds = city.projectRobotBounds();
     const alert = cityRobotAlert(j);
     voicePanel.sentence(robotSpeech ?? alert ?? `What would you like to change?`);
-    setText('city-robot-name', alert ?? j.bot.name);
+    setText('city-robot-name', j.bot.name);
     nameTag.classList.toggle('is-alert', !!alert);
     const alertKey = alert ? `${j.blocked!.id}:${alert}` : null;
     if (alertKey !== lastAlert && !voiceCapturing) {
       lastAlert = alertKey;
-      if (alert) setAssistantCollapsed(false);
       if (alert && active && !document.hidden) {
         sayRobot(alert, true);
       }
     }
     // A screen-space billboard faces the camera even in the overhead view.
     // Leave space above the complete animated silhouette, including its antenna.
-    nameTag.hidden = !robotBounds || robotBounds.right < 0 || robotBounds.left > canvas.clientWidth || robotBounds.bottom < 0 || robotBounds.top > canvas.clientHeight;
+    nameTag.hidden = !!alert || !robotBounds || robotBounds.right < 0 || robotBounds.left > canvas.clientWidth || robotBounds.bottom < 0 || robotBounds.top > canvas.clientHeight;
     if (!nameTag.hidden && robotBounds) {
       const halfWidth = nameTag.offsetWidth / 2;
       const x = Math.max(halfWidth + 8, Math.min(canvas.clientWidth - halfWidth - 8, (robotBounds.left + robotBounds.right) / 2));
@@ -499,13 +521,6 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       nameTag.style.setProperty('--robot-pointer-offset', `${Math.max(-halfWidth + 10, Math.min(halfWidth - 10, (robotBounds.left + robotBounds.right) / 2 - x))}px`);
       // Never clamp down onto the robot when it approaches the top edge.
       nameTag.hidden = bottom < nameTag.offsetHeight + 8;
-    }
-    // Keep the alert readable when the robot is offscreen or in robot-eye view.
-    nameTag.classList.toggle('is-detached', !!alert && nameTag.hidden);
-    if (alert && nameTag.hidden) {
-      nameTag.hidden = false;
-      nameTag.style.left = `${canvas.clientWidth / 2}px`;
-      nameTag.style.top = `${Math.min(canvas.clientHeight - 8, nameTag.offsetHeight + 136)}px`;
     }
     const goal = city.projectNode(j.world.destination), marker = get('city-goal');
     const onMap = goal.z >= 0 && goal.z <= 1 && goal.x >= 0 && goal.x <= canvas.clientWidth && goal.y >= 0 && goal.y <= canvas.clientHeight;
@@ -548,7 +563,9 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     setText('city-pause', j.complete ? 'At studio' : j.ready ? 'Start robot' : j.paused ? 'Start robot' : 'Stop robot');
     if (pause.getAttribute('aria-label') !== pause.textContent) { pause.setAttribute('aria-label', pause.textContent!); pause.title = pause.textContent!; }
     get('city-route-controls').hidden = mode !== 'route' || !j.ready;
-    get('city-change-controls').hidden = mode !== 'edit' || j.complete;
+    featureEditor.hidden = !editing || mode !== 'edit' || !selected || j.complete;
+    interactionHud.toggleAttribute('data-editing', !featureEditor.hidden);
+    if (feedbackUntil && performance.now() > feedbackUntil) { feedbackUntil = 0; setText('city-feedback', ''); setText('city-issue-feedback', ''); }
     setText('city-tool-route', mode === 'route' && controlsHud.open ? 'Done with route' : 'Create route');
     const routeButton = get('city-tool-route');
     if (routeButton.getAttribute('aria-label') !== routeButton.textContent) routeButton.setAttribute('aria-label', routeButton.textContent!);
@@ -557,12 +574,12 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     get('city-exhibition').hidden = !j.complete;
     get<HTMLButtonElement>('city-exhibition').disabled = !finished || !city.arrivalComplete;
     if (j.blocked && j.blocked.id !== lastBlock) {
-      selected = j.blocked.id; mode = 'edit'; controlsHud.open = false; plan.scrollTop = 0;
+      editing = false; selected = j.blocked.id; mode = 'edit'; controlsHud.open = false; plan.scrollTop = 0;
       get('city-issue').parentElement!.scrollTop = 0;
       streetSelect.value = selected; panelKey = ''; feedback('');
     }
     lastBlock = j.blocked?.id ?? null;
-    get('city-issue').hidden = !j.blocked;
+    get('city-issue').hidden = !j.blocked || !featureEditor.hidden;
     setText('city-controls-label', j.blocked ? 'More options' : 'City controls');
     const issueAction = cityIssueAction(j);
     const blockedBridge = j.world.streets.find(s => s.id === j.blocked?.id);
@@ -631,7 +648,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
       const focused = plan.ownerDocument.activeElement as HTMLElement | null;
       const focusedBridge = focused?.dataset?.bridgeAccess;
       const focusedDoor = focused?.dataset?.studioDoor;
-      const focusedChoice = plan.contains(focused) ? focused?.closest<HTMLButtonElement>('[data-environment-value]') : null;
+      const focusedChoice = featureEditor.contains(focused) ? focused?.closest<HTMLButtonElement>('[data-environment-value]') : null;
       const focusedGroup = focusedChoice?.closest('div[id]')?.id;
       const focusedValue = focusedChoice?.dataset.environmentValue;
       const humpback = !!street && isHumpbackBridge(street, j.world);
@@ -660,6 +677,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!j.ready && !j.complete && !j.paused && j.currentStreet?.kind === 'crossing' && j.hasCrossingCues(j.currentStreet) && j.signal(j.currentStreet).green) sounds.crossingBeep();
     for (const event of j.machine.record.events.slice(eventCursor)) {
       creation?.consume(event);
+      if (event.type === 'city_edit') city.showEditFeedback(String(event.data.feature));
       if (event.type === 'robot_encounter') {
         const melody = encounterMelodies[Number(event.data.variation) - 1];
         const count = j.machine.record.events.filter(e => e.runId === j.machine.run.id && e.type === 'robot_encounter').length;
@@ -789,7 +807,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     engine.resize(); city = createCityScene(engine, bot, world); city.setTheme(theme); city.setZebraPairs(zebraPairs);
     city.journey.setMinimumTurnRadius(minimumTurnRadius); city.sync();
     city.onResizeSelected(id => selectStreet(id.startsWith('width:') ? id.slice(6) : id));
-    selected = null; sizeId = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
+    editing = false; selected = null; sizeId = null; mode = 'edit'; lastBlock = null; routeKey = ''; panelKey = ''; lastMood = ''; feedback('');
     get('city-hover').hidden = true;
     streetSelect.replaceChildren();
     const initial = document.createElement('option'); initial.value = ''; initial.textContent = 'Choose a street…'; streetSelect.append(initial);
@@ -820,7 +838,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   get('city-issue-action').addEventListener('click', () => {
     if (!city?.journey.blocked) return;
     if (!cityIssueAction(city.journey)) {
-      controlsHud.open = true; plan.scrollTop = 0; get('city-feature-name').focus(); return;
+      editing = true; refresh(); get('city-feature-name').focus(); return;
     }
     if (city.journey.needsTrainRamp && city.journey.blocked.id === city.journey.world.steamTrain?.street) {
       city.journey.requestTrainRamp('wait'); sounds.interaction('tap'); refresh(); pause.focus({ preventScroll: true }); return;
@@ -944,6 +962,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     city.sync(); feedback(''); refresh();
   }
   canvas.addEventListener('pointerdown', event => {
+    get('city-hover').hidden = true;
     if (!active || event.button !== 0 || !city || city.journey.complete) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.setPointerCapture(event.pointerId);
     if (pointers.size > 1) { city.resizer.finish(false); if (drawing) city.journey.setRoute(savedRoute); drawing = false; city.sync(); pinch = 0; moved = true; refresh(); return; }
@@ -958,11 +977,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     if (!active || !city || !engine || city.journey.complete) return;
     const previous = pointers.get(event.pointerId), p = local(event.clientX, event.clientY);
     if (!previous) {
+      const hint = get('city-hover');
+      hint.style.left = `${Math.max(8, Math.min(canvas.clientWidth - 248, p.x + 18))}px`;
+      hint.style.top = `${Math.max(8, Math.min(canvas.clientHeight - 88, p.y + 20))}px`;
       const hovered = city.streetAt(p.x, p.y);
       const bicycle = city.journey.world.bicycles?.find(bike => bike.id === hovered);
       const target = mode === 'edit' && !bicycle ? city.resizer.inspect(p.x, p.y) : null;
       if (target) {
-        get('city-hover').hidden = false; setText('city-hover', `${city.journey.dimensions.name(target.id)} · drag to resize`);
+        get('city-hover').hidden = false; setText('city-hover', `${city.journey.dimensions.name(target.id)} · ${target.available ? 'drag to resize' : 'in use by your robot'}`);
         city.highlight(target.id); canvas.style.cursor = target.available ? target.cursor : 'not-allowed'; return;
       }
       const id = bicycle || mode === 'edit' ? hovered : city.nodeAt(p.x, p.y);
@@ -992,8 +1014,8 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
         if (city.journey.pushBicycle(id)) {
           city.sync(); feedback(city.journey.bicycleBlocks(id) ? 'Bicycle pushed over. Keep clicking it to clear the path.' : 'Bicycle pushed clear of the path.');
         }
-        selectStreet(id);
-      }
+        if (!city.journey.world.bicycles?.some(bike => bike.id === id)) selectStreet(id);
+      } else if (!id && editing) dismissEditor();
     }
     drawing = false; pointers.delete(event.pointerId); pinch = 0;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -1003,6 +1025,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   canvas.addEventListener('wheel', event => { if (!active) return; event.preventDefault(); city?.setZoom(event.deltaY > 0 ? 1.1 : .9); }, { passive: false });
   function escape(event: KeyboardEvent) {
     if (event.key !== 'Escape') return;
+    if (editing && !city?.resizer.active && !drawing) dismissEditor();
     if (city?.resizer.active) { city.resizer.finish(false); pointers.clear(); feedback('Resize cancelled.'); refresh(); }
     if (drawing) { city?.journey.setRoute(savedRoute); city?.sync(); drawing = false; pointers.clear(); feedback('Line drawing cancelled.'); refresh(); }
   }
@@ -1023,7 +1046,7 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
     // advancing the entire city ten times further per rendered frame.
     for (let step = 0; step < (fastForwarding ? 10 : 1); step++) city.update(seconds, step === 0 ? seconds : 0);
     refresh();
-    musicVisuals.update(cityMusicTime, reducedMotion.matches, sounds.isMuted);
+    musicVisuals.update(cityMusicTime, reducedMotion.matches);
     physicalStop.disabled = !physicalRobots.reserved;
     if (city.journey.physicalControl) {
       pause.disabled = true; get<HTMLButtonElement>('city-fast-forward').disabled = true;
