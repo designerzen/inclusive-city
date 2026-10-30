@@ -13,6 +13,10 @@ let nextChunk = 0
 let soundEnabled = true
 let cueVersion = 0
 let nextCue = ""
+let moving = false
+let playingMove = false
+let nextMoveAt = 0
+let movePhrase = 0
 const hexDigits = "0123456789ABCDEF"
 const codes = "RMBPWHITFE"
 // 5x5 emoji faces: ready, curious, sad, paused, waiting, happy, idle,
@@ -79,6 +83,7 @@ function queue(frame: string) {
 bluetooth.onBluetoothConnected(function () {
     stopSpeech()
     connected = true
+    moving = false
     face = ""
     lastFrame = input.runningTime()
     outgoing = []
@@ -87,6 +92,7 @@ bluetooth.onBluetoothConnected(function () {
 bluetooth.onBluetoothDisconnected(function () {
     stopSpeech()
     connected = false
+    moving = false
     outgoing = []
     face = ""
     pairing()
@@ -94,7 +100,15 @@ bluetooth.onBluetoothDisconnected(function () {
 bluetooth.onUartDataReceived(serial.delimiters(Delimiters.NewLine), function () {
     const frame = bluetooth.uartReadUntil(serial.delimiters(Delimiters.NewLine))
     if (frame == "HELLO") {
-        queue("CITYFACE:2")
+        queue("CITYFACE:3")
+    } else if (frame == "RUN:0" || frame == "RUN:1") {
+        moving = frame == "RUN:1" && face != "" && face != "I"
+        lastFrame = input.runningTime()
+        if (!moving && playingMove) {
+            cueVersion++
+            music.stopAllSounds()
+        }
+        queue(frame)
     } else if (frame.length == 6 && frame.substr(0, 5) == "FACE:") {
         const code = frame.charAt(5)
         const index = codes.indexOf(code)
@@ -102,7 +116,7 @@ bluetooth.onUartDataReceived(serial.delimiters(Delimiters.NewLine), function () 
             lastFrame = input.runningTime()
             if (face != code) {
                 face = code
-                if (code == "I") stopSpeech()
+                if (code == "I") { moving = false; stopSpeech() }
                 else playCue(code)
                 if (!speaking) showFace(false)
             }
@@ -143,7 +157,13 @@ bluetooth.onUartDataReceived(serial.delimiters(Delimiters.NewLine), function () 
 // sounds are only audible if an external speaker is attached to P0/GND.
 // Avoid V2-only speaker-enable calls, which would panic on a V1 board.
 music.setVolume(64)
+input.onButtonPressed(Button.A, function () {
+    if (connected && face != "" && face != "I" && input.runningTime() - lastFrame <= 5000) queue("BTN:A")
+})
 input.onButtonPressed(Button.B, function () {
+    if (connected && face != "" && face != "I" && input.runningTime() - lastFrame <= 5000) queue("BTN:B")
+})
+input.onButtonPressed(Button.AB, function () {
     soundEnabled = !soundEnabled
     stopNotes()
     if (soundEnabled && connected) playCue(face)
@@ -155,6 +175,7 @@ basic.forever(function () {
     // If the page stops updating, stop showing a stale journey expression.
     if (connected && face != "" && input.runningTime() - lastFrame > 5000) {
         stopSpeech()
+        moving = false
         face = ""
         pairing()
     }
@@ -162,9 +183,15 @@ basic.forever(function () {
 })
 // One independent audio fiber: short finite phrases never delay BLE or LEDs.
 basic.forever(function () {
+    if (connected && soundEnabled && moving && !speaking && nextSpeech == "" && receiving == ""
+        && nextCue == "" && input.runningTime() >= nextMoveAt) {
+        nextCue = "D"
+        nextMoveAt = input.runningTime() + 2400
+    }
     if (connected && soundEnabled && nextCue != "") {
         const code = nextCue
         const version = cueVersion
+        playingMove = code == "D"
         nextCue = ""
         let notes = [523, 659]
         if (code == "B") notes = [392, 330, 262]
@@ -174,10 +201,17 @@ basic.forever(function () {
         else if (code == "H") notes = [523, 659, 784]
         else if (code == "E") notes = [523, 659, 784, 1047]
         else if (code == "V") notes = [523, 659, 587]
+        else if (code == "D") {
+            if (movePhrase % 3 == 0) notes = [523, 659, 784, 659]
+            else if (movePhrase % 3 == 1) notes = [784, 0, 988, 784]
+            else notes = [659, 587, 523, 784]
+            movePhrase++
+        }
         for (let i = 0; i < notes.length; i++) {
-            if (!connected || !soundEnabled || version != cueVersion) break
+            if (!connected || !soundEnabled || version != cueVersion || playingMove && !moving) break
             music.playTone(notes[i], 70)
         }
+        playingMove = false
     }
     basic.pause(20)
 })

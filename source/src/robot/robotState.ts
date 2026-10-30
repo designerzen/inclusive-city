@@ -1,3 +1,4 @@
+import { shellPayload, qrReaderSpecification } from './shellIdentity';
 import type { RobotAppearance } from './appearance';
 import type { RobotProfile } from './functions';
 import type { SoundSequenceEntry } from '../audio/SoundEffect';
@@ -13,6 +14,8 @@ export type RobotState = 'designer' | 'ready' | 'following' | 'waiting' | 'block
 export interface RobotMetadata {
   id: number; name: string; appearance: RobotAppearance; profile: RobotProfile;
   locomotion: 'wheels'; wheelCount: 4;
+  shellId: string;
+  shell: { id: string; qrPayload: string; reader: typeof qrReaderSpecification };
   presetId?: string; creative?: CreativePreferences;
 }
 export interface RobotMetrics {
@@ -48,8 +51,8 @@ export interface RobotRecord {
 }
 
 export const emptyMetrics = (): RobotMetrics => ({ distance: 0, stepsTaken: 0, segmentsCompleted: 0, movingSeconds: 0, blockedSeconds: 0, pausedSeconds: 0, waitingSeconds: 0, failures: 0, interventions: 0, pickups: 0, pickupValue: 0, journeysStarted: 0, journeysCompleted: 0 });
-export function robotMetadata(bot: { id: number; name: string; appearance: RobotAppearance; profile: RobotProfile; presetId?: string; creative?: CreativePreferences }): RobotMetadata {
-  return structuredClone({ id: bot.id, name: bot.name, appearance: bot.appearance, profile: bot.profile, locomotion: 'wheels', wheelCount: 4,
+export function robotMetadata(bot: { id: number; name: string; appearance: RobotAppearance; profile: RobotProfile; shellId?: string; presetId?: string; creative?: CreativePreferences }): RobotMetadata {
+  return structuredClone({ id: bot.id, name: bot.name, appearance: bot.appearance, profile: bot.profile, locomotion: 'wheels', wheelCount: 4, shellId: bot.shellId ?? `BOT-${bot.id}`, shell: { id: bot.shellId ?? `BOT-${bot.id}`, qrPayload: shellPayload(bot.shellId ?? `BOT-${bot.id}`), reader: qrReaderSpecification },
     ...(bot.presetId ? { presetId: bot.presetId } : {}), ...(bot.creative ? { creative: bot.creative } : {}) });
 }
 export function createRobotRecord(bot: Parameters<typeof robotMetadata>[0]): RobotRecord {

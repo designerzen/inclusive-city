@@ -124,3 +124,7 @@ details .parameter { margin-top: 12px; }
   .drawer-fold, .drawer-export, .drawer-guide { left: auto; right: 12px; }
 }
 [hidden], #body-canvas[hidden], .workspace-drawer[hidden], .workspace-warning[hidden] { display: none; }
+
+#shell-qr svg { display: block; width: 144px; height: 144px; margin-block: 12px; }
+#shell-id { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit; padding: 8px; }
+.shell-identity-options button { margin-block: 4px; }

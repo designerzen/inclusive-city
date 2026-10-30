@@ -13,6 +13,9 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Rendering/edgesRenderer';
 import { bodyRanges, bodySvg, defaultBody, makeBody, normaliseBody } from './robot/bodyNet';
 import earcut from 'earcut';
+import { newShellId, shellIdPattern, shellPayload, shellQr, shellQrSvg, qrReaderSpecification } from './robot/shellIdentity';
+import { bodyShellLabel } from './robot/bodyShellLabel';
+import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import type { Polygon } from 'polygon-clipping';
 import { defaultExposure, exposureLabels, exposureRanges, normaliseExposure } from './robot/bodyExposure';
 import type { ExposureKey } from './robot/bodyExposure';
@@ -39,6 +42,12 @@ const labels: Record<keyof BodyParameters, [string, string]> = {
 let parameters = { ...defaultBody };
 let exposure = normaliseExposure(defaultExposure);
 let decoration = normaliseDecoration(undefined);
+let shellId = newShellId();
+try {
+  const linked = new URL(location.href).searchParams.get('shell');
+  const saved = linked ?? localStorage.getItem('robot-body-shell-id');
+  if (saved && shellIdPattern.test(saved)) shellId = saved;
+} catch { /* An unsaved shell still has a session identity. */ }
 try { const saved = localStorage.getItem('robot-body-v1'); if (saved) parameters = normaliseBody(JSON.parse(saved)); } catch { /* Defaults also work without storage. */ }
 try { const saved = localStorage.getItem('robot-body-exposure-v1'); if (saved) exposure = normaliseExposure(JSON.parse(saved)); } catch { /* Keep the estimated profile. */ }
 try { const saved = localStorage.getItem('robot-body-decoration-v1'); if (saved) decoration = normaliseDecoration(JSON.parse(saved)); } catch { /* Plain rim is available without storage. */ }
@@ -70,10 +79,11 @@ root.innerHTML = `
     <label for="window-style">Ornamental windows</label><select id="window-style">${Object.entries(windowStyles).map(([value,label]) => `<option value="${value}">${label}</option>`).join('')}</select>
     ${(Object.entries(decorationRanges) as [keyof typeof decorationRanges, readonly [number, number, number]][]).map(([key,[min,max,step]]) => `<label class="parameter" for="detail-${key}"><span>${({height:'Appendage paper length',angle:'Appendage fold angle',windowSize:'Window diameter',rows:'Window rows',variation:'Appendage variation',offset:'Placement offset',span:'Appendage width',windowAngle:'Window angle'})[key]} <output id="detail-${key}-value"></output></span><input id="detail-${key}" type="range" data-detail-setting="${key}" min="${min}" max="${max}" step="${step}" value="${decoration[key]}"/></label>`).join('')}
     <button class="secondary" id="random-details">↻ Randomise details</button><p id="decoration-status" class="parameter-help" role="status" aria-live="polite"></p><p class="parameter-help">Blue creases add the rim folds. Accordion folds alternate outward / reverse / outward. Sensor openings take priority over ornaments.</p></section>
+    <section class="shell-identity-options" aria-labelledby="shell-identity-title"><h2 id="shell-identity-title">Shell identity & QR reader</h2><label class="body-select" for="shell-id">Shell ID<input id="shell-id" type="text" readonly /></label><div id="shell-qr" aria-label="Printable shell identity"></div><button id="new-shell-id" class="secondary" type="button">New shell identity</button><button id="download-shell-qr" class="secondary" type="button">Download QR label · 36 mm</button><p id="shell-qr-status" class="parameter-help" role="status"></p><p class="parameter-help">Attach the black-on-white QR sticker on the marked panel. Keep its white border clear; never cut or crease the code. The forward-facing reader needs its own aperture. Reader size and viewing angle are provisional: measure your chosen module. Live scanning requires a camera/QR module and firmware; the preview does not perform scans.</p></section>
     <section class="exposure-options" aria-labelledby="exposure-title"><h2 id="exposure-title">Keep hardware exposed</h2><p class="parameter-help">Pressed toggles enforce real openings in every preview and cutting net, including random shapes. Front = +Z. Positions are photo-estimated for Maqueen V3; check alignment on your robot.</p>
     ${Object.entries(exposureLabels).map(([key, label]) => `<button type="button" class="secondary exposure-toggle" id="expose-${key}" data-exposure="${key}" aria-pressed="${exposure.enabled[key as ExposureKey]}"><span>${label}</span><span class="exposure-state" id="expose-${key}-state"></span></button>`).join('')}
     <p class="parameter-help">Motion and compass sensors need no optical opening. These toggles do not certify magnetic, temperature or acoustic performance. The LED toggle also protects the micro:bit's light-sensing area.</p>
-    <details><summary>Adjust estimated positions</summary>${(Object.entries(exposureRanges) as [keyof typeof exposureRanges, readonly [number, number, number]][]).map(([key, [min, max, step]]) => `<label class="parameter" for="exposure-${key}"><span>${({margin:'Opening margin',frontOffset:'Front sensor position',matrixHeight:'LED matrix centre height',laserHeight:'Laser centre height',laserTilt:'Laser tilt'})[key]} <output id="exposure-${key}-value"></output></span><input type="range" id="exposure-${key}" data-exposure-setting="${key}" min="${min}" max="${max}" step="${step}" value="${exposure[key]}"/></label>`).join('')}<p class="parameter-help">Heights are above the shell's open bottom / ground plane. Front position is forward of its centre. Laser protection includes its 60° × 60° view; the light/IR angles are conservative design assumptions.</p></details><p id="exposure-status" class="parameter-help" role="status" aria-live="polite"></p></section>
+    <details><summary>Adjust estimated positions</summary>${(Object.entries(exposureRanges) as [keyof typeof exposureRanges, readonly [number, number, number]][]).map(([key, [min, max, step]]) => `<label class="parameter" for="exposure-${key}"><span>${({margin:'Opening margin',frontOffset:'Front sensor position',matrixHeight:'LED matrix centre height',laserHeight:'Laser centre height',laserTilt:'Laser tilt',qrReaderHeight:'QR reader centre height'})[key]} <output id="exposure-${key}-value"></output></span><input type="range" id="exposure-${key}" data-exposure-setting="${key}" min="${min}" max="${max}" step="${step}" value="${exposure[key]}"/></label>`).join('')}<p class="parameter-help">Heights are above the shell's open bottom / ground plane. Front position is forward of its centre. Laser protection includes its 60° × 60° view; the light/IR angles are conservative design assumptions.</p></details><p id="exposure-status" class="parameter-help" role="status" aria-live="polite"></p></section>
     <details><summary>Fit to your skeleton</summary><p class="parameter-help">Measure the whole moving envelope, including wires and moving parts. The amber box is your measurement, not a supplied robot model.</p>${controls(['skeletonWidth', 'skeletonDepth', 'skeletonHeight', 'clearance'])}</details>
     <button id="reset-body" class="tertiary quiet-action">Reset all dimensions</button>
   </aside>
@@ -102,7 +112,7 @@ function rotateBody(horizontal: number, vertical = 0) {
 let meshes: Mesh[] = [];
 let foldFraction = 1, foldFrame: number | undefined;
 let activeModel: BodyModel;
-let bindings: { mesh: Mesh; face: number; vertices: Point[]; line: boolean; renderIndices?: number[]; ornament?: number; bodyBend?: number; ornamentBand?: boolean }[] = [];
+let bindings: { mesh: Mesh; face: number; vertices: Point[]; line: boolean; label?: boolean; renderIndices?: number[]; ornament?: number; bodyBend?: number; ornamentBand?: boolean }[] = [];
 function cardVolume(points: Point3[], thickness: number, neutral: number, flat: Point[]): Point3[] {
   let normal=[0,0,0];
   for(let i=2;i<points.length && Math.hypot(...normal)<1e-8;i++) {
@@ -128,7 +138,7 @@ function updatePose(frameCamera = false) {
   const pose = bodyFoldingPose(activeModel, foldFraction), all: Point3[] = [];
   for (const binding of bindings) {
     const vertices = binding.vertices.map(p => binding.bodyBend !== undefined ? pose.bendPoint(binding.bodyBend,p) : binding.ornament === undefined ? pose.point(binding.face, p) : ornamentPoint(activeModel, activeModel.decoration.ornaments[binding.ornament], p, foldFraction, pose,binding.ornamentBand)); all.push(...vertices);
-    const volume = binding.line ? vertices : cardVolume(vertices,activeModel.p.thickness,activeModel.p.neutralAxis/100,binding.vertices);
+    const volume = binding.label ? cardVolume(vertices, activeModel.p.thickness + .2, activeModel.p.neutralAxis/100, binding.vertices).slice(0, vertices.length) : binding.line ? vertices : cardVolume(vertices,activeModel.p.thickness,activeModel.p.neutralAxis/100,binding.vertices);
     const positions = (binding.renderIndices ? binding.renderIndices.map(index => volume[index]) : volume).flat(); binding.mesh.updateVerticesData('position', positions, true);
     if (!binding.line) { const normals: number[] = []; VertexData.ComputeNormals(positions, binding.mesh.getIndices()!, normals); binding.mesh.updateVerticesData('normal', normals); }
   }
@@ -195,6 +205,8 @@ const amber = scene ? new StandardMaterial('skeleton-envelope', scene) : undefin
 if (amber) { amber.diffuseColor = Color3.FromHexString('#d69d36'); amber.alpha = .24; }
 const boardMaterial = scene ? new StandardMaterial('hardware-board', scene) : undefined;
 if (boardMaterial) boardMaterial.diffuseColor = Color3.FromHexString('#283c38');
+const readerLensMaterial = scene ? new StandardMaterial('qr-reader-optics', scene) : undefined;
+if (readerLensMaterial) readerLensMaterial.diffuseColor = Color3.FromHexString('#102b39');
 const indicatorMaterial = scene ? new StandardMaterial('hardware-indicator', scene) : undefined;
 if (indicatorMaterial) { indicatorMaterial.diffuseColor = Color3.FromHexString('#ffd36a'); indicatorMaterial.emissiveColor = Color3.FromHexString('#b7762c'); }
 function draw() {
@@ -204,7 +216,12 @@ function draw() {
     if (key === 'section' || key === 'rim') continue;
     el<HTMLInputElement>(key).value = String(parameters[key]); el(`${key}-value`).textContent = `${parameters[key]} ${labels[key][1]}`;
   }
-  el('flat-preview').innerHTML = bodySvg(model, true);
+  const label = bodyShellLabel(model, shellId);
+  el('flat-preview').innerHTML = bodySvg(model, true, shellId);
+  el<HTMLInputElement>('shell-id').value = shellId;
+  el('shell-qr').innerHTML = shellQrSvg(shellId);
+  el('shell-qr-status').textContent = !model.geometryValid ? 'Resolve the shell geometry before placing the QR sticker.' : label ? `QR sticker on panel ${label.face + 1}. Payload: ${shellPayload(shellId)}. Reader aperture ${exposure.enabled.qrReader ? 'protected' : 'off'}.` : 'No clear 46 × 46 mm panel area for the QR sticker. Enlarge the body or reduce openings; cutting exports are blocked.';
+  try { localStorage.setItem('robot-body-shell-id', shellId); } catch { /* Session-only identity. */ }
   el<HTMLSelectElement>('roof-style').value = decoration.roof;
   el<HTMLInputElement>('roof-rise').value = String(decoration.roofRise);
   el<HTMLInputElement>('roof-rise').disabled = decoration.roof !== 'pyramid';
@@ -238,9 +255,9 @@ function draw() {
   el('sheet-size').textContent = `Stock ≥ ${Math.ceil(model.bounds.width + 10)} × ${Math.ceil(model.bounds.height + 10)} mm, including 5 mm margins.`;
   el('material-status').textContent = `${parameters.thickness.toFixed(1)} mm card · slots ${(model.slots[0][1][0]-model.slots[0][0][0]).toFixed(2)} mm wide · seam relief ${model.material.seamGap.toFixed(2)} mm · body bend allowance ${model.material.bends.reduce((sum,bend)=>sum+bend.width,0).toFixed(2)} mm in total. Tab reach ${model.tabDimensions.reach.toFixed(2)} mm.`;
   el('structure-status').textContent = model.structure.checked ? model.structure.valid ? `Structure rules pass: minimum web ${model.structure.minimumWeb.toFixed(1)} mm; unsupported span limit ${model.structure.maximumFreeSpan.toFixed(0)} mm. Prototype in your actual card.` : model.structure.issues.join(' ') : 'Resolve geometry and openings before structural checks can run.';
-  const status = el('fit-status'); status.classList.toggle('has-warning', !model.valid || !model.fits);
-  status.textContent = model.decoration.roofReason ? model.decoration.roofReason : !model.exposure.valid ? model.exposure.reason + ' Cutting export blocked; exposure toggles remain enforced.' : model.structure.checked && !model.structure.valid ? model.structure.reason + ' Cutting exports are blocked.' : !model.valid ? 'Adjust the shape: the flat outline overlaps, a slot leaves its panel, or seam spacing is too small.' : !model.fits ? `Fit needs adjustment. Smallest opening: ${model.innerDiameter.toFixed(1)} mm across flats; required: ${model.requiredDiameter.toFixed(1)} mm. Lowest rim: ${model.minimumHeight.toFixed(1)} mm; needs ${parameters.skeletonHeight + parameters.clearance} mm.` : `✓ Single connected net · ${model.exposure.zones.length} exposure constraints · structure rules pass · conservative skeleton fit passes · inside opening ${model.innerDiameter.toFixed(1)} mm`;
-  for (const id of ['download-cut', 'download-guide']) el<HTMLButtonElement>(id).disabled = !model.valid || !model.fits;
+  const status = el('fit-status'); status.classList.toggle('has-warning', !model.valid || !model.fits || !label);
+  status.textContent = model.decoration.roofReason ? model.decoration.roofReason : !model.exposure.valid ? model.exposure.reason + ' Cutting export blocked; exposure toggles remain enforced.' : model.structure.checked && !model.structure.valid ? model.structure.reason + ' Cutting exports are blocked.' : !model.valid ? 'Adjust the shape: the flat outline overlaps, a slot leaves its panel, or seam spacing is too small.' : !label ? 'The shell needs a clear 46 × 46 mm panel area for its QR sticker. Enlarge the body or reduce decorative windows.' : !model.fits ? `Fit needs adjustment. Smallest opening: ${model.innerDiameter.toFixed(1)} mm across flats; required: ${model.requiredDiameter.toFixed(1)} mm. Lowest rim: ${model.minimumHeight.toFixed(1)} mm; needs ${parameters.skeletonHeight + parameters.clearance} mm.` : `✓ Single connected net · ${model.exposure.zones.length} exposure constraints · structure rules pass · conservative skeleton fit passes · inside opening ${model.innerDiameter.toFixed(1)} mm`;
+  for (const id of ['download-cut', 'download-guide']) el<HTMLButtonElement>(id).disabled = !model.valid || !model.fits || !label;
   try { localStorage.setItem('robot-body-v1', JSON.stringify(parameters)); } catch { /* Session-only state is fine. */ }
   try { localStorage.setItem('robot-body-exposure-v1', JSON.stringify(exposure)); } catch { /* Session-only state is fine. */ }
   try { localStorage.setItem('robot-body-decoration-v1', JSON.stringify(decoration)); } catch { /* Session-only state is fine. */ }
@@ -282,6 +299,19 @@ function draw() {
   model.exposure.tabs.forEach((polygons, tab) => polygons.forEach((polygon, i) => meshFrom(`tab-${tab + 1}-${i}`, model.p.sides, polygon)));
   model.exposure.ornaments.forEach((polygons, facet) => polygons.forEach((polygon, i) => meshFrom(`ornament-${facet}-${i}`, model.decoration.ornaments[facet].face, polygon, facet)));
   model.exposure.bands.forEach((band,index)=>band.polygons.forEach((polygon,i)=>meshFrom(`bend-${index}-${i}`,band.body??model.decoration.ornaments[band.ornament!].face,polygon,band.ornament,band.body,band.ornament!==undefined)));
+  if (label) {
+    const qr = shellQr(shellId), pixels = (qr.count + 8) * 8;
+    const texture = new DynamicTexture('shell-label-print', { width: pixels, height: pixels }, scene, false);
+    texture.updateSamplingMode(DynamicTexture.NEAREST_SAMPLINGMODE);
+    const context = texture.getContext(); context.fillStyle = '#fff'; context.fillRect(0, 0, pixels, pixels); context.fillStyle = '#000';
+    qr.cells.forEach((row, y) => row.forEach((dark, x) => { if (dark) context.fillRect((x + 4) * 8, (y + 4) * 8, 8, 8); })); texture.update(false);
+    const ink = new StandardMaterial('shell-label-ink', scene); ink.diffuseTexture = texture; ink.emissiveTexture = texture; ink.disableLighting = true; ink.backFaceCulling = false;
+    const mesh = new Mesh('shell-identity-qr', scene), data = new VertexData();
+    data.positions = label.flat.flatMap(p => [...pose.point(label.face, p)]); data.indices = [0, 1, 2, 0, 2, 3]; data.uvs = [0, 0, 1, 0, 1, 1, 0, 1];
+    data.normals = Array(12).fill(0); data.applyToMesh(mesh, true); mesh.material = ink; meshes.push(mesh);
+    mesh.onDisposeObservable.add(() => { texture.dispose(); ink.dispose(); });
+    bindings.push({ mesh, face: label.face, vertices: label.flat, line: false, label: true });
+  }
   if (el<HTMLInputElement>('show-envelope').checked) {
     const box = MeshBuilder.CreateBox('measured-envelope', { width: parameters.skeletonWidth, depth: parameters.skeletonDepth, height: parameters.skeletonHeight }, scene);
     box.position.y = parameters.skeletonHeight / 2; box.material = amber!; box.enableEdgesRendering(); box.edgesColor = new Color4(.7, .42, .08, .8); meshes.push(box);
@@ -291,6 +321,10 @@ function draw() {
       const led = MeshBuilder.CreateBox(`matrix-${row}-${col}`, { size: 2 }, scene);
       led.position.set((col - 2) * 4.5, exposure.matrixHeight + (row - 2) * 4.5, exposure.frontOffset); led.material = indicatorMaterial!; meshes.push(led);
     }
+    const qrReader = MeshBuilder.CreateBox('proposed-qr-reader', { width: 20, height: 20, depth: 12 }, scene);
+    qrReader.position.set(0, exposure.qrReaderHeight ?? 110, exposure.frontOffset - 6); qrReader.material = boardMaterial!; qrReader.metadata = qrReaderSpecification; meshes.push(qrReader);
+    const lens = MeshBuilder.CreateBox('qr-reader-optical-face', { width: 12, height: 12, depth: .5 }, scene);
+    lens.position.set(0, exposure.qrReaderHeight ?? 110, exposure.frontOffset + .3); lens.material = readerLensMaterial!; meshes.push(lens);
     model.exposure.zones.filter(zone => zone.key !== 'matrix').forEach(zone => {
       const marker = MeshBuilder.CreateSphere(`estimated-${zone.key}`, { diameter: 5, segments: 8 }, scene);
       marker.position.set(...zone.origin); marker.material = indicatorMaterial!; meshes.push(marker);
@@ -330,7 +364,7 @@ root.querySelectorAll<HTMLButtonElement>('[data-detail-preset]').forEach(button 
 el('random-details').addEventListener('click', () => {
   for (let attempt = 0; attempt < 40; attempt++) {
     const candidate = nextDetails(), model = makeBody(parameters, exposure, candidate);
-    if (model.valid && detailsVisible(model) && JSON.stringify(candidate) !== JSON.stringify(decoration)) { decoration = candidate; draw(); return; }
+    if (model.valid && bodyShellLabel(model, shellId) && detailsVisible(model) && JSON.stringify(candidate) !== JSON.stringify(decoration)) { decoration = candidate; draw(); return; }
   }
   el('decoration-status').textContent = 'No new detail pattern passed the geometry and structural checks. Try a taller or wider body; sensor protections stay on.';
 });
@@ -374,7 +408,7 @@ el('random-body').addEventListener('click', () => {
     const sections = [0,1,2,3].filter(n => n !== parameters.section);
     const candidate = { ...parameters, section: sections[Math.floor(Math.random() * sections.length)], aspect: 65 + Math.floor(Math.random() * 111), lean: Math.floor(Math.random() * 41) - 20, rim: 1 + Math.floor(Math.random() * 3), ridge: Math.floor(Math.random() * Math.max(1, Math.min(36, (300 - minHeight) / 3))), sides: sides[Math.floor(Math.random() * sides.length)], diameter: 200 + Math.floor(Math.random() * 61), height: minHeight + Math.floor(Math.random() * (301 - minHeight)), taper: 75 + Math.floor(Math.random() * 61) };
     const details = nextDetails(), m = makeBody(candidate, exposure, details);
-    if (m.fits && m.valid && detailsVisible(m)) { parameters = m.p; decoration = details; draw(); return; }
+    if (m.fits && m.valid && bodyShellLabel(m, shellId) && detailsVisible(m)) { parameters = m.p; decoration = details; draw(); return; }
   }
   el('fit-status').textContent = 'No random shape passed fit, exposure and structural checks. Adjust dimensions or sensor positions. Your exposure toggles remain enforced.';
 });
@@ -397,7 +431,9 @@ function download(name: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type })), link = document.createElement('a');
   link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-el('download-cut').addEventListener('click', () => { const model = makeBody(parameters, exposure, decoration); if (model.valid && model.fits) download('robot-body-cut.svg', bodySvg(model), 'image/svg+xml'); });
-el('download-guide').addEventListener('click', () => { const model = makeBody(parameters, exposure, decoration); if (model.valid && model.fits) download('robot-body-folding-guide.svg', bodySvg(model, true), 'image/svg+xml'); });
-el('download-design').addEventListener('click', () => download('robot-body-design.json', JSON.stringify({ version: 7, units: 'mm', family: 'developable-profiled-sleeve', parameters, exposure, decoration, material: { model: 'calibrated-neutral-axis-finite-bends', thickness: parameters.thickness, insideRadius: parameters.bendRadius, neutralAxisFraction: parameters.neutralAxis/100, slotClearance: parameters.slotClearance, wallAllowances: activeModel.material.allowances, wallSetbacks: activeModel.material.setbacks, seamRelief: activeModel.material.seamGap, tabs: activeModel.tabDimensions, slots: activeModel.slots, calibrationRequired: true }, hardwareProfile: 'Maqueen V3 photo-estimated; +Y up, +Z front', checks: { geometry: activeModel.valid, envelope: activeModel.fits, exposure: activeModel.exposure.valid, structure: activeModel.structure }, assembly: el('making').innerText, roofAssembly: roofInstructions[decoration.roof], ornamentalAssembly: 'After wrapping the body, fold each retained rim motif outward at its root to the selected angle. Accordion: three equal segments; subsequent creases alternate reverse by twice the root angle. Wings reverse at the outer joint by 0.65 times the root angle; horns bend at each outer joint by 0.4 times the root angle. Use the folding slider as a pose reference. Remove window waste; keep motif roots attached.' }, null, 2), 'application/json'));
+el('download-cut').addEventListener('click', () => { const model = makeBody(parameters, exposure, decoration); if (model.valid && model.fits && bodyShellLabel(model, shellId)) download('robot-body-cut.svg', bodySvg(model), 'image/svg+xml'); });
+el('download-guide').addEventListener('click', () => { const model = makeBody(parameters, exposure, decoration); if (model.valid && model.fits && bodyShellLabel(model, shellId)) download('robot-body-folding-guide.svg', bodySvg(model, true, shellId), 'image/svg+xml'); });
+el('download-design').addEventListener('click', () => download('robot-body-design.json', JSON.stringify({ version: 8, shell: { id: shellId, qrPayload: shellPayload(shellId), reader: qrReaderSpecification, label: bodyShellLabel(activeModel, shellId) }, units: 'mm', family: 'developable-profiled-sleeve', parameters, exposure, decoration, material: { model: 'calibrated-neutral-axis-finite-bends', thickness: parameters.thickness, insideRadius: parameters.bendRadius, neutralAxisFraction: parameters.neutralAxis/100, slotClearance: parameters.slotClearance, wallAllowances: activeModel.material.allowances, wallSetbacks: activeModel.material.setbacks, seamRelief: activeModel.material.seamGap, tabs: activeModel.tabDimensions, slots: activeModel.slots, calibrationRequired: true }, hardwareProfile: 'Maqueen V3 photo-estimated; +Y up, +Z front', checks: { geometry: activeModel.valid, envelope: activeModel.fits, exposure: activeModel.exposure.valid, structure: activeModel.structure }, assembly: el('making').innerText, roofAssembly: roofInstructions[decoration.roof], ornamentalAssembly: 'After wrapping the body, fold each retained rim motif outward at its root to the selected angle. Accordion: three equal segments; subsequent creases alternate reverse by twice the root angle. Wings reverse at the outer joint by 0.65 times the root angle; horns bend at each outer joint by 0.4 times the root angle. Use the folding slider as a pose reference. Remove window waste; keep motif roots attached.' }, null, 2), 'application/json'));
+el('new-shell-id').addEventListener('click', () => { shellId = newShellId(); const url = new URL(location.href); url.searchParams.delete('shell'); history.replaceState(null, '', url); draw(); });
+el('download-shell-qr').addEventListener('click', () => download(`shell-${shellId}-qr.svg`, shellQrSvg(shellId), 'image/svg+xml'));
 draw(); setView(false);

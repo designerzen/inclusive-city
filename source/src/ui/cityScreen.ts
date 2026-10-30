@@ -1033,6 +1033,14 @@ export function mountCityScreen(container: HTMLElement, sounds: CitySounds, engi
   };
   return {
     introduceRobot,
+    faceAction(action: 'fix' | 'repeat') {
+      if (!active || document.hidden || !city?.journey.blocked || city.journey.complete) return;
+      if (action === 'repeat') {
+        sayRobot(cityRobotAlert(city.journey) ?? city.journey.blocked.reason, true);
+      } else {
+        get<HTMLButtonElement>('city-issue-action').click();
+      }
+    },
     get faceJourney() {
       if (!active || !city) return undefined;
       if (faceSpeech?.context !== cityFaceContext(city.journey)) faceSpeech = undefined;

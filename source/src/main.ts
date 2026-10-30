@@ -124,7 +124,7 @@ app.innerHTML = `
     </section>
     <button class="tertiary" id="randomise-design" type="button" aria-label="Next robot" title="Next robot"><span aria-hidden="true">→</span></button>
     </div>
-    <div class="designer-next"><button class="secondary" id="choose-existing" type="button">Browse ready-made robots</button></div>
+    <div class="designer-next"><a id="shell-designer-link" href="${import.meta.env.BASE_URL}robot-body.html">Shell QR label & reader opening</a><button class="secondary" id="choose-existing" type="button">Browse ready-made robots</button></div>
     <p id="engine-status" class="sr-only" role="status">Loading preview…</p>
     </div><aside id="ability-designer" aria-label="Robot ability designer"></aside></div>
     </div>
@@ -323,13 +323,19 @@ const cityScreen = mountCityScreen(cityContainer, sounds, sharedEngine, canvas, 
     finally { openingExhibition = false; }
   })();
 }, document.querySelector<HTMLElement>('#physical-robot-controls')!, screenSpeech);
-const microbitFaceConnection = createMicrobitFaceConnection(() => cityScreen.faceJourney);
+const microbitFaceConnection = createMicrobitFaceConnection(() => cityScreen.faceJourney, undefined, action => cityScreen.faceAction(action));
 const disposeMicrocontrollerControls = mountMicrocontrollerControls(document.querySelector<HTMLElement>('#microcontroller-controls')!, microbitFaceConnection);
 import.meta.hot?.dispose(disposeMicrocontrollerControls);
 import.meta.hot?.dispose(() => microbitFaceConnection.dispose());
 let designStorage: Storage | undefined;
 try { designStorage = window.localStorage; } catch { /* The designer works without storage. */ }
 const history = new BotHistory(parseScientistSurnames(scientistSurnamesText), Math.random, designStorage);
+function updateShellLinks() {
+  document.querySelectorAll<HTMLAnchorElement>('a[href*="robot-body.html"]').forEach(link => {
+    const url = new URL(link.href); url.searchParams.set('shell', history.current.shellId!); link.href = url.href;
+  });
+}
+updateShellLinks();
 function startCity() {
   void screenTransition.run(designerScreen, cityContainer, () => {
     inCity = true;
@@ -417,7 +423,7 @@ let feelSettings: (change: EditorFeedback) => void = () => {};
 let applyIdentity: (name: string, id: number) => void = () => {};
 function describeRobot() {
   const description = describeAppearance(appearance);
-  canvas.setAttribute('aria-label', `${history.current.name}, a four-wheeled robot. ${description}. Enabled functions: ${profile.enabledFunctions.join(', ')}.`);
+  canvas.setAttribute('aria-label', `${history.current.name}, a four-wheeled robot with a QR reader and shell identity label. ${description}. Enabled functions: ${profile.enabledFunctions.join(', ')}.`);
 }
 let musicAudition = 0;
 const designer = mountAbilityDesigner(document.querySelector('#ability-designer')!, (value, feedback) => {
@@ -519,6 +525,7 @@ presetsScreen.addEventListener('keydown', event => {
 });
 import.meta.hot?.dispose(() => carouselAnimations.forEach(animation => animation.cancel()));
 function showCurrentBot() {
+  updateShellLinks();
   appearance = history.current.appearance;
   designer.setAccessories(appearance.accessories);
   applyAppearance(appearance);
@@ -590,7 +597,7 @@ if (!sharedEngine) {
 } else {
   try {
     const engine = sharedEngine;
-    const { scene, setName, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine, changeShape);
+    const { scene, setName, setShellId, setRotating, setProfile, setAppearance, resize, feelSettings: reactToSettings, setTheme } = createWorkshopScene(engine, changeShape);
     updateWorkshopTheme = setTheme; setTheme(theme);
     applyProfile = setProfile;
     feelSettings = reactToSettings;
@@ -598,6 +605,7 @@ if (!sharedEngine) {
     applyShapeChange = value => setAppearance(value, true);
     applyIdentity = (name, id) => {
       setName(name);
+      if (history.current.shellId) setShellId(history.current.shellId);
       const robot = scene.getTransformNodeByName('artbot')!;
       robot.metadata = { ...robot.metadata, name, id, record: history.current.record };
     };

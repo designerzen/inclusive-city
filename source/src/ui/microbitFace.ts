@@ -1,12 +1,12 @@
 import { BleRobotTransport, bluetoothUnavailableReason, type BleSettings } from '../robot/physical/transport';
 import { getMicrocontrollerSettings, microcontrollerChanges } from '../robot/physical/microcontroller';
-import { MicrobitFace, journeyFace, type FaceJourney } from '../robot/microbitFace';
+import { MicrobitFace, journeyFace, type FaceJourney, type FaceAction } from '../robot/microbitFace';
 import './microbitFace.css';
 
 export function mountMicrobitFaceSetup(host: HTMLElement) {
   const panel = document.createElement('details'); panel.className = 'microbit-face';
   panel.innerHTML = `<summary>micro:bit robot face</summary>
-    <p>Power on your flashed micro:bit, then use Pair micro:bit face in Settings. Its 5 × 5 LEDs mirror your robot’s mood. When it speaks, the mouth moves and its city message scrolls across the display.</p>
+    <p>Power on your flashed micro:bit, then use Pair micro:bit face in Settings. Its 5 × 5 LEDs show your robot’s mood briefly, scroll its city message, then return to the face. Press A to fix the current issue, B to read and scroll it again, or A+B to mute or unmute board music.</p>
     <p><a href="${import.meta.env.BASE_URL}firmware/microbit-face/city-face.hex" download>Download city face firmware (.hex)</a> · Copy it to the MICROBIT USB drive, then keep the board powered by USB or battery.</p>
     <p>After a power cycle or disconnection, the pairing button is available in Settings.</p>`;
   host.append(panel);
@@ -15,7 +15,8 @@ export function mountMicrobitFaceSetup(host: HTMLElement) {
 
 /** One connection survives the splash → designer → city navigation. */
 export function createMicrobitFaceConnection(getJourney: () => FaceJourney | undefined,
-  connect = (settings: BleSettings) => BleRobotTransport.connect(settings)) {
+  connect = (settings: BleSettings) => BleRobotTransport.connect(settings),
+  action: (action: FaceAction) => void = () => {}) {
   const unsupported = bluetoothUnavailableReason();
   const available = unsupported === undefined;
   let message = unsupported ?? 'Power on your microcontroller, then choose Pair to connect over Bluetooth.';
@@ -49,7 +50,9 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
       if (!settings.notify) throw new Error('The city face needs a notification characteristic to confirm its firmware. Command-only profiles can be used in Physical robots.');
       const transport = await connect(settings);
       if (disposed || generation !== attempt) { transport.disconnect(); return; }
-      candidate = new MicrobitFace(transport, message => { if (!disposed && generation === attempt) reset(message); });
+      candidate = new MicrobitFace(transport, message => { if (!disposed && generation === attempt) reset(message); }, command => {
+        if (!disposed && generation === attempt && !document.hidden && getJourney()) { action(command); tick(); }
+      });
       face = candidate;
       setMessage('Checking city face firmware…');
       await candidate.start();
@@ -64,7 +67,7 @@ export function createMicrobitFaceConnection(getJourney: () => FaceJourney | und
   }
   const tick = () => {
     const journey = document.hidden ? undefined : getJourney();
-    face?.update(journeyFace(journey), Date.now(), journey?.message);
+    face?.update(journeyFace(journey), Date.now(), journey?.message, journey?.moving);
   };
   const timer = window.setInterval(tick, 250);
   document.addEventListener('visibilitychange', tick);

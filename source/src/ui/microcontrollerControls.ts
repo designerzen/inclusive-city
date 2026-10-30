@@ -31,7 +31,7 @@ export function mountMicrocontrollerControls(host: HTMLElement, connection: Retu
       ? `<a href="${import.meta.env.BASE_URL}firmware/microbit-face/city-face.hex" download>Download micro:bit City Face firmware (.hex)</a>`
       : `<a href="${import.meta.env.BASE_URL}firmware/arduino-city-face/arduino-city-face.ino" download>Download Arduino City Face firmware (.ino)</a> · <a href="${import.meta.env.BASE_URL}firmware/arduino-city-face/README.md" target="_blank" rel="noopener">Setup instructions</a>`;
     host.querySelector<HTMLElement>('[data-mcu-help]')!.textContent = microbit
-      ? 'Copy the firmware to the MICROBIT USB drive, then keep the board powered. Its 5 × 5 LEDs show your robot’s face.'
+      ? 'Copy the firmware to the MICROBIT USB drive, then keep the board powered. LEDs show the robot’s face and scroll city messages. A: fix the current issue. B: read and scroll the issue again. A+B: mute or unmute board music.'
       : 'The Arduino firmware uses the built-in LED and USB serial output. Add an external display for a full robot face. Other boards need compatible city face firmware.';
     for (const field of host.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-mcu]')) {
       const key = field.dataset.mcu as keyof typeof settings.ble;

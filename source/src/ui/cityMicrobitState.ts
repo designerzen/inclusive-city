@@ -12,9 +12,11 @@ export function cityFaceSnapshot(journey: PlannedJourney, spoken?: CityFaceSpeec
   const context = cityFaceContext(journey), alert = cityRobotAlert(journey);
   const status = journey.complete ? "I've reached the Duet studio! Time for our duet."
     : journey.paused ? 'Journey paused.' : journey.waiting ? "I'm waiting for a green light and enough time to cross." : undefined;
-  const message = alert ? { id: `alert:${context}`, text: alert }
+  const repeatedAlert = spoken?.context === context && spoken.text === alert ? spoken : undefined;
+  const message = alert ? repeatedAlert ?? { id: `alert:${context}`, text: alert }
     : spoken?.context === context ? spoken
     : status ? { id: `status:${context}`, text: status } : undefined;
   return { complete: journey.complete, ready: journey.ready, paused: journey.paused, blocked: journey.blocked,
-    waiting: journey.waiting, mood: journey.machine.record.condition.mood, message };
+    waiting: journey.waiting, mood: journey.machine.record.condition.mood, message,
+    moving: !journey.ready && !journey.paused && !journey.complete && !journey.blocked && !journey.waiting };
 }

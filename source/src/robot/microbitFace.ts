@@ -4,9 +4,10 @@ import type { RobotMood } from './robotCondition';
 
 export type FaceCode = 'R' | 'M' | 'B' | 'P' | 'W' | 'H' | 'I' | 'T' | 'F' | 'E';
 export interface FaceMessage { id: string; text: string }
+export type FaceAction = 'fix' | 'repeat';
 export interface FaceJourney {
   complete: boolean; ready: boolean; paused: boolean; blocked: unknown; waiting: boolean;
-  mood?: RobotMood; message?: FaceMessage;
+  mood?: RobotMood; message?: FaceMessage; moving?: boolean;
 }
 export function journeyFace(journey?: FaceJourney): FaceCode {
   if (!journey) return 'I';
@@ -50,13 +51,20 @@ export class MicrobitFace {
   private messageKey?: string;
   private sequence = 0;
   private stopping = false;
+  private motionSupported = false;
+  private moving = false;
+  private lastMoving?: boolean;
   private transmission?: { frames: ReturnType<typeof faceMessageFrames>; index: number };
-  constructor(private transport: RobotTransport, private lost: (message: string) => void) {
+  constructor(private transport: RobotTransport, private lost: (message: string) => void,
+    private action: (action: FaceAction) => void = () => {}) {
     transport.onData = data => {
       for (const frame of this.decoder.accept(data)) {
-        if (frame === this.pending?.reply) {
+        if (this.pending?.reply === 'CITYFACE:2' && frame === 'CITYFACE:3') this.motionSupported = true;
+        if (frame === this.pending?.reply || this.pending?.reply === 'CITYFACE:2' && frame === 'CITYFACE:3') {
           const pending = this.pending; this.pending = undefined;
           clearTimeout(pending.timer); pending.resolve();
+        } else if (this.ready && !this.closed && this.desired !== 'I' && (frame === 'BTN:A' || frame === 'BTN:B')) {
+          this.action(frame === 'BTN:A' ? 'fix' : 'repeat');
         } else if (frame === 'ERR:FRAME') this.fail('The microcontroller rejected the face command. Reflash compatible city face firmware.');
       }
     };
@@ -66,8 +74,9 @@ export class MicrobitFace {
     try { await this.exchange('HELLO\n', 'CITYFACE:2'); this.ready = true; }
     catch (error) { this.disconnect(); throw error; }
   }
-  update(face: FaceCode, now = Date.now(), message?: FaceMessage) {
+  update(face: FaceCode, now = Date.now(), message?: FaceMessage, moving = false) {
     this.desired = face;
+    this.moving = face !== 'I' && moving;
     this.requestedAt = now;
     const key = message ? `${message.id}:${message.text}` : undefined;
     if (this.messageKey !== key) {
@@ -89,6 +98,10 @@ export class MicrobitFace {
         } else if (this.last !== this.desired || this.requestedAt - this.sentAt >= 1000) {
           const code = this.desired; this.last = code; this.sentAt = this.requestedAt;
           await this.exchange(`FACE:${code}\n`, `ACK:${code}`);
+        } else if (this.motionSupported && this.lastMoving !== this.moving) {
+          const moving = this.moving; this.lastMoving = moving;
+          const frame = `RUN:${moving ? 1 : 0}`;
+          await this.exchange(`${frame}\n`, frame);
         } else if (this.transmission) {
           const transmission = this.transmission, packet = transmission.frames[transmission.index]!;
           await this.exchange(packet.frame, packet.reply);

@@ -169,7 +169,7 @@ export function createWorkshopScene(engine: Engine, changeShape?: (part: RobotSh
     }
   }
   return {
-    scene, resize, setTheme, setName: bot.setName,
+    scene, resize, setTheme, setName: bot.setName, setShellId: bot.setShellId,
     setProfile(profile: RobotProfile) { bot.setProfile(profile); resize(); },
     feelSettings(change: EditorFeedback) { bot.characterAnimation.feel(change); feedbackSeconds = 2; bot.animateTravel(0, 1 / 60, reducedMotion.matches); },
     setAppearance(appearance: RobotAppearance, animate = false) { bot.setAppearance(appearance, animate && !reducedMotion.matches); if (!animate) bot.characterAnimation.react('pickup'); resize(); },

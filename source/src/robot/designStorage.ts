@@ -1,3 +1,4 @@
+import { shellIdPattern } from './shellIdentity';
 import { abilityPairs } from './abilities';
 import { bodyColours, bodyShapes, robotAccessories } from './appearance';
 import { createRobotProfile } from './functions';
@@ -15,6 +16,7 @@ const boundedNumber = (value: unknown, min: number, max: number): value is numbe
 
 function validDesign(value: unknown, index: number): value is RobotDesign {
   if (!object(value) || value.id !== index + 1 || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60) return false;
+  if (value.shellId !== undefined && (typeof value.shellId !== 'string' || !shellIdPattern.test(value.shellId))) return false;
   const { appearance, profile, creative } = value;
   if (!object(appearance) || !bodyShapes.some(shape => shape === appearance.shape) || !object(appearance.colour)) return false;
   if (appearance.headShape !== undefined && !bodyShapes.some(shape => shape === appearance.headShape)) return false;

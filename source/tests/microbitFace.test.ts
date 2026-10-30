@@ -27,7 +27,7 @@ function board() {
     },
     led: { plot(x: number, y: number) { pixels[y * 5 + x] = true; }, stopAnimation() { stops++; } },
     input: { runningTime: () => time, onButtonPressed(button: string, handler: () => void) { handlers[button] = handler; } },
-    Button: { B: 'B' },
+    Button: { A: 'A', B: 'B', AB: 'AB' },
     music: {
       setVolume(value: number) { volume = value; },
       stopAllSounds() { soundStops++; },
@@ -49,6 +49,8 @@ function board() {
     get volume() { return volume; }, get soundStops() { return soundStops; },
     onTone(callback: () => void) { duringTone = callback; },
     pressB() { handlers.B(); },
+    pressA() { handlers.A(); },
+    pressAB() { handlers.AB(); },
     get stops() { return stops; },
     onScroll(callback: () => void) { duringScroll = callback; },
     connect: () => handlers.connect(), disconnect: () => handlers.disconnect(),
@@ -76,7 +78,7 @@ test('journey expressions follow real state precedence, including pause at a bar
 test('actual firmware boots ready to pair, renders distinct expressions and recovers after stale data/reboot', () => {
   const b = board(), pairing = [...b.pixels], expressions = new Set<string>();
   assert.ok(pairing.some(Boolean)); b.connect();
-  b.receive('HELLO'); b.tick(); assert.equal(b.sent.at(-1), 'CITYFACE:2\n');
+  b.receive('HELLO'); b.tick(); assert.equal(b.sent.at(-1), 'CITYFACE:3\n');
   for (const code of codes) {
     b.receive(`FACE:${code}`); b.tick(); assert.equal(b.sent.at(-1), `ACK:${code}\n`);
     expressions.add(b.pixels.map(Number).join(''));
@@ -239,16 +241,78 @@ test('speaker cues are brief, follow mood changes and messages, and do not repea
   assert.ok(b.notes.every(note => note.ms === 70));
 });
 
-test('Button B mutes only musical notes, and STOP/disconnect/watchdog interrupt a tune', () => {
+test('A+B mutes only musical notes, and STOP/disconnect/watchdog interrupt a tune', () => {
   const b = board(); b.connect(); b.receive('FACE:E'); b.flush();
-  b.pressB(); b.audio(); assert.equal(b.notes.length, 0);
+  b.pressAB(); b.audio(); assert.equal(b.notes.length, 0);
   for (const p of faceMessageFrames('Still speaking', 1)) { b.receive(p.frame.slice(0, -1)); b.flush(); }
   b.audio(); b.display(); assert.deepEqual(b.scrolled, ['Still speaking']); assert.equal(b.notes.length, 0);
-  b.pressB(); b.audio(); assert.equal(b.notes.length, 4);
+  b.pressAB(); b.audio(); assert.equal(b.notes.length, 4);
   for (const interrupt of [() => b.receive('STOP'), () => b.disconnect(), () => b.flush(5001)]) {
     b.connect(); b.receive('FACE:E'); b.flush(); const before = b.notes.length;
     b.onTone(interrupt); b.audio(); assert.equal(b.notes.length, before + 1);
     b.audio(); assert.equal(b.notes.length, before + 1);
   }
   assert.ok(b.soundStops > 0);
+});
+
+test('board buttons request fix/repeat only in a live city session, including during scrolling', () => {
+  const b = board(); b.pressA(); b.pressB(); b.flush(); assert.deepEqual(b.sent, []);
+  b.connect(); b.pressA(); b.pressB(); b.flush(); assert.deepEqual(b.sent, []);
+  b.receive('FACE:B'); b.flush();
+  for (const p of faceMessageFrames('The curb is too high.', 1)) { b.receive(p.frame.trimEnd()); b.flush(); }
+  b.onScroll(() => { b.pressA(); b.pressB(); b.flush(); }); b.display();
+  assert.deepEqual(b.sent.slice(-2), ['BTN:A\n', 'BTN:B\n']);
+  const count = b.sent.length;
+  b.receive('FACE:I'); b.flush(); b.pressA(); b.pressB(); b.flush(); assert.equal(b.sent.length, count + 1);
+  b.receive('FACE:B'); b.flush(5001); const stale = b.sent.length;
+  b.pressA(); b.pressB(); b.flush(); assert.equal(b.sent.length, stale);
+});
+
+test('movement phrases vary, are spaced apart, and stop immediately on pause, idle or mute', () => {
+  const b = board(); b.connect(); b.receive('FACE:H'); b.flush(); b.audio();
+  b.receive('RUN:1'); b.flush(); const start = b.notes.length; b.audio();
+  const first = b.notes.slice(start).map(n => n.frequency); assert.equal(first.length, 4);
+  b.audio(); assert.equal(b.notes.length, start + 4);
+  b.flush(2400); b.audio(); assert.notDeepEqual(b.notes.slice(-4).map(n => n.frequency), first);
+  b.flush(2400); const before = b.notes.length;
+  b.onTone(() => { b.receive('RUN:0'); b.flush(); }); b.audio();
+  assert.equal(b.notes.length, before + 1);
+  b.flush(2400); b.audio(); assert.equal(b.notes.length, before + 1);
+  b.receive('RUN:1'); b.flush(); b.pressAB(); b.audio(); assert.equal(b.notes.length, before + 1);
+  b.receive('FACE:I'); b.flush(); b.pressAB(); b.audio(); assert.equal(b.notes.length, before + 1);
+});
+
+test('v3 board buttons reach the browser during ACKs and replay identical issue text with a new identity', async () => {
+  const b = board(); b.connect(); let cursor = 0, repeats = 0, fixes = 0;
+  const text = 'The curb is too high.';
+  const drain = () => { while (cursor < b.sent.length) t.onData(new TextEncoder().encode(b.sent[cursor++])); };
+  const t: RobotTransport = { id: 'board', name: 'Firmware harness', onData() {}, onDisconnect() {}, disconnect() { b.disconnect(); },
+    async send(data) { b.receive(new TextDecoder().decode(data).slice(0, -1)); b.flush(); drain(); } };
+  const f = new MicrobitFace(t, assert.fail, action => {
+    if (action === 'repeat') f.update('B', 1100, { id: `repeat:${++repeats}`, text });
+    else { fixes++; f.update('M', 1200, undefined, true); }
+  });
+  try {
+    await f.start(); f.update('B', 1000, { id: 'barrier', text }); await settle(); b.display();
+    b.pressB(); b.flush(); drain(); await settle(); b.display();
+    assert.equal(repeats, 1); assert.deepEqual(b.scrolled, [text, text]);
+    b.pressA(); b.flush(); drain(); await settle(); assert.equal(fixes, 1);
+    b.audio(); assert.ok(b.notes.length > 0);
+    f.update('I', 1300); await settle(); const count = b.notes.length; b.audio(); assert.equal(b.notes.length, count);
+    // Ignore unsolicited, malformed and post-disconnect input; never treat buttons as an ACK.
+    t.onData(new TextEncoder().encode('BTN:A\nBTN:X\n')); assert.equal(fixes, 1);
+    f.disconnect(); t.onData(new TextEncoder().encode('BTN:B\n')); assert.equal(repeats, 1);
+  } finally { f.disconnect(); }
+});
+
+test('button events do not consume an in-flight ACK and older v2 firmware receives no RUN commands', async () => {
+  const t = transport(), actions: string[] = [], f = new MicrobitFace(t.t, assert.fail, action => actions.push(action));
+  try {
+    t.receive('BTN:A\n'); assert.deepEqual(actions, []);
+    const started = f.start(); t.receive('CITYFACE:2\n'); await started;
+    f.update('M', 1000, undefined, true);
+    t.receive('BTN:B\n'); await settle(); assert.deepEqual(actions, ['repeat']);
+    assert.equal(t.sent.at(-1), 'FACE:M\n');
+    t.receive('ACK:M\n'); await settle(); assert.equal(t.sent.length, 2);
+  } finally { f.disconnect(); }
 });

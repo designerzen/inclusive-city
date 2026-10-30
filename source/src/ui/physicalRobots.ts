@@ -141,7 +141,7 @@ export function mountPhysicalRobots(host: HTMLElement, getJourney: () => Planned
       }
       const progress = Math.round((view.run?.journey.machine.record.telemetry?.progress ?? 0) * 100);
       const stale = session.lastReceived && Date.now() - session.lastReceived > 3000;
-      const text = `${session.connected ? 'Connected' : 'Disconnected'}${session.report?.status ? ` · reported ${session.report.status}` : ''}${view.run ? ` · route ${progress}%` : ''}${stale ? ' · sensor data stale' : ''}. ${session.message}`;
+      const text = `${session.connected ? 'Connected' : 'Disconnected'}${session.report?.status ? ` · reported ${session.report.status}` : ''}${view.run ? ` · route ${progress}%` : ''}${stale ? ' · sensor data stale' : ''}. ${session.message}${session.report?.shellId ? ` · Last QR shell: ${session.report.shellId}` : ''}`;
       if (view.output.textContent !== text) view.output.textContent = text;
       const logText = [...session.messages.slice(-4).map(m => m.text), session.pendingText].filter(Boolean).join('\n'); if (view.log.textContent !== logText) view.log.textContent = logText;
       for (const button of view.card.querySelectorAll<HTMLButtonElement>('button')) {

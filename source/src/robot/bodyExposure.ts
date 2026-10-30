@@ -10,17 +10,18 @@ export const exposureLabels = {
   lightLeft: 'Left light sensor', lightRight: 'Right light sensor', infrared: 'Infrared receiver',
   lineOuterLeft: 'Line sensor · outer left', lineInnerLeft: 'Line sensor · inner left',
   lineCentre: 'Line sensor · centre', lineInnerRight: 'Line sensor · inner right', lineOuterRight: 'Line sensor · outer right',
-  microphone: 'micro:bit V2 microphone',
+  microphone: 'micro:bit V2 microphone', qrReader: 'Forward-facing QR code reader',
 };
 export type ExposureKey = keyof typeof exposureLabels;
 export interface ExposureSettings {
   enabled: Record<ExposureKey, boolean>;
+  qrReaderHeight?: number;
   margin: number; frontOffset: number; matrixHeight: number; laserHeight: number; laserTilt: number;
 }
-export const exposureRanges = { margin: [2, 10, 1], frontOffset: [20, 70, 1], matrixHeight: [35, 100, 1], laserHeight: [100, 230, 1], laserTilt: [-30, 30, 1] } as const;
+export const exposureRanges = { qrReaderHeight: [40, 220, 1], margin: [2, 10, 1], frontOffset: [20, 70, 1], matrixHeight: [35, 100, 1], laserHeight: [100, 230, 1], laserTilt: [-30, 30, 1] } as const;
 export const defaultExposure: ExposureSettings = {
   enabled: Object.fromEntries(Object.keys(exposureLabels).map(key => [key, !['lightLeft', 'lightRight', 'infrared'].includes(key)])) as Record<ExposureKey, boolean>,
-  margin: 5, frontOffset: 45, matrixHeight: 60, laserHeight: 175, laserTilt: 0,
+  qrReaderHeight: 110, margin: 5, frontOffset: 45, matrixHeight: 60, laserHeight: 175, laserTilt: 0,
 };
 export function normaliseExposure(input: unknown): ExposureSettings {
   const data = input && typeof input === 'object' ? input as Partial<ExposureSettings> : {};
@@ -47,6 +48,8 @@ export function exposureZones(settings: ExposureSettings): ExposureZone[] {
     ...(['lineOuterLeft', 'lineInnerLeft', 'lineCentre', 'lineInnerRight', 'lineOuterRight'] as ExposureKey[]).map((key, i) => ({
       key, origin: [(i - 2) * 18, 8, z] as Point3, forward: [0, -1, 0] as Point3, right: [1, 0, 0] as Point3, up: [0, 0, 1] as Point3, halfWidth: 4, halfHeight: 4, spread: Math.tan(25 * Math.PI / 180),
     })),
+    // Provisional reader aperture / 40-degree full view. Measure the fitted module.
+    zone('qrReader', [0, settings.qrReaderHeight ?? 110, z], 10, 10, 20),
     zone('microphone', [17, settings.matrixHeight + 18, z], 6, 6),
   ].filter(zone => settings.enabled[zone.key]);
 }

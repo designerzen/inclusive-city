@@ -5,6 +5,7 @@ import type { DecorationSettings } from './bodyDecoration';
 import { profiledFaces } from './bodyProfiles';
 import { bendAllowance, developCardWalls, embedCard, makeBend, move, neutralRadius } from './cardMaterial';
 import { bodyFoldingPose } from './bodyFolding';
+import { shellLabelGuide } from './bodyShellLabel';
 import { roofInstructions } from './bodyRoof';
 import { checkBodyStructure } from './bodyStructure';
 /** Millimetres throughout. Rigid planar walls, cut at one closing generator. */
@@ -166,7 +167,7 @@ export function slottedFacePieces(model: BodyModel): Point[][] {
 }
 const number = (n: number) => n.toFixed(4);
 const points = (list: Point[]) => list.map(p => p.map(number).join(',')).join(' ');
-export function bodySvg(model: BodyModel, annotated = false): string {
+export function bodySvg(model: BodyModel, annotated = false, shellId?: string): string {
   const { bounds: b, p } = model, margin = annotated ? 20 : 5;
   const exposure = model.exposure;
   const cutPaths = exposure.active ? exposure.net.flatMap(polygon => polygon.map(ring => `<polygon points="${points(ring)}"/>`)).join('') : `<polygon points="${points(model.boundary)}"/>${model.slots.map(s => `<polygon points="${points(s)}"/>`).join('')}`;
@@ -182,5 +183,5 @@ export function bodySvg(model: BodyModel, annotated = false): string {
     if (!exposure.ornaments[i].length) return '';
     const hinge = facet.hinges.at(-1)!, a = hinge.edge[0], c = hinge.edge[1];
     return `<text font-size="3" x="${number((a[0] + c[0]) / 2)}" y="${number((a[1] + c[1]) / 2 + 3)}" text-anchor="middle">${hinge.angle < 0 ? 'REV' : 'OUT'} ${Math.round(Math.abs(hinge.angle) * 180 / Math.PI)}°</text>`;
-  }).join('')}<text x="${b.x}" y="${b.y - 12}">${p.thickness} mm card · inside R ${p.bendRadius} mm · K ${(p.neutralAxis/100).toFixed(2)} · fit clearance ${p.slotClearance} mm</text><text x="${b.x}" y="${b.y - 6}">CUT red · SCORE blue · BEND amber · OUT outward / REV reverse · mm · print 100%</text></g>` : ''}</svg>`;
+  }).join('')}<text x="${b.x}" y="${b.y - 12}">${p.thickness} mm card · inside R ${p.bendRadius} mm · K ${(p.neutralAxis/100).toFixed(2)} · fit clearance ${p.slotClearance} mm</text><text x="${b.x}" y="${b.y - 6}">CUT red · SCORE blue · BEND amber · OUT outward / REV reverse · mm · print 100%</text></g>` : ''}${annotated && shellId ? shellLabelGuide(model, shellId) : ''}</svg>`;
 }

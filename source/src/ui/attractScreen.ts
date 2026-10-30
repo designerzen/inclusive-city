@@ -38,6 +38,7 @@ export function mountAttractScreen(container: HTMLElement, sounds: CitySounds, e
         <a href="${import.meta.env.BASE_URL}robot-body.html">Robot body designer</a>
         <a href="${import.meta.env.BASE_URL}traffic-light.html">Traffic light</a>
         <a href="${import.meta.env.BASE_URL}figure-eight.html">Figure of eight</a>
+        <a href="${import.meta.env.BASE_URL}firmware/microbit-face/city-face.hex" download>Download micro:bit firmware</a>
       </nav>
       <div class="attract-controls">
         <button class="secondary" id="attract-music" type="button" aria-pressed="false"><span class="attract-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="attract-music-label">Play soundtrack</span></button>

@@ -40,7 +40,7 @@ export function arrangeBodyDesigner(root: HTMLElement) {
   const material = take('.material-options'), decoration = take('.decoration-options'), hardware = take('.exposure-options');
   for (const section of [material, decoration, hardware]) section.querySelector('h2')?.classList.add('visually-hidden');
   const fit = take<HTMLDetailsElement>('.body-panel > details'); fit.id = 'group-fit'; fit.classList.add('control-group'); fit.append(take('#reset-body'));
-  const designGroups = [shape, group('roof', 'Roofs & lids', [take('.roof-options')]), group('decoration', 'Appendages & windows', [decoration]), group('material', 'Card & bend tolerances', [material]), group('hardware', 'Hardware openings', [hardware]), fit, group('surprises', 'Surprise options', [surpriseHelp, take('#surprise-appendages'), take('#surprise-windows')])];
+  const designGroups = [shape, group('shell-identity', 'Shell identity & QR reader', [take('.shell-identity-options')]), group('roof', 'Roofs & lids', [take('.roof-options')]), group('decoration', 'Appendages & windows', [decoration]), group('material', 'Card & bend tolerances', [material]), group('hardware', 'Hardware openings', [hardware]), fit, group('surprises', 'Surprise options', [surpriseHelp, take('#surprise-appendages'), take('#surprise-windows')])];
   const folding = take('.fold-controls'), caption = take('.preview-caption'), viewActions = take('.view-actions');
   const status = take('#fit-status'), exports = take('.body-export'), exportNote = take('.export-note'), guide = take('#making');
   const back = take<HTMLAnchorElement>('.back-link'), switcher = take('.view-switch'), random = take('#random-body');

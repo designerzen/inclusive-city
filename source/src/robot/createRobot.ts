@@ -17,11 +17,13 @@ import { createShapeTransition } from './shapeTransition';
 import { createAccessories } from './accessories';
 import { createBatteries } from './batteries';
 import { audioSpectrum } from '../audio/AudioSpectrum';
+import { newShellId, shellPayload, qrReaderSpecification } from './shellIdentity';
+import { createShellHardware } from './shellHardware';
 import { robotInitials } from './robotIdentity';
 import { robotNameTooltip } from './robotNameTooltip';
 import { reducedMotionPreference } from '../app/accessibilityPreferences';
 
-export function createRobot(scene: Scene) {
+export function createRobot(scene: Scene, shellId = newShellId()) {
   function material(name: string, hex: string, emissive = false) {
     const result = new StandardMaterial(name, scene);
     result.diffuseColor = Color3.FromHexString(hex);
@@ -62,6 +64,12 @@ export function createRobot(scene: Scene) {
     return mesh;
   }
   const body = shellMesh('body', .85);
+  const hardware = createShellHardware(scene, upperBody, shellId);
+  function setShellId(id: string) {
+    hardware.setIdentity(id);
+    robot.metadata = { ...robot.metadata, shell: { id, qrPayload: shellPayload(id), reader: qrReaderSpecification } };
+  }
+  setShellId(shellId);
   const bodyTransition = createShapeTransition(body, [...body.getVerticesData(VertexBuffer.PositionKind)!], [1.5, 1.5, .85]);
   const headRig = new TransformNode('head-rig', scene);
   headRig.parent = upperBody;
@@ -370,7 +378,7 @@ export function createRobot(scene: Scene) {
       star.rotation.z = pose.accent * (i % 2 ? -.6 : .6);
     });
   }
-  return { robot, setName, setProfile, setAppearance, updateShapeTransition, animateTravel, characterAnimation,
+  return { robot, setName, setShellId, setProfile, setAppearance, updateShapeTransition, animateTravel, characterAnimation,
     setCondition(value: RobotCondition) { batteries.setCharge(value.batteryCharge); characterAnimation.condition = value; characterAnimation.mood = value.mood; robot.metadata = { ...robot.metadata, condition: value }; },
     setSpeaking(value: boolean) { speaking = value; }, setAttention(value: PointerAttention) { attention = { ...value }; } };
 }

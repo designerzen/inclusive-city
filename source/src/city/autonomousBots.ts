@@ -23,7 +23,7 @@ export function createAutonomousBots(scene: Scene, world: ProceduralCity, physic
     model.setAppearance({ ...defaultAppearance(), colour: bodyColours[(i + 1) % bodyColours.length]!, shape: bodyShapes[i % bodyShapes.length]!, width: .75, height: .8 });
     model.robot.name = `city-bot-${i + 1}`;
     model.robot.scaling.setAll(.5);
-    model.robot.getChildMeshes().forEach(mesh => { mesh.isPickable = false; mesh.metadata = { autonomousBot: i + 1 }; });
+    model.robot.getChildMeshes().forEach(mesh => { mesh.isPickable = false; mesh.metadata = { ...mesh.metadata, autonomousBot: i + 1 }; });
     const radius = .55, height = 1.725;
     const character = physics.addRobot(`city-bot-${i + 1}`, new Vector3(node.x, .075 + height / 2, node.z), radius, height);
     return { id: `city-bot-${i + 1}`, name: `City robot ${i + 1}`, buttonReach: 1.5,

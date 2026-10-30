@@ -1,8 +1,10 @@
+import { parseShellPayload } from '../shellIdentity';
 import type { RobotTransport } from './transport';
 export type RobotAction = 'start' | 'hold' | 'resume' | 'stop';
 export interface CommandSettings { start: string; hold: string; resume: string; stop: string; ending: 'newline' | 'none'; }
 export const defaultCommands: CommandSettings = { start: 'START', hold: 'PAUSE', resume: 'RESUME', stop: 'STOP', ending: 'newline' };
 export interface SensorReport {
+  qrPayload?: string; shellId?: string;
   distanceMm?: number; speedMmS?: number; battery?: number; lineConfidence?: number; obstacleMm?: number;
   status?: 'ready' | 'following' | 'held' | 'stopped' | 'fault'; event?: 'marker' | 'arrived';
   code?: number; markerIndex?: number; sequence?: number;
@@ -13,6 +15,10 @@ export function sensorReport(value: unknown): SensorReport | undefined {
   for (const key of ['distanceMm', 'speedMmS', 'battery', 'lineConfidence', 'obstacleMm'] as const) if (input[key] !== undefined) {
     const n = input[key], max = key === 'battery' ? 100 : key === 'lineConfidence' ? 1 : 10000000;
     if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > max) throw new Error(`Invalid sensor ${key}.`); result[key] = n;
+  }
+  if (input.qrPayload !== undefined) {
+    if (typeof input.qrPayload !== 'string' || !parseShellPayload(input.qrPayload)) throw new Error('Invalid shell QR identity.');
+    result.qrPayload = input.qrPayload; result.shellId = parseShellPayload(input.qrPayload);
   }
   if (input.status !== undefined) {
     if (!['ready', 'following', 'held', 'stopped', 'fault'].includes(String(input.status))) throw new Error('Invalid robot status.');
@@ -30,6 +36,7 @@ export function parseSensorText(text: string): SensorReport | undefined {
   const match = /^([a-zA-Z]+)\s*:\s*(.+)$/.exec(text); if (!match) return;
   const aliases: Record<string, string> = { distance: 'distanceMm', distancemm: 'distanceMm', speed: 'speedMmS', speedmms: 'speedMmS', battery: 'battery', lineconfidence: 'lineConfidence', obstacle: 'obstacleMm', obstaclemm: 'obstacleMm', status: 'status' };
   const key = match[1]!.toLowerCase();
+  if (key === 'qr') return sensorReport({ qrPayload: match[2]!.trim() });
   if (key === 'marker') return sensorReport({ event: 'marker', code: Number(match[2]) });
   const field = aliases[key]; if (!field) return;
   return sensorReport({ [field]: field === 'status' ? match[2]!.trim().toLowerCase() : Number(match[2]) });

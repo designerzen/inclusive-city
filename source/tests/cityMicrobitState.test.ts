@@ -32,3 +32,17 @@ test('spoken city messages keep their event identity and are discarded after the
   journey.blocked = { id: 'wall:Studio:front', reason: 'Building collision' };
   assert.notEqual(cityFaceSnapshot(journey).message?.id, first?.id);
 });
+
+test('repeating the current issue gets a fresh scroll identity and stops movement music', () => {
+  const journey = fixture(); journey.start();
+  assert.equal(cityFaceSnapshot(journey).moving, true);
+  journey.blocked = { id: 'wall:Studio:front', reason: 'Building collision' };
+  const first = cityFaceSnapshot(journey);
+  assert.equal(first.moving, false);
+  const repeated = { id: 'speech:repeat', text: first.message!.text, context: cityFaceContext(journey) };
+  assert.equal(cityFaceSnapshot(journey, repeated).message, repeated);
+  assert.notEqual(repeated.id, first.message!.id);
+  journey.blocked = null; journey.setPaused(true);
+  assert.equal(cityFaceSnapshot(journey).moving, false);
+  assert.notEqual(cityFaceSnapshot(journey, repeated).message?.id, repeated.id);
+});

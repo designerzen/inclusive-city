@@ -140,10 +140,10 @@ button.attract-enter:hover { transform: translateY(-3px); background: var(--butt
   .attract-tagline { font-size: var(--text-body); margin: 8px 0 12px; }
   .attract-stage { height: 100%; margin-top: 0; }
   .attract-sticker-groove { width: 72px; height: 72px; font-size: var(--text-caption); top: 13%; }
-  .attract-footer { gap: 12px; margin-top: 0; }
+  .attract-footer { flex-wrap: wrap; gap: 12px; margin-top: 0; }
   .attract-rix img { width: 72px; }
   .attract-qr { display: none; }
-  .attract-projection-links { display: grid; grid-template-columns: repeat(2, max-content); gap: 0 8px; }
+  .attract-projection-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 0 8px; }
   .attract-controls { width: 100%; justify-content: space-between; gap: 6px; }
   .attract-cloud { width: 120vw; height: 120vw; }
 }
@@ -532,3 +532,5 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe6a5; outline-
 .workshop.attract-mode #app-options > span:first-child { display: block; font-size: var(--text-title); line-height: 1; }
 .workshop.attract-mode #app-options .settings-label { display: none; }
 .attract-projection-links { min-width: 0; }
+
+#shell-designer-link { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding: 8px 12px; font-size: var(--text-control); color: var(--ui-ink); }

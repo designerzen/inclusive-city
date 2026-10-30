@@ -1,3 +1,4 @@
+import { newShellId } from './shellIdentity';
 import { defaultAbilities } from './abilities';
 import { defaultAppearance, randomiseAppearance } from './appearance';
 import { createRobotProfile, defaultFunctions } from './functions';
@@ -12,6 +13,7 @@ import type { DesignStorage } from './designStorage';
 
 export interface ArtBot {
   id: number;
+  shellId?: string;
   name: string;
   appearance: RobotAppearance;
   profile: RobotProfile;
@@ -30,7 +32,11 @@ export class BotHistory {
     if (scientistNames.length < 2) throw new Error('At least two scientist surnames are required.');
     const saved = loadDesigns(storage);
     if (saved) {
-      this.bots = saved.bots.map(design => ({ ...design, record: createRobotRecord(design) }));
+      const used = new Set<string>();
+      this.bots = saved.bots.map(old => {
+        const id = old.shellId && !used.has(old.shellId) ? old.shellId : newShellId(); used.add(id);
+        const design = { ...old, shellId: id }; return { ...design, record: createRobotRecord(design) };
+      });
       this.cursor = saved.cursor;
       this.customName = saved.customName;
       // Older saves did not distinguish manual names from generated names.
@@ -38,9 +44,10 @@ export class BotHistory {
       if (this.customName === undefined && this.current.name !== defaultName && !scientistNames.includes(this.current.name)) {
         this.customName = this.current.name;
       }
+      this.save();
       return;
     }
-    const design = { id: 1, name: this.chooseName(), appearance: defaultAppearance(), profile: createRobotProfile(defaultAbilities(), defaultFunctions()) };
+    const design = { shellId: newShellId(), id: 1, name: this.chooseName(), appearance: defaultAppearance(), profile: createRobotProfile(defaultAbilities(), defaultFunctions()) };
     this.bots = [{ ...design, record: createRobotRecord(design) }];
     this.save();
   }
@@ -65,7 +72,7 @@ export class BotHistory {
   selectPreset(presetId: string): ArtBot {
     let index = this.bots.findIndex(bot => bot.presetId === presetId);
     if (index === -1) {
-      const design = presetDesign(presetId, this.bots.length + 1);
+      const design = { ...presetDesign(presetId, this.bots.length + 1), shellId: newShellId() };
       this.bots.push({ ...design, record: createRobotRecord(design) });
       index = this.bots.length - 1;
     }
@@ -78,7 +85,7 @@ export class BotHistory {
   next(): ArtBot {
     if (this.cursor === this.bots.length - 1) {
       const design = {
-        id: this.bots.length + 1,
+        id: this.bots.length + 1, shellId: newShellId(),
         name: this.customName ?? this.chooseName(this.current.name),
         appearance: randomiseAppearance(this.current.appearance, this.random),
         profile: structuredClone(this.current.profile),

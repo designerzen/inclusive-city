@@ -366,7 +366,7 @@ export function createCityScene(engine: Engine, bot: ArtBot, world: ProceduralCi
   goalRing.position.set(goal.x, .25, goal.z); goalRing.material = goalMaterial; goalRing.isPickable = false;
   createGoalFlag(scene, goal, goalMaterial, flagBlack, flagWhite);
   const flagParts = scene.meshes.filter(m => m.name.startsWith('goal-flag'));
-  const robot = createRobot(scene); robot.setName(bot.name); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
+  const robot = createRobot(scene, bot.shellId ?? `BOT-${bot.id}`); robot.setName(bot.name); robot.setAppearance(bot.appearance); robot.setProfile(bot.profile); robot.robot.scaling.setAll(.5);
   // The city HUD owns the single name / obstacle bubble for the player.
   robot.robot.metadata = { ...robot.robot.metadata, hideNameTooltip: true };
   const instruments = createStudioInstruments(scene, bot.appearance.height); instruments.root.setEnabled(false);

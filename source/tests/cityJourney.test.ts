@@ -94,7 +94,7 @@ test('adapting the city lets the same bot finish, and improvements persist on re
   assert.deepEqual(encountered, ['curb', 'crossing', 'sidewalk', 'bridge', 'stairs', 'elevator']);
   assert.equal(journey.complete, true);
   assert.deepEqual(journey.position, cityRoute.at(-1));
-  assert.deepEqual(robotMetadata(journey.bot), robotMetadata(bot()));
+  assert.deepEqual(robotMetadata(journey.bot), robotMetadata(original));
   journey.update(1000);
   assert.equal(journey.events.filter(event => event.type === 'arrived').length, 1);
   journey.restart();
